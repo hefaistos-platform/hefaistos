@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OpenTIDE Business Detection Rule (BDR) v2.1",
+  "type": "object",
+  "required": ["name", "metadata", "criticality", "domains", "targets", "platforms"],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^bdr_[a-z0-9_]+$",
+      "description": "Snake-case identifier for the BDR (e.g. bdr_t1059_001)"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["uuid", "schema", "version"],
+      "additionalProperties": true,
+      "properties": {
+        "uuid": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "description": "Unique identifier (UUID v4) for this BDR"
+        },
+        "schema": {
+          "type": "string",
+          "const": "bdr::2.1",
+          "description": "Schema identifier, must be bdr::2.1"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Version number of this object"
+        }
+      }
+    },
+    "criticality": {
+      "type": "string",
+      "enum": ["Low", "Medium", "High", "Critical"],
+      "description": "Business criticality level"
+    },
+    "domains": {
+      "type": "array",
+      "description": "Business domains impacted by this rule"
+    },
+    "targets": {
+      "type": "array",
+      "description": "Target assets or systems"
+    },
+    "platforms": {
+      "type": "array",
+      "description": "Technology platforms this rule applies to"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the business detection rule"
+    },
+    "violation": {
+      "type": "string",
+      "description": "Policy or compliance violation detected"
+    },
+    "justification": {
+      "type": "string",
+      "description": "Justification for this business rule"
+    }
+  }
+}

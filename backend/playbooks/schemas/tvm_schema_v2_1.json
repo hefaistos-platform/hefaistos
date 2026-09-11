@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OpenTIDE Threat Vector Model (TVM) v2.1",
+  "type": "object",
+  "required": ["name", "metadata"],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^tvm_[a-z0-9_]+$",
+      "description": "Snake-case identifier for the TVM (e.g. tvm_t1059_001)"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["uuid", "schema", "version", "tlp", "created", "modified"],
+      "additionalProperties": true,
+      "properties": {
+        "uuid": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "description": "Unique identifier (UUID v4) for this TVM"
+        },
+        "schema": {
+          "type": "string",
+          "const": "tvm::2.1",
+          "description": "Schema identifier, must be tvm::2.1"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Version number of this object"
+        },
+        "tlp": {
+          "type": "string",
+          "description": "Traffic Light Protocol classification"
+        },
+        "created": {
+          "type": "string",
+          "description": "ISO 8601 creation timestamp"
+        },
+        "modified": {
+          "type": "string",
+          "description": "ISO 8601 last-modified timestamp"
+        }
+      }
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the threat vector"
+    },
+    "mitre": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "technique_id": {
+          "type": "string",
+          "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$",
+          "description": "MITRE ATT&CK technique ID (e.g. T1059 or T1059.001)"
+        },
+        "technique_name": {
+          "type": "string",
+          "description": "MITRE ATT&CK technique name"
+        },
+        "tactic": {
+          "type": "string",
+          "description": "MITRE ATT&CK tactic"
+        }
+      }
+    },
+    "threat": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "att&ck": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "ATT&CK technique references"
+        },
+        "terrain": {
+          "type": "string",
+          "description": "Terrain or environment where the threat operates"
+        },
+        "leverage": {
+          "type": "array",
+          "description": "Attack leverage methods"
+        },
+        "impact": {
+          "type": "array",
+          "description": "Potential impact categories"
+        },
+        "viability": {
+          "type": "string",
+          "description": "Attack viability assessment"
+        },
+        "description": {
+          "type": "string",
+          "description": "Threat description"
+        }
+      }
+    }
+  }
+}

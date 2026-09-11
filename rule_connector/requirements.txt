@@ -1,0 +1,5 @@
+requests
+pika
+GitPython
+pyyaml
+-e ../hefaistos-sdk

@@ -1,0 +1,101 @@
+name: SHARP Version Bump
+
+on:
+  push:
+    branches:
+      - sharp
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    if: ${{ !contains(github.event.head_commit.message || '', '[skip version bump]') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next version
+        id: compute
+        run: |
+          set -Eeuo pipefail
+
+          before="${{ github.event.before }}"
+          after="${{ github.sha }}"
+
+          if [[ "${before}" == "0000000000000000000000000000000000000000" ]]; then
+            range="${after}"
+          else
+            range="${before}..${after}"
+          fi
+
+          current="$(tr -d '[:space:]' < VERSION)"
+          bump="$(scripts/versioning.sh detect-bump --range "${range}")"
+          next="$(scripts/versioning.sh bump "${current}" "${bump}")"
+          sharp="$(scripts/versioning.sh sharp "${next}" "${GITHUB_RUN_NUMBER}")"
+          tag="v${next}"
+
+          printf '%s\n' "${next}" > VERSION
+          NEW_BADGE="[![Platform Version](https://img.shields.io/badge/platform-${next}-0A66C2.svg)](./VERSION) <!-- hefaistos-version-badge -->" \
+            perl -0pi -e 's{\[!\[Platform Version\]\(https://img\.shields\.io/badge/platform-[0-9]+\.[0-9]+\.[0-9]+-0A66C2\.svg\)\]\(\./VERSION\) <!-- hefaistos-version-badge -->}{$ENV{NEW_BADGE}}g' README.md
+
+          {
+            echo "range=${range}"
+            echo "current=${current}"
+            echo "bump=${bump}"
+            echo "next=${next}"
+            echo "sharp=${sharp}"
+            echo "tag=${tag}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Generate version changelog
+        id: changelog
+        env:
+          NEXT_TAG: ${{ steps.compute.outputs.tag }}
+          RANGE: ${{ steps.compute.outputs.range }}
+        run: |
+          set -Eeuo pipefail
+
+          output_file="Versions/${NEXT_TAG}/changelog.md"
+
+          bash scripts/generate_changelog.sh \
+            --title "${NEXT_TAG}" \
+            --range "${RANGE}" \
+            --output "${output_file}"
+
+          echo "path=${output_file}" >> "${GITHUB_OUTPUT}"
+
+      - name: Commit VERSION bump
+        env:
+          NEXT_VERSION: ${{ steps.compute.outputs.next }}
+          CHANGELOG_PATH: ${{ steps.changelog.outputs.path }}
+        run: |
+          set -Eeuo pipefail
+
+          if git diff --quiet VERSION README.md "${CHANGELOG_PATH}"; then
+            echo "No version-related change detected; skipping commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VERSION README.md "${CHANGELOG_PATH}"
+          git commit -m "chore(version): bump to ${NEXT_VERSION} [skip version bump] [skip ci]"
+          git push
+
+      - name: Build summary
+        run: |
+          {
+            echo "## SHARP Version Update"
+            echo ""
+            echo "- Commit range: \`${{ steps.compute.outputs.range }}\`"
+            echo "- Previous base version: \`${{ steps.compute.outputs.current }}\`"
+            echo "- Applied bump: \`${{ steps.compute.outputs.bump }}\`"
+            echo "- New base version: \`${{ steps.compute.outputs.next }}\`"
+            echo "- SHARP artifact version: \`${{ steps.compute.outputs.sharp }}\`"
+            echo "- Changelog file: \`${{ steps.changelog.outputs.path }}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"

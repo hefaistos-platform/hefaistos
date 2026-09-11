@@ -1,0 +1,59 @@
+# =============================================================================
+# DOCKER COMPOSE OVERRIDE TEMPLATE (for development/local testing)
+# =============================================================================
+# Copy this file to docker-compose.override.yml for local environment
+# This file is NOT committed to version control
+# =============================================================================
+
+version: '3.8'
+
+services:
+  backend:
+    # Override image with local build for development
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DEBUG: "True"
+      DJANGO_LOG_LEVEL: DEBUG
+      FRONTEND_URL: https://localhost
+      PUBLIC_BASE_URL: https://localhost
+    volumes:
+      - ./backend:/app
+    command: python manage.py runserver 0.0.0.0:8000
+
+  frontend:
+    # Override image with local build for development
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:8000/graphql
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+  nginx:
+    ports:
+      - "80:8080"
+      - "443:8443"
+    environment:
+      SERVER_NAME: localhost
+
+  db:
+    # Expose for development debugging
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_INITDB_ARGS: --encoding=UTF8
+
+  rabbitmq:
+    ports:
+      - "5672:5672"
+      - "15672:15672"  # Management UI
+
+  # Add any other development overrides here

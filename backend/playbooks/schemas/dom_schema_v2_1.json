@@ -1,0 +1,192 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OpenTIDE Detection Objective Model (DOM) v2.1",
+  "type": "object",
+  "required": ["name", "metadata", "objective"],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^dom_[a-z0-9_]+$",
+      "description": "Snake-case identifier for the DOM (e.g. dom_t1059_001)"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["uuid", "schema", "version"],
+      "additionalProperties": true,
+      "properties": {
+        "uuid": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "description": "Unique identifier (UUID v4) for this DOM"
+        },
+        "schema": {
+          "type": "string",
+          "const": "dom::2.1",
+          "description": "Schema identifier, must be dom::2.1"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Version number of this object"
+        }
+      }
+    },
+    "tvm_ref": {
+      "type": "string",
+      "description": "Reference to the parent Threat Vector Model name"
+    },
+    "objective": {
+      "type": "object",
+      "description": "Detection objective block containing type, priority, description, composition, signals and threats",
+      "required": ["type"],
+      "additionalProperties": true,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Objective type, e.g. Threat or Business"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the detection objective"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Detection priority (e.g. Critical, High, Medium, Low, Informational)"
+        },
+        "composition": {
+          "type": ["string", "object"],
+          "description": "Whether this objective is atomic or composite (string) or a structured composition block (object)"
+        },
+        "signals": {
+          "type": "array",
+          "description": "Observable signals / data source mappings for this objective",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "uuid": {
+                "type": "string",
+                "description": "Unique identifier for this signal"
+              },
+              "id": {
+                "type": "string",
+                "description": "Short signal identifier (e.g. sig-001)"
+              },
+              "name": {
+                "type": "string",
+                "description": "Human-readable name for the signal"
+              },
+              "description": {
+                "type": "string",
+                "description": "Description of what this signal detects"
+              },
+              "severity": {
+                "type": "string",
+                "description": "Signal severity (e.g. Critical, High, Medium, Low)"
+              },
+              "methodology": {
+                "type": "string",
+                "enum": [
+                  "Artifacts",
+                  "Pattern Matching",
+                  "Event Search",
+                  "Statistical",
+                  "Behavioural",
+                  "Anomaly",
+                  "Machine Learning",
+                  "Heuristic",
+                  "Threat Intelligence"
+                ],
+                "description": "Detection methodology used by this signal"
+              },
+              "entities": {
+                "type": "array",
+                "description": "Threat surface entities observed by this signal (domain::Entity format)",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "host::Account",
+                    "cloud::Account",
+                    "host::User",
+                    "cloud::User",
+                    "host::Hostname",
+                    "network::IP Address",
+                    "host::Process",
+                    "host::Command Line"
+                  ]
+                }
+              },
+              "data": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Data source information for this signal",
+                "properties": {
+                  "availability": {
+                    "type": "string",
+                    "description": "Data availability status"
+                  },
+                  "requirements": {
+                    "type": "string",
+                    "description": "Prerequisites to collect this data"
+                  },
+                  "logsources": {
+                    "type": "array",
+                    "description": "Log sources required, in tool::name format",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "siem::Windows Security Events",
+                        "siem::Sysmon",
+                        "siem::Network Logs",
+                        "siem::Process Events",
+                        "siem::File Events",
+                        "siem::Registry Events",
+                        "siem::Authentication Events",
+                        "siem::Script Execution Events",
+                        "siem::Generic SIEM",
+                        "mde::Microsoft Defender XDR",
+                        "splunk::Splunk",
+                        "wazuh::Wazuh SIEM",
+                        "elastic::Elastic SIEM",
+                        "qradar::QRadar SIEM"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "threats": {
+          "type": "array",
+          "description": "Threat vector references (required when type is Threat)",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "triage_guidance": {
+      "type": "string",
+      "description": "Guidance for triaging alerts generated by this detection objective"
+    },
+    "response": {
+      "type": "object",
+      "description": "Response procedures and severity information",
+      "additionalProperties": true
+    },
+    "validation": {
+      "type": "object",
+      "description": "Validation and false-positive information",
+      "additionalProperties": true
+    },
+    "tags": {
+      "type": "array",
+      "description": "Classification tags for this detection objective",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+// TITLE: T1098.005: Account Manipulation
+// DESCRIPTION: Detects account manipulation activities including password changes, group modifications, and account attribute alterations
+// AUTHOR: Security Research Team
+// DATE: 2026-02-03
+// TAGS: attack.t1098.005, attack.persistence, account-manipulation, privilege-escalation
+// REFERENCES: https://attack.mitre.org/techniques/T1098/005/
+// STATUS: stable
+// LEVEL: high
+
+// This KQL rule detects various account manipulation activities across multiple log sources
+// It looks for suspicious changes to user accounts, group memberships, and account attributes
+
+// Detection 1: Suspicious AD User Account Modifications
+SecurityEvent
+| where EventID in (4738, 4742, 4743)  // User account changed, Computer account changed, User account deleted
+| where TimeGenerated > ago(24h)
+| where TargetUserName !in ("DummyAccount", "DefaultAccount")
+| project TimeGenerated, Computer, SubjectUserName, TargetUserName, EventID, Activity
+| summarize EventCount = count() by TargetUserName, Computer
+| where EventCount > 3
+
+---
+
+// Detection 2: Group Membership Changes
+SecurityEvent
+| where EventID in (4728, 4729, 4730, 4731, 4732, 4733, 4746, 4747, 4748, 4749, 4750, 4751, 4752, 4753, 4754, 4755, 4756, 4757, 4758, 4759, 4760, 4761, 4762, 4763)
+| where TimeGenerated > ago(24h)
+| where TargetUserName !in ("Administrators", "Domain Admins")
+| project TimeGenerated, Computer, SubjectUserName, TargetUserName, EventID
+| order by TimeGenerated desc
+
+---
+
+// Detection 3: Suspicious Account Attribute Changes
+SecurityEvent
+| where EventID == 5137  // Directory Service Object Added
+| where TimeGenerated > ago(24h)
+| where ObjectName contains "CN="
+| project TimeGenerated, Computer, SubjectUserName, ObjectName, Activity
+| summarize count() by SubjectUserName
+| where count_ > 5

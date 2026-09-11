@@ -1,0 +1,41 @@
+name: HEFAISTOS Backend CI
+
+on:
+  push:
+    branches: [ "sharp" ]
+  pull_request:
+    branches: [ "sharp" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+
+    - name: Lint with flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 backend --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings.
+        flake8 backend --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Run Tests
+      env:
+        FIELD_ENCRYPTION_KEY: "QpJHuDV9KfNqC5NsUlWy1of5JQIxlnnK1Vnkk0qgRgU="
+      run: |
+        python backend/manage.py test

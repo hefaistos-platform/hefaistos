@@ -1,0 +1,80 @@
+name: Create Stable Release Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "Commit SHA on sharp to tag (defaults to current sharp HEAD)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  tag-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve target and version
+        id: resolve
+        run: |
+          set -Eeuo pipefail
+
+          git fetch origin sharp --no-tags
+
+          input_sha="${{ github.event.inputs.target_sha }}"
+          if [[ -n "${input_sha}" ]]; then
+            target_sha="${input_sha}"
+          else
+            target_sha="$(git rev-parse origin/sharp)"
+          fi
+
+          git rev-parse --verify "${target_sha}^{commit}" >/dev/null
+
+          if ! git merge-base --is-ancestor "${target_sha}" origin/sharp; then
+            echo "Target SHA is not reachable from origin/sharp: ${target_sha}" >&2
+            exit 1
+          fi
+
+          version="$(git show "${target_sha}:VERSION" | tr -d '[:space:]')"
+          scripts/versioning.sh validate "${version}" >/dev/null
+          tag="v${version}"
+
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Tag already exists: ${tag}" >&2
+            exit 1
+          fi
+
+          {
+            echo "target_sha=${target_sha}"
+            echo "version=${version}"
+            echo "tag=${tag}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Create and push tag
+        env:
+          TARGET_SHA: ${{ steps.resolve.outputs.target_sha }}
+          TAG_NAME: ${{ steps.resolve.outputs.tag }}
+        run: |
+          set -Eeuo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG_NAME}" "${TARGET_SHA}" -m "HEFAISTOS PRO ${TAG_NAME}"
+          git push origin "${TAG_NAME}"
+
+      - name: Release summary
+        run: |
+          {
+            echo "## Stable Release Tag Created"
+            echo ""
+            echo "- Tag: \`${{ steps.resolve.outputs.tag }}\`"
+            echo "- Version: \`${{ steps.resolve.outputs.version }}\`"
+            echo "- Commit: \`${{ steps.resolve.outputs.target_sha }}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"

@@ -1,0 +1,34 @@
+{
+  "id": "hefaistos-fallback-attack-index",
+  "name": "Hefaistos Navigator Fallback Index",
+  "description": "Fallback ATT&CK collection index used when /navigator-data is not yet populated.",
+  "collections": [
+    {
+      "name": "Enterprise ATT&CK",
+      "versions": [
+        {
+          "version": "19.1",
+          "url": "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack-19.1.json"
+        }
+      ]
+    },
+    {
+      "name": "ICS ATT&CK",
+      "versions": [
+        {
+          "version": "19.1",
+          "url": "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/ics-attack/ics-attack-19.1.json"
+        }
+      ]
+    },
+    {
+      "name": "Mobile ATT&CK",
+      "versions": [
+        {
+          "version": "19.1",
+          "url": "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/mobile-attack/mobile-attack-19.1.json"
+        }
+      ]
+    }
+  ]
+}

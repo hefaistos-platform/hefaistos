@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OpenTIDE Managed Detection Rule (MDR) v2.1",
+  "type": "object",
+  "required": ["name", "metadata"],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^mdr_[a-z0-9_]+$",
+      "description": "Snake-case identifier for the MDR (e.g. mdr_t1059_001)"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["uuid", "schema", "version"],
+      "additionalProperties": true,
+      "properties": {
+        "uuid": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "description": "Unique identifier (UUID v4) for this MDR"
+        },
+        "schema": {
+          "type": "string",
+          "const": "mdr::2.1",
+          "description": "Schema identifier, must be mdr::2.1"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Version number of this object"
+        }
+      }
+    },
+    "platforms": {
+      "type": "array",
+      "description": "Operating system / platform targets for this rule",
+      "items": {
+        "type": "string"
+      }
+    },
+    "targets": {
+      "type": "array",
+      "description": "Target asset categories (e.g. Endpoints, Servers)",
+      "items": {
+        "type": "string"
+      }
+    },
+    "configurations": {
+      "type": "object",
+      "description": "Platform-specific detection rule configurations",
+      "additionalProperties": true,
+      "properties": {
+        "defender_for_endpoint": {
+          "type": "object",
+          "description": "Microsoft Defender for Endpoint KQL configuration",
+          "additionalProperties": true
+        },
+        "microsoft_sentinel": {
+          "type": "object",
+          "description": "Microsoft Sentinel Scheduled Query Rule configuration",
+          "additionalProperties": true
+        },
+        "splunk": {
+          "type": "object",
+          "description": "Splunk SPL configuration",
+          "additionalProperties": true
+        },
+        "wazuh": {
+          "type": "object",
+          "description": "Wazuh rule configuration",
+          "additionalProperties": true
+        },
+        "elastic": {
+          "type": "object",
+          "description": "Elastic/EQL configuration",
+          "additionalProperties": true
+        },
+        "qradar": {
+          "type": "object",
+          "description": "IBM QRadar AQL configuration",
+          "additionalProperties": true,
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "AQL WHERE clause for this rule"
+            }
+          }
+        }
+      }
+    }
+  }
+}

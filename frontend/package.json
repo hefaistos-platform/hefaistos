@@ -1,0 +1,103 @@
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@ant-design/icons": "6.1.0",
+    "@apollo/client": "3.11.0",
+    "@hello-pangea/dnd": "16.6.0",
+    "@monaco-editor/react": "4.6.0",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "13.5.0",
+    "@types/node": "26.0.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@types/react-syntax-highlighter": "15.5.13",
+    "@xyflow/react": "12.11.1",
+    "antd": "6.4.5",
+    "apollo-upload-client": "19.0.0",
+    "axios": "1.18.1",
+    "dayjs": "1.11.19",
+    "easymde": "2.20.0",
+    "graphql": "16.11.0",
+    "html-to-image": "1.11.13",
+    "js-yaml": "4.3.2",
+    "monaco-editor": "0.50.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-markdown": "9.1.0",
+    "react-router-dom": "7.9.5",
+    "react-scripts": "5.0.1",
+    "react-select": "5.10.2",
+    "react-simplemde-editor": "5.2.0",
+    "react-syntax-highlighter": "16.1.0",
+    "recharts": "2.10.3",
+    "rxjs": "7.8.1",
+    "web-vitals": "2.1.4",
+    "zustand": "5.0.8"
+  },
+  "overrides": {
+    "fast-uri": "3.1.4",
+    "js-yaml": "4.3.2",
+    "shell-quote": "1.9.0",
+    "svgo": "2.8.3",
+    "uuid": "11.1.1",
+    "websocket-driver": "0.7.5",
+    "webpack-dev-server": "5.2.6"
+  },
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "description": "HEFAISTOS frontend powered by Vite + React.",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "AGPL-3.0-only",
+  "devDependencies": {
+    "@tailwindcss/forms": "0.5.11",
+    "@tailwindcss/postcss": "4.3.1",
+    "@tailwindcss/typography": "0.5.20",
+    "@types/jest": "30.0.0",
+    "@types/js-yaml": "4.0.9",
+    "@vitejs/plugin-react": "6.0.3",
+    "autoprefixer": "10.5.2",
+    "postcss": "8.5.23",
+    "tailwindcss": "4.3.1",
+    "typescript": "6.0.3",
+    "vite": "8.1.0"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^@rc-component/([^/]+)/locale/(.*)$": "<rootDir>/node_modules/@rc-component/$1/lib/locale/$2.js",
+      "^@rc-component/([^/]+)/generate/(.*)$": "<rootDir>/node_modules/@rc-component/$1/lib/generate/$2.js",
+      "^react-router-dom$": "<rootDir>/node_modules/react-router-dom/dist/index.js",
+      "^react-router/dom$": "<rootDir>/node_modules/react-router/dist/development/dom-export.js",
+      "^react-router$": "<rootDir>/node_modules/react-router/dist/development/index.js"
+    }
+  }
+}

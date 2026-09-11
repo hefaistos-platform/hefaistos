@@ -1,0 +1,4 @@
+pika
+requests
+pymisp
+-e ../hefaistos-sdk
