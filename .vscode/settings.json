@@ -1,0 +1,10 @@
+{
+    "python.analysis.extraPaths": [
+        "/Users/th3r3d/.vscode/extensions/ms-security.ms-sentinel-1.2.0/python",
+        "/Users/th3r3d/.vscode/extensions/ms-security.ms-sentinel-1.3.0/python",
+        "/Users/th3r3d/.vscode/extensions/ms-security.ms-sentinel-2.0.1/python",
+        "/Users/th3r3d/.vscode/extensions/ms-security.ms-sentinel-2.0.2/python",
+        "/Users/th3r3d/.vscode/extensions/ms-security.ms-sentinel-2.2.0/python",
+        "/Users/th3r3d/.vscode/extensions/ms-security.ms-sentinel-2.3.0/python"
+    ]
+}
