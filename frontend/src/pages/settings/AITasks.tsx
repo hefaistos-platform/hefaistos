@@ -471,7 +471,7 @@ const AITasksTab: React.FC<{ canManage: boolean }> = ({ canManage }) => {
                       />
                     </Tooltip>
                     <select
-                      className="config-auth-native-select h-8 rounded border px-2 text-sm"
+                      className="config-auth-native-select rounded border px-2 py-1 text-sm leading-5"
                       style={{ width: 118 }}
                       value={normalizedSchedule}
                       disabled={saving}
@@ -485,7 +485,7 @@ const AITasksTab: React.FC<{ canManage: boolean }> = ({ canManage }) => {
                     </select>
                     {normalizedSchedule === 'WEEKLY' && (
                       <select
-                        className="config-auth-native-select h-8 rounded border px-2 text-sm"
+                        className="config-auth-native-select rounded border px-2 py-1 text-sm leading-5"
                         style={{ width: 128 }}
                         value={String(normalizedDayOfWeek)}
                         disabled={saving}
@@ -500,7 +500,7 @@ const AITasksTab: React.FC<{ canManage: boolean }> = ({ canManage }) => {
                     )}
                     {normalizedSchedule === 'MONTHLY' && (
                       <select
-                        className="config-auth-native-select h-8 rounded border px-2 text-sm"
+                        className="config-auth-native-select rounded border px-2 py-1 text-sm leading-5"
                         style={{ width: 96 }}
                         value={String(normalizedDayOfMonth)}
                         disabled={saving}
@@ -514,7 +514,7 @@ const AITasksTab: React.FC<{ canManage: boolean }> = ({ canManage }) => {
                       </select>
                     )}
                     <select
-                      className="config-auth-native-select h-8 rounded border px-2 text-sm"
+                      className="config-auth-native-select rounded border px-2 py-1 text-sm leading-5"
                       style={{ width: 100 }}
                       value={String(normalizedRunHour)}
                       disabled={saving}
@@ -527,7 +527,7 @@ const AITasksTab: React.FC<{ canManage: boolean }> = ({ canManage }) => {
                       ))}
                     </select>
                     <select
-                      className="config-auth-native-select h-8 rounded border px-2 text-sm"
+                      className="config-auth-native-select rounded border px-2 py-1 text-sm leading-5"
                       style={{ width: 88 }}
                       value={String(normalizedRunMinute)}
                       disabled={saving}
