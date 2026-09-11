@@ -539,42 +539,50 @@ code {
 .configuration-theme .config-auth-select .ant-select-selection-item,
 .configuration-theme .config-auth-select .ant-select-selection-search-input,
 .configuration-theme .config-auth-select .ant-select-arrow {
-  color: var(--hef-text-primary) !important;
-  -webkit-text-fill-color: var(--hef-text-primary) !important;
+  color: var(--ant-color-text, var(--hef-text-primary)) !important;
+  -webkit-text-fill-color: var(--ant-color-text, var(--hef-text-primary)) !important;
 }
 
-/* Force visible selected values in dark mode (including disabled selects). */
-:root[data-theme='dark'] .configuration-theme .config-auth-select.ant-select .ant-select-selector .ant-select-selection-item,
-:root[data-theme='dark'] .configuration-theme .config-auth-select.ant-select .ant-select-selector .ant-select-selection-placeholder,
-:root[data-theme='dark'] .configuration-theme .config-auth-select.ant-select .ant-select-selector .ant-select-selection-search-input,
-:root[data-theme='dark'] .configuration-theme .config-auth-select.ant-select .ant-select-arrow {
-  color: var(--hef-text-primary) !important;
-  -webkit-text-fill-color: var(--hef-text-primary) !important;
+.configuration-theme .config-auth-select.ant-select .ant-select-selector {
+  background: var(--ant-color-bg-container, var(--hef-bg-subtle)) !important;
+  border-color: var(--ant-color-border, var(--hef-border)) !important;
 }
 
-:root[data-theme='dark'] .configuration-theme .config-auth-select.ant-select.ant-select-disabled .ant-select-selector .ant-select-selection-item,
-:root[data-theme='dark'] .configuration-theme .config-auth-select.ant-select.ant-select-disabled .ant-select-selector .ant-select-placeholder,
-:root[data-theme='dark'] .configuration-theme .config-auth-select.ant-select.ant-select-disabled .ant-select-arrow {
-  color: var(--hef-text-primary) !important;
-  -webkit-text-fill-color: var(--hef-text-primary) !important;
-  opacity: 1 !important;
+.configuration-theme .config-auth-select.ant-select .ant-select-selection-item,
+.configuration-theme .config-auth-select.ant-select .ant-select-selection-placeholder,
+.configuration-theme .config-auth-select.ant-select .ant-select-selection-search-input,
+.configuration-theme .config-auth-select.ant-select .ant-select-arrow {
+  color: var(--ant-color-text, var(--hef-text-primary)) !important;
+  -webkit-text-fill-color: var(--ant-color-text, var(--hef-text-primary)) !important;
+}
+
+.configuration-theme .config-auth-select.ant-select.ant-select-disabled .ant-select-selector {
+  background: var(--ant-color-bg-container-disabled, var(--hef-bg-subtle)) !important;
+}
+
+.configuration-theme .config-auth-select.ant-select.ant-select-disabled .ant-select-selection-item,
+.configuration-theme .config-auth-select.ant-select.ant-select-disabled .ant-select-selection-placeholder,
+.configuration-theme .config-auth-select.ant-select.ant-select-disabled .ant-select-arrow {
+  color: var(--ant-color-text, var(--hef-text-primary)) !important;
+  -webkit-text-fill-color: var(--ant-color-text, var(--hef-text-primary)) !important;
+  opacity: 0.65 !important;
 }
 
 .config-auth-select-dropdown {
-  background: var(--hef-bg-surface) !important;
-  border: 1px solid var(--hef-border) !important;
+  background: var(--ant-color-bg-elevated, var(--hef-bg-surface)) !important;
+  border: 1px solid var(--ant-color-border, var(--hef-border)) !important;
 }
 
 .config-auth-select-dropdown .ant-select-item {
-  color: var(--hef-text-primary) !important;
+  color: var(--ant-color-text, var(--hef-text-primary)) !important;
 }
 
 .config-auth-select-dropdown .ant-select-item-option-content {
-  color: var(--hef-text-primary) !important;
+  color: var(--ant-color-text, var(--hef-text-primary)) !important;
 }
 
 .config-auth-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
-  background: color-mix(in srgb, var(--hef-info-bg) 75%, var(--hef-bg-surface)) !important;
+  background: var(--ant-color-primary-bg, color-mix(in srgb, var(--hef-info-bg) 75%, var(--hef-bg-surface))) !important;
 }
 
 /* Native selects used by Authentication tab for guaranteed visible selected text in dark mode. */
