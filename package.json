@@ -6,7 +6,7 @@
     "@ant-design/icons": "^6.1.0",
     "antd": "^5.28.0",
     "dayjs": "^1.11.19",
-    "react-router-dom": "^7.9.5",
+    "react-router-dom": "^7.18.3",
     "typescript": "^5.9.3"
   },
   "scripts": {
