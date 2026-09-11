@@ -1,6 +1,7 @@
 // src/setupTests.ts
 import '@testing-library/jest-dom';
 import { TextDecoder, TextEncoder } from 'util';
+import { MessageChannel } from 'worker_threads';
 // Keep setup minimal; avoid mocking ESM-only modules globally to prevent Jest resolution issues.
 
 // Mock window.matchMedia which is not available in jsdom but required by Ant Design.
@@ -40,4 +41,9 @@ class MockResizeObserver {
 Object.defineProperty(global, 'ResizeObserver', {
   writable: true,
   value: MockResizeObserver,
+});
+
+Object.defineProperty(global, 'MessageChannel', {
+  writable: true,
+  value: MessageChannel,
 });

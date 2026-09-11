@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { CapabilityAbstractionPanel } from './CapabilityAbstractionPanel';
 
+const mockNavigate = jest.fn();
 const mockUseLazyQuery = jest.fn();
 const mockUseMutation = jest.fn();
 const mockUseQuery = jest.fn();
@@ -16,6 +17,10 @@ jest.mock('@apollo/client/react', () => ({
   useLazyQuery: (...args: unknown[]) => mockUseLazyQuery(...args),
   useMutation: (...args: unknown[]) => mockUseMutation(...args),
   useQuery: (...args: unknown[]) => mockUseQuery(...args),
+}));
+
+jest.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
 }));
 
 type Entry = {
@@ -154,5 +159,11 @@ describe('CapabilityAbstractionPanel', () => {
     expect(screen.getByText('mshta.exe')).toBeInTheDocument();
     expect(screen.getByText('mshta child process chain')).toBeInTheDocument();
     expect(screen.getAllByText('service registry persistence').length).toBeGreaterThan(0);
+  });
+
+  it('renders an Open in Capability Library action for advanced editing', () => {
+    render(<TestHarness />);
+
+    expect(screen.getByRole('button', { name: /Open in Capability Library/i })).toBeInTheDocument();
   });
 });
