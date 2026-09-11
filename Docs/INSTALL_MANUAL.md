@@ -34,8 +34,8 @@ These are the pinned SHARP infrastructure/runtime targets:
 ## 4. Clone and Prepare
 
 ```bash
-git clone -b sharp https://github.com/Lemnian-Sec/HEFAISTOS-Lemnian.git
-cd HEFAISTOS-Lemnian
+git clone -b sharp https://github.com/hefaistos-platform/hefaistos.git
+cd hefaistos
 git pull origin sharp
 cp .env.template .env
 cp docker-compose.override.yml.template docker-compose.override.yml

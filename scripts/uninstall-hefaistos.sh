@@ -224,7 +224,7 @@ main() {
     echo ""
     echo "To reinstall:"
     echo "  Follow the manual installation steps in README.md"
-    echo "  or clone fresh: git clone https://github.com/Lemnian-Sec/HEFAISTOS-Lemnian.git"
+    echo "  or clone fresh: git clone https://github.com/hefaistos-platform/hefaistos.git"
     echo ""
     echo "To restore from backup:"
     echo "  gunzip -c final_backup_${TIMESTAMP}.sql.gz | docker-compose exec db psql -U hefaistos_user hefaistos_db"

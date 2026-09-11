@@ -95,7 +95,7 @@ Example: run backup daily at 02:00 to externally mounted path.
 ```bash
 crontab -e
 
-0 2 * * * /opt/HEFAISTOS-Lemnian/scripts/backup-hefaistos.sh --backup-dir /mnt/backup-drive/hefaistos --retention-days 30 >> /var/log/hefaistos-backup.log 2>&1
+0 2 * * * /opt/hefaistos/scripts/backup-hefaistos.sh --backup-dir /mnt/backup-drive/hefaistos --retention-days 30 >> /var/log/hefaistos-backup.log 2>&1
 ```
 
 ## Verify Backups

@@ -56,8 +56,8 @@ These instructions are for a Linux-based server.
 You must create your first organization and user.
 ```
 bash
-git clone -b sharp <your-repository-url>
-cd HEFAISTOS-Lemnian
+git clone -b sharp https://github.com/hefaistos-platform/hefaistos.git
+cd hefaistos
 git pull origin sharp
 ```
 

@@ -409,7 +409,7 @@ export const LoginPage = () => {
         <section className="login-hero" aria-label="HEFAISTOS introduction">
           <h1 className="login-hero-title">
             <span className="login-hero-brand">HEFAISTOS</span>
-            <span className="login-hero-brand-sub">by Lemnian</span>
+            <span className="login-hero-brand-sub">Detection Platform</span>
           </h1>
           <p className="login-hero-subtitle">
             Why settle for generic detection failures when we can engineer our own?
@@ -426,9 +426,6 @@ export const LoginPage = () => {
           <Typography.Title level={2} className="login-card-title">
             Sign In
           </Typography.Title>
-          <Typography.Paragraph className="auth-subtitle login-card-subtitle">
-            Detectionier Platform
-          </Typography.Paragraph>
           {error && (
             <Alert type="error" showIcon style={{ marginBottom: 16 }} message={error.message} />
           )}
@@ -574,7 +571,7 @@ export const LoginPage = () => {
             </Form>
           )}
           <Typography.Paragraph className="auth-footer">
-            &copy; 2026 HEFAISTOS by Lemnian and B1gF00t
+            &copy; 2026 HEFAISTOS by B1gF00t Entertainment
           </Typography.Paragraph>
         </Card>
       </div>
