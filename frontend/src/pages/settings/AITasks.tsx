@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { gql } from '@apollo/client';
 import { useMutation, useQuery } from '@apollo/client/react';
-import { Alert, Button, Card, Modal, Select, Space, Switch, Table, Tag, Tooltip, Typography, message, theme } from 'antd';
+import { Alert, Button, Card, Modal, Space, Switch, Table, Tag, Tooltip, Typography, message, theme } from 'antd';
 
 const { Text } = Typography;
 
@@ -470,55 +470,75 @@ const AITasksTab: React.FC<{ canManage: boolean }> = ({ canManage }) => {
                         onChange={(checked) => persistTaskConfig(task, { enabled: checked })}
                       />
                     </Tooltip>
-                    <Select
-                      className="config-auth-select"
-                      popupClassName="config-auth-select-dropdown"
+                    <select
+                      className="config-auth-native-select h-8 rounded border px-2 text-sm"
                       style={{ width: 118 }}
                       value={normalizedSchedule}
                       disabled={saving}
-                      options={SCHEDULE_OPTIONS}
-                      onChange={(value) => persistTaskConfig(task, { schedule: String(value).toUpperCase() as TaskConfig['schedule'] })}
-                    />
+                      onChange={(event) => persistTaskConfig(task, {
+                        schedule: String(event.target.value).toUpperCase() as TaskConfig['schedule'],
+                      })}
+                    >
+                      {SCHEDULE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
                     {normalizedSchedule === 'WEEKLY' && (
-                      <Select
-                        className="config-auth-select"
-                        popupClassName="config-auth-select-dropdown"
+                      <select
+                        className="config-auth-native-select h-8 rounded border px-2 text-sm"
                         style={{ width: 128 }}
-                        value={normalizedDayOfWeek}
+                        value={String(normalizedDayOfWeek)}
                         disabled={saving}
-                        options={WEEKDAY_OPTIONS}
-                        onChange={(value) => persistTaskConfig(task, { dayOfWeek: clampInt(value, 0, 6, normalizedDayOfWeek) })}
-                      />
+                        onChange={(event) => persistTaskConfig(task, {
+                          dayOfWeek: clampInt(Number(event.target.value), 0, 6, normalizedDayOfWeek),
+                        })}
+                      >
+                        {WEEKDAY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
                     )}
                     {normalizedSchedule === 'MONTHLY' && (
-                      <Select
-                        className="config-auth-select"
-                        popupClassName="config-auth-select-dropdown"
+                      <select
+                        className="config-auth-native-select h-8 rounded border px-2 text-sm"
                         style={{ width: 96 }}
-                        value={normalizedDayOfMonth}
+                        value={String(normalizedDayOfMonth)}
                         disabled={saving}
-                        options={MONTH_DAY_OPTIONS}
-                        onChange={(value) => persistTaskConfig(task, { dayOfMonth: clampInt(value, 1, 28, normalizedDayOfMonth) })}
-                      />
+                        onChange={(event) => persistTaskConfig(task, {
+                          dayOfMonth: clampInt(Number(event.target.value), 1, 28, normalizedDayOfMonth),
+                        })}
+                      >
+                        {MONTH_DAY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
                     )}
-                    <Select
-                      className="config-auth-select"
-                      popupClassName="config-auth-select-dropdown"
+                    <select
+                      className="config-auth-native-select h-8 rounded border px-2 text-sm"
                       style={{ width: 100 }}
-                      value={normalizedRunHour}
+                      value={String(normalizedRunHour)}
                       disabled={saving}
-                      options={HOUR_OPTIONS}
-                      onChange={(value) => persistTaskConfig(task, { runHour: clampInt(value, 0, 23, normalizedRunHour) })}
-                    />
-                    <Select
-                      className="config-auth-select"
-                      popupClassName="config-auth-select-dropdown"
+                      onChange={(event) => persistTaskConfig(task, {
+                        runHour: clampInt(Number(event.target.value), 0, 23, normalizedRunHour),
+                      })}
+                    >
+                      {HOUR_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      className="config-auth-native-select h-8 rounded border px-2 text-sm"
                       style={{ width: 88 }}
-                      value={normalizedRunMinute}
+                      value={String(normalizedRunMinute)}
                       disabled={saving}
-                      options={MINUTE_OPTIONS}
-                      onChange={(value) => persistTaskConfig(task, { runMinute: clampInt(value, 0, 59, normalizedRunMinute) })}
-                    />
+                      onChange={(event) => persistTaskConfig(task, {
+                        runMinute: clampInt(Number(event.target.value), 0, 59, normalizedRunMinute),
+                      })}
+                    >
+                      {MINUTE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
                     <Button
                       type="primary"
                       loading={running}
