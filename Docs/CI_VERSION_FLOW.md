@@ -8,7 +8,7 @@ This repository is configured with three workflows:
 
 ## 1) Set repository defaults
 
-1. In GitHub repository settings, set default branch to `sharp`.
+1. In GitHub repository settings, set default branch to `main`.
 2. Ensure `VERSION` exists in repo root (already added).
 
 ## 2) Allow Actions to write
@@ -21,12 +21,12 @@ In repository settings:
 
 Without this, workflows cannot push `VERSION` commits or git tags.
 
-## 3) Branch protection for `sharp`
+## 3) Branch protection for release branch
 
-If branch protection is enabled on `sharp`, allow the version workflow to push:
+If branch protection is enabled on `main`, allow the version workflow to push:
 
 1. Go to `Settings -> Branches -> Branch protection rules`.
-2. Edit rule for `sharp`.
+2. Edit rule for `main`.
 3. Keep required checks as needed.
 4. Enable bypass or push allowance for GitHub Actions bot.
 
@@ -37,13 +37,13 @@ Recommended: allow only workflow-based version commit pattern:
 
 ## 4) How SHARP auto bump works
 
-On each push to `sharp`:
+On each push to `main` (legacy fallback: `sharp`):
 
 1. Workflow inspects commits in `before..after`.
 2. Calculates bump (`major|minor|patch`) from commit messages.
 3. Increments root `VERSION`.
 4. Computes SHARP artifact version as `VERSION-sharp.${GITHUB_RUN_NUMBER}`.
-5. Commits updated `VERSION` back to `sharp` with:
+5. Commits updated `VERSION` back to the release branch with:
    - `chore(version): bump to X.Y.Z [skip version bump] [skip ci]`
 6. Updates README platform badge (`hefaistos-version-badge`) to the same base version.
 7. Generates `Versions/vX.Y.Z/changelog.md` for that change set.
@@ -56,8 +56,8 @@ Run workflow `Create Stable Release Tag` manually:
 
 1. Open `Actions -> Create Stable Release Tag`.
 2. Click `Run workflow`.
-3. Optional: set `target_sha` (if empty, current `sharp` HEAD is used).
-4. Workflow validates commit ancestry on `sharp`.
+3. Optional: set `target_sha` (if empty, current release branch HEAD is used).
+4. Workflow validates commit ancestry on the release branch (`main`, fallback `sharp`).
 5. Workflow creates and pushes annotated tag `vX.Y.Z`.
 
 ## 6) Commit message conventions (important)
@@ -90,7 +90,7 @@ When a stable tag `v*` is pushed:
    - `Fixes`: commits starting with `fix:`
    - `Removals`: commits indicating deletion/removal or breaking `!`
    - `Changes`: all remaining commits
-4. The file is committed to branch `sharp` by `github-actions[bot]` using skip markers.
+4. The file is committed to the release branch (`main`, fallback `sharp`) by `github-actions[bot]` using skip markers.
 
 ## 8) Operational notes
 

@@ -204,9 +204,9 @@ IDEA → RESEARCH → DEVELOPMENT → REVIEW → APPROVED → TESTING → DEPLOY
 ## 🚀 Quick Start (Manual, Recommended)
 
 ```bash
-git clone -b sharp https://github.com/hefaistos-platform/hefaistos.git
+git clone -b main https://github.com/hefaistos-platform/hefaistos.git
 cd hefaistos
-git pull origin sharp
+git pull origin main
 cp .env.template .env
 cp docker-compose.override.yml.template docker-compose.override.yml
 mkdir -p .secrets
@@ -256,16 +256,16 @@ Use this workflow for all supported installations:
 ### 1. Clone the repository
 
 ```bash
-git clone -b sharp https://github.com/hefaistos-platform/hefaistos.git
+git clone -b main https://github.com/hefaistos-platform/hefaistos.git
 cd hefaistos
-git pull origin sharp
+git pull origin main
 ```
 
-If you already cloned the repo earlier, switch to SHARP before installing:
+If you already cloned the repo earlier, switch to `main` before installing:
 
 ```bash
-git checkout sharp
-git pull origin sharp
+git checkout main
+git pull origin main
 ```
 
 ### 2. Copy configuration templates
@@ -583,7 +583,7 @@ SIGMA/Sigma YAML is no longer supported as a detection rule format in HEFAISTOS.
 - Rule conversion UI (pySigma backend conversion) removed
 - `rules/sigma` Git push folder option removed
 
-**Migration steps after `git pull origin sharp`:**
+**Migration steps after `git pull origin main`:**
 
 1. Rebuild and restart all containers:
    ```bash

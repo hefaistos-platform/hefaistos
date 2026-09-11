@@ -25,12 +25,23 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          git fetch origin sharp --no-tags
-          git checkout -B sharp origin/sharp
+          git fetch origin main --no-tags || true
+          git fetch origin sharp --no-tags || true
+          if git show-ref --verify --quiet refs/remotes/origin/main; then
+            target_branch="main"
+          elif git show-ref --verify --quiet refs/remotes/origin/sharp; then
+            target_branch="sharp"
+          else
+            echo "No supported release branch found (expected origin/main or origin/sharp)." >&2
+            exit 1
+          fi
+
+          git checkout -B "${target_branch}" "origin/${target_branch}"
 
           output_file="Versions/${TAG_NAME}/changelog.md"
           if [[ -f "${output_file}" ]]; then
             echo "exists=true" >> "${GITHUB_OUTPUT}"
+            echo "branch=${target_branch}" >> "${GITHUB_OUTPUT}"
             echo "path=${output_file}" >> "${GITHUB_OUTPUT}"
             exit 0
           fi
@@ -49,11 +60,13 @@ jobs:
             --output "${output_file}"
 
           echo "exists=false" >> "${GITHUB_OUTPUT}"
+          echo "branch=${target_branch}" >> "${GITHUB_OUTPUT}"
           echo "path=${output_file}" >> "${GITHUB_OUTPUT}"
 
       - name: Commit changelog
         if: steps.changelog.outputs.exists == 'false'
         env:
+          TARGET_BRANCH: ${{ steps.changelog.outputs.branch }}
           CHANGELOG_PATH: ${{ steps.changelog.outputs.path }}
         run: |
           set -Eeuo pipefail
@@ -62,4 +75,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "${CHANGELOG_PATH}"
           git commit -m "docs(versions): add changelog ${CHANGELOG_PATH} [skip version bump] [skip ci]"
-          git push origin sharp
+          git push origin "${TARGET_BRANCH}"

@@ -2,9 +2,9 @@ name: HEFAISTOS Backend CI
 
 on:
   push:
-    branches: [ "sharp" ]
+    branches: [ "main", "sharp" ]
   pull_request:
-    branches: [ "sharp" ]
+    branches: [ "main", "sharp" ]
 
 jobs:
   build:

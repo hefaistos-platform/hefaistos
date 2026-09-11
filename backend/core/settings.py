@@ -467,7 +467,28 @@ STRIPE_WEBHOOK_SECRET = get_secret('stripe_webhook_secret', 'STRIPE_WEBHOOK_SECR
 STRIPE_BILLING_SUCCESS_URL = os.environ.get('STRIPE_BILLING_SUCCESS_URL', f"{FRONTEND_URL.rstrip('/')}/mgmt/config?tab=billing")
 STRIPE_BILLING_CANCEL_URL = os.environ.get('STRIPE_BILLING_CANCEL_URL', f"{FRONTEND_URL.rstrip('/')}/mgmt/config?tab=billing")
 
+# Resolve platform version from env override first, then repository VERSION file.
+def resolve_hefaistos_version(default: str = '1.0') -> str:
+    env_version = (os.environ.get('HEFAISTOS_VERSION') or '').strip()
+    if env_version:
+        return env_version
+
+    version_candidates = [
+        BASE_DIR.parent / 'VERSION',
+        BASE_DIR / 'VERSION',
+    ]
+    for version_path in version_candidates:
+        try:
+            if version_path.exists():
+                value = version_path.read_text(encoding='utf-8').strip()
+                if value:
+                    return value
+        except OSError:
+            continue
+
+    return default
+
 # Application metadata
-HEFAISTOS_VERSION = "1.0"
+HEFAISTOS_VERSION = resolve_hefaistos_version('1.0')
 HEFAISTOS_COPYRIGHT = "(c) 2026 Jan Pohl - m3c4n1sm0 and multiple AI bots"
 HEFAISTOS_DESCRIPTION = "Detection Engineering Platform"

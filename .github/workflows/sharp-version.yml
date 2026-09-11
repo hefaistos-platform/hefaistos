@@ -3,6 +3,7 @@ name: SHARP Version Bump
 on:
   push:
     branches:
+      - main
       - sharp
 
 permissions:

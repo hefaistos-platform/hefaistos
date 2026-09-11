@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       target_sha:
-        description: "Commit SHA on sharp to tag (defaults to current sharp HEAD)"
+        description: "Commit SHA on release branch to tag (defaults to current main HEAD; falls back to sharp)"
         required: false
         type: string
 
@@ -26,19 +26,29 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          git fetch origin sharp --no-tags
+          git fetch origin main --no-tags || true
+          git fetch origin sharp --no-tags || true
+
+          if git show-ref --verify --quiet refs/remotes/origin/main; then
+            release_branch="main"
+          elif git show-ref --verify --quiet refs/remotes/origin/sharp; then
+            release_branch="sharp"
+          else
+            echo "No supported release branch found (expected origin/main or origin/sharp)." >&2
+            exit 1
+          fi
 
           input_sha="${{ github.event.inputs.target_sha }}"
           if [[ -n "${input_sha}" ]]; then
             target_sha="${input_sha}"
           else
-            target_sha="$(git rev-parse origin/sharp)"
+            target_sha="$(git rev-parse "origin/${release_branch}")"
           fi
 
           git rev-parse --verify "${target_sha}^{commit}" >/dev/null
 
-          if ! git merge-base --is-ancestor "${target_sha}" origin/sharp; then
-            echo "Target SHA is not reachable from origin/sharp: ${target_sha}" >&2
+          if ! git merge-base --is-ancestor "${target_sha}" "origin/${release_branch}"; then
+            echo "Target SHA is not reachable from origin/${release_branch}: ${target_sha}" >&2
             exit 1
           fi
 
@@ -52,6 +62,7 @@ jobs:
           fi
 
           {
+            echo "release_branch=${release_branch}"
             echo "target_sha=${target_sha}"
             echo "version=${version}"
             echo "tag=${tag}"
@@ -74,6 +85,7 @@ jobs:
           {
             echo "## Stable Release Tag Created"
             echo ""
+            echo "- Source branch: \`${{ steps.resolve.outputs.release_branch }}\`"
             echo "- Tag: \`${{ steps.resolve.outputs.tag }}\`"
             echo "- Version: \`${{ steps.resolve.outputs.version }}\`"
             echo "- Commit: \`${{ steps.resolve.outputs.target_sha }}\`"
