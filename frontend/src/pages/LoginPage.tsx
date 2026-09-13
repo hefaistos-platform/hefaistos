@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@apollo/client/react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { Card, Form, Input, Button, Typography, Alert, Dropdown } from 'antd';
+import { Card, Form, Input, Button, Typography, Alert, Dropdown, Modal } from 'antd';
 import type { MenuProps } from 'antd';
 import { SunOutlined, MoonOutlined, MonitorOutlined } from '@ant-design/icons';
 import { credentialToJSON, parseAuthenticationOptions } from '../utils/webauthn';
@@ -181,6 +181,7 @@ export const LoginPage = () => {
   const [mfaStep, setMfaStep] = useState(false);
   const [hasWebauthn, setHasWebauthn] = useState(false);
   const [oidcError, setOidcError] = useState('');
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
   const { login } = useAuth();
   const { mode, setMode, resolvedTheme } = useTheme();
   const { data: publicAuthData } = useQuery<PublicAuthOptionsData>(PUBLIC_AUTH_OPTIONS_QUERY, {
@@ -481,9 +482,15 @@ export const LoginPage = () => {
                   Forgot Password
                 </Link>
                 <span className="theme-link login-link-divider" style={{ fontSize: 13 }}>|</span>
-                <span className="login-terms-text" style={{ fontSize: 13 }}>
+                <Button
+                  type="link"
+                  htmlType="button"
+                  className="login-terms-link theme-link"
+                  style={{ fontSize: 13 }}
+                  onClick={() => setTermsModalOpen(true)}
+                >
                   Terms and Conditions
-                </span>
+                </Button>
               </div>
             </Form>
             ) : (
@@ -560,6 +567,38 @@ export const LoginPage = () => {
               </div>
             </Form>
           )}
+          <Modal
+            title="Terms and Conditions"
+            open={termsModalOpen}
+            centered
+            onCancel={() => setTermsModalOpen(false)}
+            footer={[
+              <Button key="close-terms" type="primary" onClick={() => setTermsModalOpen(false)}>
+                Close
+              </Button>,
+            ]}
+          >
+            <Typography.Paragraph>
+              These terms summarize the AGPL-3.0 license model used by HEFAISTOS and do not replace the full legal
+              text in the repository <code>LICENSE</code> file.
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              The platform is provided "as is", without warranties of any kind. To the maximum extent permitted by
+              law, the author and contributors are not liable for damages, losses, or legal consequences resulting from
+              use or misuse of the platform.
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              The responsibility lies with the person using the platform, not with the author of the platform, who is
+              th3r3d a.k.a. m3c4n1sm0.
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              By using this platform, you confirm that you are authorized to do so and that you will follow all
+              applicable laws, internal policies, and licensing obligations.
+            </Typography.Paragraph>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+              Contact (obfuscated): m3c4n1sm0\@xprivacy.cz
+            </Typography.Paragraph>
+          </Modal>
           <Typography.Paragraph className="auth-footer">
             &copy; 2026 HEFAISTOS by B1gF00t Entertainment
           </Typography.Paragraph>
