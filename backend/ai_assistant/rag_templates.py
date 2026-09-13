@@ -13,7 +13,7 @@ DEFAULT_COLLECTION_NAME = os.environ.get('QDRANT_TEMPLATE_COLLECTION', 'hefaisto
 DEFAULT_QDRANT_URL = os.environ.get('QDRANT_URL', 'http://qdrant:6333').rstrip('/')
 DEFAULT_QDRANT_TIMEOUT = float(os.environ.get('QDRANT_TIMEOUT_SECONDS', '8'))
 DEFAULT_VECTOR_SIZE = int(os.environ.get('QDRANT_TEMPLATE_VECTOR_SIZE', '256'))
-SUPPORTED_RAG_LANGUAGES = {'KQL', 'EQL', 'SPL'}
+SUPPORTED_RAG_LANGUAGES = {'KQL', 'EQL', 'SPL', 'WAZUH'}
 RAG_LANGUAGE_ALIASES = {
     'KQL': 'KQL',
     'KUSTO': 'KQL',
@@ -23,6 +23,8 @@ RAG_LANGUAGE_ALIASES = {
     'ES|QL': 'EQL',
     'SPL': 'SPL',
     'SPLUNK': 'SPL',
+    'WAZUH': 'WAZUH',
+    'WAZUH XML': 'WAZUH',
 }
 
 

@@ -127,7 +127,7 @@ class RuleRepository(models.Model):
         max_length=500,
         blank=True,
         default='',
-        help_text="Repository-relative dataset path or glob pattern for JSONL/KQL sources.",
+        help_text="Repository-relative dataset path or glob pattern for JSONL/KQL/EQL/SPL/WAZUH sources.",
     )
     rag_branch = models.CharField(
         max_length=128,

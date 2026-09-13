@@ -745,7 +745,7 @@ def generate_rule(user_settings, playbook_context, output_format: str = 'KQL'):
     return (bundle.get('primary_rule') or bundle.get('quick_win_rule') or '', provider)
 
 
-def recommend_reusable_rule(user_settings, playbook_context: dict):
+def recommend_reusable_rule(user_settings, playbook_context: dict, output_format: str = 'KQL'):
     """Summarize workbench intent and recommend whether to reuse/adapt/create from retrieved templates."""
     available = build_available(user_settings)
     if not available:
@@ -759,6 +759,22 @@ def recommend_reusable_rule(user_settings, playbook_context: dict):
         }, 'NONE')
 
     provider = _resolve_provider(user_settings, available)
+    fmt = (output_format or 'KQL').upper()
+    if fmt == 'KQL':
+        fmt_label = 'KQL'
+        fmt_requirements = "- Output valid KQL suitable for Microsoft Sentinel / Defender."
+    elif fmt == 'EQL':
+        fmt_label = 'Elastic EQL'
+        fmt_requirements = "- Output valid Elastic EQL query syntax for detection logic."
+    elif fmt == 'SPL':
+        fmt_label = 'Splunk SPL'
+        fmt_requirements = "- Output production-ready Splunk SPL with realistic command flow."
+    elif fmt == 'WAZUH':
+        fmt_label = 'Wazuh XML'
+        fmt_requirements = "- Output valid Wazuh XML rule content suitable for Wazuh rules files."
+    else:
+        fmt_label = 'detection rule'
+        fmt_requirements = "- Output a production-ready detection rule in the requested format."
 
     reference_context_prompt = (playbook_context or {}).get('reference_context_prompt')
     reference_context_block = (
@@ -767,7 +783,7 @@ def recommend_reusable_rule(user_settings, playbook_context: dict):
         else ""
     )
 
-    system_prompt = """You are a Principal Detection Engineer.
+    system_prompt = f"""You are a Principal Detection Engineer.
 Your task is to determine whether a retrieved template can be reused, should be adapted, or a new rule should be created.
 
 Return your response using ONLY these exact delimited sections, in this exact order:
@@ -784,14 +800,17 @@ Return your response using ONLY these exact delimited sections, in this exact or
 <best source_ref value or NONE>
 ---CANDIDATE-SOURCE-END---
 ---ADAPTED-RULE-START---
-<if REUSE/ADAPT: return a production-ready KQL rule tailored to this workbench; if CREATE_NEW and no grounded template fit, return empty>
+<if REUSE/ADAPT: return a production-ready {fmt_label} rule tailored to this workbench; if CREATE_NEW and no grounded template fit, return empty>
 ---ADAPTED-RULE-END---
 
 Grounding requirements:
 - If retrieved grounding context is provided, treat it as authoritative for table/field/query-shape hints.
 - Prefer grounded table/field patterns over invented schema.
 - Do not mention internal reasoning or offer follow-up questions.
-- Output only the delimited sections above."""
+- Output only the delimited sections above.
+
+Format requirements:
+{fmt_requirements}"""
 
     user_prompt = f"""Assess this workbench context and retrieved templates for potential reuse.
 
@@ -813,7 +832,7 @@ DETECTION FOCUS LAYER:
 {reference_context_block}
 
 Decide whether to REUSE, ADAPT, or CREATE_NEW.
-If reusable/adaptable, provide one tailored production-ready KQL rule in ADAPTED-RULE.
+If reusable/adaptable, provide one tailored production-ready {fmt_label} rule in ADAPTED-RULE.
 """
 
     try:

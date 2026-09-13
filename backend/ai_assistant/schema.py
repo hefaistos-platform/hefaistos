@@ -1613,7 +1613,7 @@ class RecommendReusableRuleFromRag(graphene.Mutation):
         if not rag_language:
             return RecommendReusableRuleFromRag(
                 success=False,
-                message="Reusable-template assessment currently supports KQL, EQL, and SPL.",
+                message="Reusable-template assessment currently supports KQL, EQL, SPL, and WAZUH.",
                 provider_used="NONE",
                 workbench_summary='',
                 decision='CREATE_NEW',
@@ -1670,6 +1670,7 @@ class RecommendReusableRuleFromRag(graphene.Mutation):
         recommendation, provider = recommend_reusable_rule(
             _get_effective_ai_settings(settings),
             rag_context,
+            output_format=fmt,
         )
         _record_rag_usage(reference_context)
 

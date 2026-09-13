@@ -16,7 +16,7 @@ DEFAULT_COLLECTION_NAME = os.environ.get('QDRANT_TEMPLATE_COLLECTION', 'hefaisto
 DEFAULT_QDRANT_URL = os.environ.get('QDRANT_URL', 'http://qdrant:6333').rstrip('/')
 DEFAULT_QDRANT_TIMEOUT = float(os.environ.get('QDRANT_TIMEOUT_SECONDS', '10'))
 DEFAULT_VECTOR_SIZE = int(os.environ.get('QDRANT_TEMPLATE_VECTOR_SIZE', '256'))
-SUPPORTED_RAG_LANGUAGES = {'KQL', 'EQL', 'SPL'}
+SUPPORTED_RAG_LANGUAGES = {'KQL', 'EQL', 'SPL', 'WAZUH'}
 LANGUAGE_ALIASES = {
     'KQL': 'KQL',
     'KUSTO': 'KQL',
@@ -26,6 +26,8 @@ LANGUAGE_ALIASES = {
     'ES|QL': 'EQL',
     'SPL': 'SPL',
     'SPLUNK': 'SPL',
+    'WAZUH': 'WAZUH',
+    'WAZUH XML': 'WAZUH',
 }
 EXTENSION_LANGUAGE_MAP = {
     '.kql': 'KQL',
@@ -75,6 +77,8 @@ def _language_from_source_path(source_path: str, *, ext: str = ''):
         return 'EQL'
     if '/data-spl/' in normalized_path or '/spl/' in normalized_path or '/splunk/' in normalized_path:
         return 'SPL'
+    if '/data-wazuh/' in normalized_path or '/wazuh/' in normalized_path:
+        return 'WAZUH'
     if '/data-kql/' in normalized_path or '/kql/' in normalized_path:
         return 'KQL'
     return ''
@@ -304,7 +308,7 @@ def _normalize_jsonl_template(
         language = explicit_language or resolved_expected_language or _normalize_language(language_hint, fallback='')
         if not language:
             raise ValueError(
-                "language is ambiguous; set language/format/rule_format in row or place file under data-kql/data-eql/data-spl"
+                "language is ambiguous; set language/format/rule_format in row or place file under data-kql/data-eql/data-spl/data-wazuh"
             )
     else:
         language = _infer_template_language(

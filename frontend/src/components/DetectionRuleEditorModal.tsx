@@ -21,6 +21,11 @@ const { TextArea } = Input;
 
 // Async AI task polling interval (ms)
 const AI_POLL_INTERVAL_MS = 2000;
+const RAG_REUSE_SUPPORTED_FORMATS = new Set(['KQL', 'EQL', 'SPL', 'WAZUH']);
+
+function isRagReuseSupportedFormat(format: string): boolean {
+  return RAG_REUSE_SUPPORTED_FORMATS.has(String(format || '').toUpperCase());
+}
 
 // Async AI Generation Task Mutations (avoid 504 gateway timeouts)
 const START_GENERATE_RULE_TASK_MUTATION = gql`
@@ -616,6 +621,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   const improvedRule = platformImprovedRules[activePlatformTab] || '';
   const generatedSimilarRules = platformSimilarRules[activePlatformTab] || '';
   const ragReuseResult = platformRagReuse[activePlatformTab] || null;
+  const ragReuseSupported = useMemo(() => isRagReuseSupportedFormat(format), [format]);
 
   // Async AI task state – one active task at a time for each operation
   const [aiTaskId, setAiTaskId] = useState<string | null>(null);
@@ -1086,8 +1092,8 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   }, [ruleContent, format, playbookId, similarVariationType, similarNumVariations, similarTargetFormat, similarCustomInstructions, startGenerateSimilarRulesTask, stopAiPolling]);
 
   const handleRecommendReuse = useCallback(async () => {
-    if (format !== 'KQL') {
-      message.info('RAG reuse check currently supports KQL only. Switch to the KQL editor and retry.');
+    if (!isRagReuseSupportedFormat(format)) {
+      message.info('RAG reuse check currently supports KQL, EQL, SPL, and WAZUH. Switch to one of these editors and retry.');
       return;
     }
 
@@ -1704,7 +1710,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                   block
                   onClick={handleRecommendReuse}
                   loading={recommendingReuse}
-                  disabled={format !== 'KQL'}
+                  disabled={!ragReuseSupported}
                   icon={<PixelIcon name="target" className="w-4 h-4" />}
                   className="border-emerald-500 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-600"
                 >
@@ -1720,8 +1726,8 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                   Generate Similar {showSimilarOptions ? '▲' : '▼'}
                 </Button>
                 
-                {format !== 'KQL' && (
-                  <p className="text-xs text-gray-400">RAG reuse check is available for KQL only.</p>
+                {!ragReuseSupported && (
+                  <p className="text-xs text-gray-400">RAG reuse check is available for KQL, EQL, SPL, and WAZUH.</p>
                 )}
 
                 {/* Generate Similar Options Panel */}
@@ -2205,7 +2211,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                     <Button
                       onClick={handleRecommendReuse}
                       loading={recommendingReuse}
-                      disabled={format !== 'KQL'}
+                      disabled={!ragReuseSupported}
                       icon={<PixelIcon name="target" className="w-4 h-4" />}
                     >
                       Run RAG Reuse Check

@@ -640,7 +640,7 @@ class RuleConnector(BaseConnector):
         return True
 
     def process_rag_sync(self, payload):
-        """Process repository RAG sync request (JSONL/KQL/EQL/SPL -> Qdrant templates)."""
+        """Process repository RAG sync request (JSONL/KQL/EQL/SPL/WAZUH -> Qdrant templates)."""
         repo_id = payload.get('repository_id')
         if not repo_id:
             logger.error("RAG sync message missing 'repository_id'. Discarding.")
@@ -748,7 +748,7 @@ class RuleConnector(BaseConnector):
 
             if len(file_statuses) == 0:
                 final_status = 'FAILED'
-                pattern_hint = (rag_dataset_path or '**/*.jsonl, **/*.kql, **/*.eql, **/*.spl').strip()
+                pattern_hint = (rag_dataset_path or '**/*.jsonl, **/*.kql, **/*.eql, **/*.spl (including data-wazuh JSONL)').strip()
                 final_error = (
                     f"No dataset files matched pattern(s): {pattern_hint} "
                     f"on branch '{rag_branch}'."

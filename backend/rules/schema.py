@@ -982,7 +982,7 @@ class CreateRuleRepository(graphene.Mutation):
         verify_ssl = graphene.Boolean(required=False, default_value=True, description="Verify TLS certificates for repository API calls.")
         rag_sync_enabled = graphene.Boolean(required=False, description="Enable/disable RAG template sync for this repository")
         rag_sync_schedule = graphene.String(required=False, description="RAG sync schedule: DISABLED, 24H, 48H, 72H, WEEKLY")
-        rag_dataset_path = graphene.String(required=False, description="Repository dataset path/glob for JSONL/KQL/EQL/SPL template sources")
+        rag_dataset_path = graphene.String(required=False, description="Repository dataset path/glob for JSONL/KQL/EQL/SPL/WAZUH template sources")
         rag_branch = graphene.String(required=False, description="Branch to use for RAG sync")
 
     repository = graphene.Field(RuleRepositoryType)
@@ -1067,7 +1067,7 @@ class UpdateRuleRepository(graphene.Mutation):
         # RAG sync fields
         rag_sync_enabled = graphene.Boolean(description="Enable/disable automatic RAG template sync")
         rag_sync_schedule = graphene.String(description="RAG sync schedule: DISABLED, 24H, 48H, 72H, WEEKLY")
-        rag_dataset_path = graphene.String(description="Repository dataset path/glob for JSONL/KQL/EQL/SPL RAG sources")
+        rag_dataset_path = graphene.String(description="Repository dataset path/glob for JSONL/KQL/EQL/SPL/WAZUH RAG sources")
         rag_branch = graphene.String(description="Branch used for RAG sync")
 
     repository = graphene.Field(RuleRepositoryType)

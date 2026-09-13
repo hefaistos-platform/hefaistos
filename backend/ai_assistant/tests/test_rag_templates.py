@@ -186,11 +186,27 @@ class RAGTemplateRetrieverTests(SimpleTestCase):
         self.assertEqual(kwargs['organization_id'], 'org-1')
         self.assertEqual(kwargs['limit'], 3)
 
+    def test_retrieve_reference_context_supports_wazuh(self):
+        with patch.object(QdrantTemplateRetriever, 'search_templates', return_value=[{'id': 'one'}]) as search_mock:
+            results = retrieve_reference_context(
+                playbook_context={'title': 'Suspicious Auth'},
+                language='WAZUH',
+                organization_id='org-1',
+                limit=3,
+            )
+
+        self.assertEqual(results, [{'id': 'one'}])
+        search_mock.assert_called_once()
+        _, kwargs = search_mock.call_args
+        self.assertEqual(kwargs['language'], 'WAZUH')
+        self.assertEqual(kwargs['organization_id'], 'org-1')
+        self.assertEqual(kwargs['limit'], 3)
+
     def test_retrieve_reference_context_rejects_unsupported_language(self):
         with patch.object(QdrantTemplateRetriever, 'search_templates') as search_mock:
             results = retrieve_reference_context(
                 playbook_context={'title': 'Suspicious Auth'},
-                language='WAZUH',
+                language='AQL',
                 organization_id='org-1',
                 limit=3,
             )

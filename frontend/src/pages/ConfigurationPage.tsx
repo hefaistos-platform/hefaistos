@@ -1636,14 +1636,14 @@ export const ReposTab: React.FC = () => {
                 label="Enable RAG Sync"
                 name="ragSyncEnabled"
                 valuePropName="checked"
-                tooltip="When enabled, JSONL/KQL/EQL/SPL templates can be synced into Qdrant for grounded generation."
+                tooltip="When enabled, JSONL/KQL/EQL/SPL/WAZUH templates can be synced into Qdrant for grounded generation."
               >
                 <Switch />
               </Form.Item>
               <Form.Item
                 label="RAG Dataset Path / Pattern"
                 name="ragDatasetPath"
-                tooltip="Repository-relative path or glob pattern (e.g., data-kql/**/*.jsonl, data-eql/**/*.jsonl, data-spl/**/*.jsonl, rules/kql/**/*.kql, rules/eql/**/*.eql, rules/spl/**/*.spl)."
+                tooltip="Repository-relative path or glob pattern (e.g., data-kql/**/*.jsonl, data-eql/**/*.jsonl, data-spl/**/*.jsonl, data-wazuh/**/*.jsonl, rules/kql/**/*.kql, rules/eql/**/*.eql, rules/spl/**/*.spl)."
               >
                 <Input placeholder="rules/templates/**/*.jsonl" />
               </Form.Item>

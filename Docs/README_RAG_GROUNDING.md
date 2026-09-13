@@ -2,19 +2,19 @@
 
 This document explains how HEFAISTOS uses Retrieval-Augmented Generation (RAG) for detection-rule quality, what is implemented today, and how to operate it effectively.
 
-## Current Status (August 31, 2026)
+## Current Status (September 13, 2026)
 
 Implemented and supported in production flow:
 
-- Template sync into Qdrant for `KQL`, `EQL`, and `SPL`
+- Template sync into Qdrant for `KQL`, `EQL`, `SPL`, and `WAZUH`
 - Dataset ingestion from `JSONL`, `.kql`/`.kusto`, `.eql`/`.esql`, and `.spl`
-- Language-aware retrieval by output format (`KQL`/`EQL`/`SPL`)
+- Language-aware retrieval by output format (`KQL`/`EQL`/`SPL`/`WAZUH`)
 - Grounded prompt injection for AI rule tasks
-- Reuse assessment in Workbench for `KQL`, `EQL`, and `SPL`
+- Reuse assessment in Workbench for `KQL`, `EQL`, `SPL`, and `WAZUH`
 
 Not yet implemented for template grounding:
 
-- `WAZUH`, `AQL`, `OTHER`
+- `AQL`, `OTHER`
 
 ## Why This Exists
 
@@ -89,7 +89,7 @@ This is strong guidance, not a hard parser-level guarantee.
 Language is resolved in **strict mode**:
 
 - Explicit row metadata (`language`, `format`, `rule_format`, etc.), or
-- Language-scoped dataset path / extension (for example `data-kql`, `data-eql`, `data-spl`, `.kql`, `.eql`, `.spl`)
+- Language-scoped dataset path / extension (for example `data-kql`, `data-eql`, `data-spl`, `data-wazuh`, `.kql`, `.eql`, `.spl`)
 
 Strict behavior:
 
@@ -111,7 +111,7 @@ RAG template grounding is used in:
 
 Frontend behavior:
 
-- Workbench **RAG Reuse Check** is enabled for `KQL`, `EQL`, and `SPL`
+- Workbench **RAG Reuse Check** is enabled for `KQL`, `EQL`, `SPL`, and `WAZUH`
 
 ## Relationship to Maieutic Engine
 
@@ -131,18 +131,19 @@ For datasets structured as:
 - `data-kql/hefaistos_kql_dataset.jsonl`
 - `data-eql/hefaistos_eql_dataset.jsonl`
 - `data-spl/hefaistos_spl_dataset.jsonl`
+- `data-wazuh/hefaistos_wazuh_dataset.jsonl`
 
 Recommended repository RAG settings:
 
 - `ragSyncEnabled = true`
 - `ragBranch = main` (or your active branch)
-- `ragDatasetPath = data-kql,data-eql,data-spl`
+- `ragDatasetPath = data-kql,data-eql,data-spl,data-wazuh`
 
 Then:
 
 1. Run **Sync Now**
 2. Verify RAG Files show ingested rows per language
-3. In Workbench, choose output format (`KQL`/`EQL`/`SPL`)
+3. In Workbench, choose output format (`KQL`/`EQL`/`SPL`/`WAZUH`)
 4. Run generation + (optionally) reuse check
 
 ## Sync Reliability / Anti-Stuck Safeguards

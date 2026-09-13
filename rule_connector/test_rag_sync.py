@@ -149,6 +149,22 @@ def test_spl_jsonl_detects_language_from_data_folder():
     assert file_statuses[0]['language'] == 'SPL', f"Expected SPL file status language, got {file_statuses[0]['language']}"
 
 
+def test_wazuh_jsonl_detects_language_from_data_folder():
+    templates, file_statuses = _collect_single_file(
+        '{"messages":[{"role":"system","content":"Schema: WazuhRule (rule_id, source_path)."},'
+        '{"role":"user","content":"Title: sample.xml#rule-100001"},'
+        '{"role":"assistant","content":"// Platform: Wazuh\\n// Record Type: wazuh_rule\\n<rule id=\\\"100001\\\" level=\\\"3\\\"><description>Test</description></rule>"}]}'
+        '\n',
+        relative_path='data-wazuh/hefaistos_wazuh_dataset.jsonl',
+        dataset_path='data-wazuh',
+    )
+
+    assert len(templates) == 1, f"Expected 1 template, got {len(templates)}"
+    assert templates[0]['payload']['language'] == 'WAZUH', f"Expected WAZUH payload language, got {templates[0]['payload']['language']}"
+    assert len(file_statuses) == 1, f"Expected 1 file status, got {len(file_statuses)}"
+    assert file_statuses[0]['language'] == 'WAZUH', f"Expected WAZUH file status language, got {file_statuses[0]['language']}"
+
+
 def test_eql_file_extension_ingests_eql_language():
     templates, file_statuses = _collect_single_file(
         "// Title: EQL Extension Test\n"
@@ -235,6 +251,7 @@ def run_tests():
         test_chat_messages_jsonl_ingests_assistant_content,
         test_eql_jsonl_detects_language_from_data_folder,
         test_spl_jsonl_detects_language_from_data_folder,
+        test_wazuh_jsonl_detects_language_from_data_folder,
         test_eql_file_extension_ingests_eql_language,
         test_spl_file_extension_ingests_spl_language,
         test_jsonl_without_language_hint_fails_in_strict_mode,
