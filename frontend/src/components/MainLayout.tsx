@@ -29,6 +29,7 @@ import {
   MoonOutlined,
   SunOutlined,
   InboxOutlined,
+  PartitionOutlined,
 } from '@ant-design/icons';
 import { NotificationBell } from './NotificationBell';
 import { NewsIcon } from './NewsIcon';
@@ -127,6 +128,7 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
     if (location.pathname.startsWith('/waiting-room')) return 'waiting-room';
     if (location.pathname.startsWith('/l1-portal')) return 'l1-portal';
     if (location.pathname.startsWith('/rules')) return 'rules';
+    if (location.pathname.startsWith('/capability-library')) return 'capability-library';
     if (location.pathname.startsWith('/repos')) return 'config';
     if (location.pathname.startsWith('/kb')) return 'kb';
     if (location.pathname.startsWith('/profile')) return 'profile';
@@ -150,6 +152,7 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
       { key: 'waiting-room', icon: <InboxOutlined />, label: 'Waiting Room', onClick: () => navigate('/waiting-room') },
       { key: 'l1-portal', icon: <ReadOutlined />, label: 'L1 Portal', onClick: () => navigate('/l1-portal') },
       { key: 'rules', icon: <ApartmentOutlined />, label: 'Rule Hub', onClick: () => navigate('/rules') },
+      { key: 'capability-library', icon: <PartitionOutlined />, label: 'Capability Library', onClick: () => navigate('/capability-library') },
       { key: 'catalog', icon: <DatabaseOutlined />, label: 'Data Catalog', onClick: () => navigate('/catalog') },
       { key: 'coverage', icon: <HeatMapOutlined />, label: 'Coverage Map', onClick: () => navigate('/coverage') },
       { key: 'tools-dld', icon: <RadarChartOutlined />, label: 'Logic Deconstructor', onClick: () => navigate('/tools/dld') },

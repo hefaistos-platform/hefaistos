@@ -41,6 +41,7 @@ import { LogsPage } from './pages/LogsPage';
 import { L1PortalPage } from './pages/L1PortalPage';
 import { L1PortalDetailPage } from './pages/L1PortalDetailPage';
 import { WaitingRoomPage } from './pages/WaitingRoomPage';
+import CapabilityLibraryPage from './pages/CapabilityLibraryPage';
 
 // Layout
 import { MainLayout } from './components/MainLayout';
@@ -86,6 +87,7 @@ const AppRoutes = () => {
                 <Route path="/rules" element={<RuleHubPage />} />
                 <Route path="/rules/:ruleId" element={<RuleDetailPage />} />
                 <Route path="/playbooks/:playbookId" element={<PlaybookWorkbenchPage />} />
+                <Route path="/capability-library" element={<CapabilityLibraryPage />} />
                 <Route path="/catalog" element={<DataCatalogPage />} />
                 <Route path="/catalog/new" element={<CreateDataSourcePage />} />
                 <Route path="/catalog/:dataSourceId" element={<DataSourceDetailPage />} />

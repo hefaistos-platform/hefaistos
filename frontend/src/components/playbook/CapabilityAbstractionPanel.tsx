@@ -1,171 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { gql } from '@apollo/client';
 import { useLazyQuery, useMutation, useQuery } from '@apollo/client/react';
-import { Alert, Button, Card, Checkbox, Collapse, Empty, Form, Input, Modal, Popconfirm, Select, Space, Tag, Tooltip, Typography, message } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { Alert, Button, Card, Checkbox, Collapse, Empty, Input, Popconfirm, Select, Space, Tag, Tooltip, Typography, message } from 'antd';
 import { CloseOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import {
+  ALL_ATTACK_TECHNIQUES_QUERY,
+  AttackTechniqueOption,
+  CAPABILITY_ABSTRACTIONS_QUERY,
+  CapabilityAbstractionEntry,
+  CapabilityAbstractionFormModal,
+  CapabilityAbstractionFormValues,
+  CREATE_CAPABILITY_ABSTRACTION_MUTATION,
+  DELETE_CAPABILITY_ABSTRACTION_MUTATION,
+  LAYER_OPTIONS,
+  REVIEW_STATUS_OPTIONS,
+  UPDATE_CAPABILITY_ABSTRACTION_MUTATION,
+} from './capabilityAbstractionShared';
 
 const { Text, Paragraph } = Typography;
-const { TextArea } = Input;
-
-const CAPABILITY_ABSTRACTIONS_QUERY = gql`
-  query CapabilityAbstractions($techniqueId: String, $includeBaseline: Boolean) {
-    capabilityAbstractions(techniqueId: $techniqueId, includeBaseline: $includeBaseline) {
-      id
-      abstractionLayer
-      componentArtifact
-      adversaryPurpose
-      commonEvasions
-      expectedObservables
-      applicableTelemetry
-      detectionValue
-      robustnessLevel
-      sourceKind
-      reviewStatus
-      version
-      organizationName
-      isEditable
-      isSharedBaseline
-      technique {
-        techniqueId
-        name
-      }
-    }
-  }
-`;
-
-const ALL_ATTACK_TECHNIQUES_QUERY = gql`
-  query AllAttackTechniquesForCAL($search: String, $limit: Int) {
-    allAttackTechniques(search: $search, limit: $limit) {
-      id
-      techniqueId
-      name
-    }
-  }
-`;
-
-const CREATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
-  mutation CreateCapabilityAbstraction(
-    $techniqueId: String!
-    $abstractionLayer: String!
-    $componentArtifact: String!
-    $adversaryPurpose: String
-    $commonEvasions: String
-    $expectedObservables: String
-    $applicableTelemetry: String
-    $detectionValue: String
-    $robustnessLevel: Int
-    $reviewStatus: String
-  ) {
-    createCapabilityAbstraction(
-      techniqueId: $techniqueId
-      abstractionLayer: $abstractionLayer
-      componentArtifact: $componentArtifact
-      adversaryPurpose: $adversaryPurpose
-      commonEvasions: $commonEvasions
-      expectedObservables: $expectedObservables
-      applicableTelemetry: $applicableTelemetry
-      detectionValue: $detectionValue
-      robustnessLevel: $robustnessLevel
-      reviewStatus: $reviewStatus
-    ) {
-      capabilityAbstraction {
-        id
-        abstractionLayer
-      }
-    }
-  }
-`;
-
-const UPDATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
-  mutation UpdateCapabilityAbstraction(
-    $capabilityAbstractionId: UUID!
-    $abstractionLayer: String
-    $componentArtifact: String
-    $adversaryPurpose: String
-    $commonEvasions: String
-    $expectedObservables: String
-    $applicableTelemetry: String
-    $detectionValue: String
-    $robustnessLevel: Int
-    $reviewStatus: String
-  ) {
-    updateCapabilityAbstraction(
-      capabilityAbstractionId: $capabilityAbstractionId
-      abstractionLayer: $abstractionLayer
-      componentArtifact: $componentArtifact
-      adversaryPurpose: $adversaryPurpose
-      commonEvasions: $commonEvasions
-      expectedObservables: $expectedObservables
-      applicableTelemetry: $applicableTelemetry
-      detectionValue: $detectionValue
-      robustnessLevel: $robustnessLevel
-      reviewStatus: $reviewStatus
-    ) {
-      capabilityAbstraction {
-        id
-      }
-    }
-  }
-`;
-
-const DELETE_CAPABILITY_ABSTRACTION_MUTATION = gql`
-  mutation DeleteCapabilityAbstraction($capabilityAbstractionId: UUID!) {
-    deleteCapabilityAbstraction(capabilityAbstractionId: $capabilityAbstractionId) {
-      ok
-    }
-  }
-`;
-
-const LAYER_OPTIONS = [
-  { value: 'TOOL', label: 'Tool / Binary' },
-  { value: 'API_EXPORT', label: 'API / Export' },
-  { value: 'COM_IPC', label: 'COM / IPC' },
-  { value: 'REGISTRY_OBJECT', label: 'Registry Object' },
-  { value: 'PROTOCOL', label: 'Protocol' },
-  { value: 'PROCESS_BEHAVIOR', label: 'Process Behavior' },
-  { value: 'NETWORK_BEHAVIOR', label: 'Network Behavior' },
-];
-
-type CapabilityAbstractionEntry = {
-  id: string;
-  abstractionLayer: string;
-  componentArtifact: string;
-  adversaryPurpose?: string;
-  commonEvasions?: string;
-  expectedObservables?: string;
-  applicableTelemetry?: string;
-  detectionValue?: string;
-  robustnessLevel?: number;
-  sourceKind?: string;
-  reviewStatus?: string;
-  version?: number;
-  organizationName?: string;
-  isEditable?: boolean;
-  isSharedBaseline?: boolean;
-  technique?: {
-    techniqueId: string;
-    name: string;
-  };
-};
-
-type AttackTechniqueOption = {
-  id: string;
-  techniqueId: string;
-  name: string;
-};
-
-type FormValues = {
-  techniqueId?: string;
-  abstractionLayer: string;
-  componentArtifact: string;
-  adversaryPurpose?: string;
-  commonEvasions?: string;
-  expectedObservables?: string;
-  applicableTelemetry?: string;
-  detectionValue?: string;
-  robustnessLevel?: number;
-  reviewStatus?: string;
-};
 
 interface CapabilityAbstractionPanelProps {
   techniqueId?: string | null;
@@ -200,7 +52,7 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
   highlightedEntryId = null,
   onEntryHighlight,
 }) => {
-  const [form] = Form.useForm<FormValues>();
+  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<CapabilityAbstractionEntry | null>(null);
   const [filterTechniqueId, setFilterTechniqueId] = useState<string | undefined>(techniqueId || undefined);
@@ -351,24 +203,11 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
 
   const openCreateModal = () => {
     setEditingEntry(null);
-    form.resetFields();
-    form.setFieldsValue({ reviewStatus: 'DRAFT', techniqueId: techniqueId || filterTechniqueId });
     setIsModalOpen(true);
   };
 
   const openEditModal = (entry: CapabilityAbstractionEntry) => {
     setEditingEntry(entry);
-    form.setFieldsValue({
-      abstractionLayer: entry.abstractionLayer,
-      componentArtifact: entry.componentArtifact,
-      adversaryPurpose: entry.adversaryPurpose,
-      commonEvasions: entry.commonEvasions,
-      expectedObservables: entry.expectedObservables,
-      applicableTelemetry: entry.applicableTelemetry,
-      detectionValue: entry.detectionValue,
-      robustnessLevel: entry.robustnessLevel,
-      reviewStatus: entry.reviewStatus,
-    });
     setIsModalOpen(true);
   };
 
@@ -405,8 +244,7 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
     await handleSelection(nextIds);
   };
 
-  const handleSave = async () => {
-    const values = await form.validateFields();
+  const handleSave = async (values: CapabilityAbstractionFormValues) => {
     const { techniqueId: formTechniqueId, ...restValues } = values;
 
     if (editingEntry) {
@@ -630,11 +468,7 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
                       style={{ width: '100%', marginTop: 8 }}
                       placeholder="Filter by review status"
                       value={reviewStatusFilters}
-                      options={[
-                        { value: 'DRAFT', label: 'Draft' },
-                        { value: 'REVIEWED', label: 'Reviewed' },
-                        { value: 'APPROVED', label: 'Approved' },
-                      ]}
+                      options={REVIEW_STATUS_OPTIONS}
                       onChange={setReviewStatusFilters}
                     />
                   </div>
@@ -659,13 +493,31 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
             <Text type="secondary">
               Baseline entries are shared and read-only. Custom entries are organization-scoped and versioned.
             </Text>
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className="px-3 py-1.5 rounded bg-purple-600 text-white text-sm hover:bg-purple-700"
-            >
-              Add Custom Entry
-            </button>
+            <Space wrap>
+              <Button
+                onClick={() => {
+                  const params = new URLSearchParams();
+                  const nextTechniqueId = filterTechniqueId || techniqueId;
+                  const nextCapabilityId = highlightedEntryId || selectedIds[0];
+                  if (nextTechniqueId) {
+                    params.set('techniqueId', nextTechniqueId);
+                  }
+                  if (nextCapabilityId) {
+                    params.set('capabilityId', nextCapabilityId);
+                  }
+                  navigate(`/capability-library${params.toString() ? `?${params.toString()}` : ''}`);
+                }}
+              >
+                Open in Capability Library
+              </Button>
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="px-3 py-1.5 rounded bg-purple-600 text-white text-sm hover:bg-purple-700"
+              >
+                Add Custom Entry
+              </button>
+            </Space>
           </div>
 
           <div>
@@ -768,77 +620,18 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
         </>
       </Space>
 
-      <Modal
-        title={editingEntry ? 'Edit Capability Abstraction' : 'Add Capability Abstraction'}
+      <CapabilityAbstractionFormModal
         open={isModalOpen}
+        editingEntry={editingEntry}
+        defaultTechniqueId={techniqueId || filterTechniqueId}
+        techniqueOptions={techniqueOptions}
+        attackTechniquesLoading={attackTechniquesLoading}
+        saving={creating || updating}
+        onTechniqueSearch={handleTechniqueSearch}
+        onTechniqueFocus={() => loadAttackTechniques({ variables: { limit: 50 } })}
         onCancel={() => setIsModalOpen(false)}
-        onOk={handleSave}
-        okButtonProps={{ loading: creating || updating }}
-        destroyOnClose
-        className="capability-library-modal"
-      >
-        <Form<FormValues> form={form} layout="vertical">
-          {!editingEntry && (
-            <Form.Item
-              name="techniqueId"
-              label="ATT&CK technique"
-              rules={[{ required: true, message: 'Please select an ATT&CK technique.' }]}
-            >
-              <Select
-                showSearch
-                allowClear
-                filterOption={false}
-                placeholder="Select ATT&CK technique"
-                options={techniqueOptions}
-                loading={attackTechniquesLoading}
-                onSearch={handleTechniqueSearch}
-                onFocus={() => loadAttackTechniques({ variables: { limit: 50 } })}
-              />
-            </Form.Item>
-          )}
-          <Form.Item name="abstractionLayer" label="Abstraction layer" rules={[{ required: true }]}>
-            <Select options={LAYER_OPTIONS} />
-          </Form.Item>
-          <Form.Item name="componentArtifact" label="Component / artifact" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="adversaryPurpose" label="Adversary purpose">
-            <TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="commonEvasions" label="Common evasions / variations">
-            <TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="expectedObservables" label="Expected observables">
-            <TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="applicableTelemetry" label="Applicable telemetry">
-            <TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="detectionValue" label="Detection value">
-            <TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="robustnessLevel" label="Robustness level">
-            <Select
-              options={[
-                { value: 1, label: '1 - Ephemeral' },
-                { value: 2, label: '2 - Tool / artifact' },
-                { value: 3, label: '3 - Moderate' },
-                { value: 4, label: '4 - Strong behavior' },
-                { value: 5, label: '5 - Invariant / technique' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="reviewStatus" label="Review status">
-            <Select
-              options={[
-                { value: 'DRAFT', label: 'Draft' },
-                { value: 'REVIEWED', label: 'Reviewed' },
-                { value: 'APPROVED', label: 'Approved' },
-              ]}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
+        onSave={handleSave}
+      />
     </Card>
   );
 };

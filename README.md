@@ -7,7 +7,7 @@
 **Enterprise Detection Engineering & Threat Intelligence Platform**
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](./LICENSE)
-[![Platform Version](https://img.shields.io/badge/platform-1.5.37-0A66C2.svg)](./VERSION) <!-- hefaistos-version-badge -->
+[![Platform Version](https://img.shields.io/badge/platform-1.5.41-0A66C2.svg)](./VERSION) <!-- hefaistos-version-badge -->
 [![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://python.org)
 [![Django](https://img.shields.io/badge/django-6.0.5-green.svg)](https://djangoproject.com)
 [![React](https://img.shields.io/badge/react-19.2-61dafb.svg)](https://reactjs.org)
@@ -79,7 +79,7 @@ HEFAISTOS is a comprehensive **Detection Engineering Platform** designed for sec
 The visual workbench provides a complete detection engineering environment:
 
 - **Capability Abstraction Map** - Auto-generated visual graph derived from the Capability Abstraction Library; layer-band backgrounds, robustness color-coding, evasion annotations, coverage-gap nodes, and bidirectional click-to-highlight sync between the map and the library panel
-- **Capability Abstraction Library** - Structured, technique-scoped knowledge library (shared baseline + org-custom entries) grounding AI generation in concrete detection layers (Tool → API → COM/IPC → Registry → Protocol → Process Behavior → Network Behavior)
+- **Capability Abstraction Library** - Structured knowledge workspace with a dedicated Capability Library page plus in-Workbench usage, reusing the same baseline/org-custom capability schema to ground AI generation in concrete detection layers (Tool → API → COM/IPC → Registry → Protocol → Process Behavior → Network Behavior)
 - **Graph Visualization** - React Flow-based capability abstraction graphs with Auto (library-derived) and Manual modes
 - **Detection Strategy** - MITRE ATT&CK technique and strategy selection
 - **Deep Dive Sections** - Goal, technical context, blind spots, false positives
