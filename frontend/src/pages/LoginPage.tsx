@@ -481,16 +481,6 @@ export const LoginPage = () => {
                   Forgot Password
                 </Link>
                 <span className="theme-link login-link-divider" style={{ fontSize: 13 }}>|</span>
-                <a
-                  href="https://payme.hefaistos.org/"
-                  className="theme-link"
-                  style={{ fontSize: 13 }}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Register
-                </a>
-                <span className="theme-link login-link-divider" style={{ fontSize: 13 }}>|</span>
                 <span className="login-terms-text" style={{ fontSize: 13 }}>
                   Terms and Conditions
                 </span>
