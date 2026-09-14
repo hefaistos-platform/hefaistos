@@ -47,4 +47,8 @@ Force mode (recovery; downtime expected):
 - `repository.version`: version read from repository origin default branch `VERSION`.
 - `update_available`: `true` when repository version is newer, `false` when same/older, `null` when versions cannot be compared.
 
+### Ownership/safe.directory note
+
+In some containerized deployments, git can refuse repository access with a "dubious ownership" error. The backend now retries git lookups with a scoped `safe.directory` override for the detected repository path. If repository version is still unavailable, set `HEFAISTOS_REPOSITORY_VERSION` to provide an explicit remote version value.
+
 All endpoints require authenticated superuser access.

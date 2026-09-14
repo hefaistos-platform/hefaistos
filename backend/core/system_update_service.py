@@ -112,6 +112,11 @@ def _compare_versions(local_version: str | None, repo_version: str | None) -> bo
     return padded_repo > padded_local
 
 
+def _is_dubious_ownership_error(stdout: str | None, stderr: str | None) -> bool:
+    combined = f"{stdout or ''}\n{stderr or ''}".lower()
+    return 'detected dubious ownership' in combined
+
+
 _REDACTION_PATTERNS = [
     re.compile(r'(?i)(bearer\s+)[^\s\"\']+'),
     re.compile(r'(?i)((?:password|passwd|secret|token|api[_-]?key|authorization)\s*[:=]\s*)[^\s\"\']+'),
@@ -244,6 +249,39 @@ class SystemUpdateService:
 
         return True, command_reason, compose_base
 
+    def _run_git_command(self, args: list[str], timeout_seconds: int) -> tuple[subprocess.CompletedProcess[str], bool]:
+        """Run git command and retry once with safe.directory override on ownership warnings."""
+        first = subprocess.run(
+            ['git', *args],
+            cwd=str(self.repo_root),
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+        if first.returncode == 0:
+            return first, False
+
+        if _is_dubious_ownership_error(first.stdout, first.stderr):
+            retry = subprocess.run(
+                ['git', '-c', f'safe.directory={self.repo_root}', *args],
+                cwd=str(self.repo_root),
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                check=False,
+            )
+            return retry, True
+
+        return first, False
+
+    @staticmethod
+    def _friendly_repository_error(result: subprocess.CompletedProcess[str]) -> str:
+        if _is_dubious_ownership_error(result.stdout, result.stderr):
+            return 'Repository access is blocked by git ownership protection in this runtime. Set safe.directory for this repo path or configure HEFAISTOS_REPOSITORY_VERSION.'
+        summary = SystemUpdateService._summarize_probe_output(result)
+        return f'Repository version lookup failed: {summary}'
+
     def _read_repository_version(self) -> tuple[str | None, str, str | None]:
         """Resolve latest repo VERSION from origin/default branch without mutating local files."""
         env_override = (os.environ.get('HEFAISTOS_REPOSITORY_VERSION') or '').strip()
@@ -252,14 +290,7 @@ class SystemUpdateService:
 
         remote_head_ref = 'origin/HEAD'
         try:
-            symref_probe = subprocess.run(
-                ['git', 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
-                cwd=str(self.repo_root),
-                capture_output=True,
-                text=True,
-                timeout=6,
-                check=False,
-            )
+            symref_probe, _retried = self._run_git_command(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], timeout_seconds=6)
             if symref_probe.returncode == 0:
                 candidate_ref = (symref_probe.stdout or '').strip()
                 if candidate_ref:
@@ -268,23 +299,9 @@ class SystemUpdateService:
             pass
 
         try:
-            fetch_probe = subprocess.run(
-                ['git', 'fetch', '--quiet', '--depth=1', 'origin'],
-                cwd=str(self.repo_root),
-                capture_output=True,
-                text=True,
-                timeout=20,
-                check=False,
-            )
+            fetch_probe, _retried = self._run_git_command(['fetch', '--quiet', '--depth=1', 'origin'], timeout_seconds=20)
             if fetch_probe.returncode == 0:
-                show_fetched = subprocess.run(
-                    ['git', 'show', 'FETCH_HEAD:VERSION'],
-                    cwd=str(self.repo_root),
-                    capture_output=True,
-                    text=True,
-                    timeout=8,
-                    check=False,
-                )
+                show_fetched, _retried = self._run_git_command(['show', 'FETCH_HEAD:VERSION'], timeout_seconds=8)
                 if show_fetched.returncode == 0:
                     fetched_version = (show_fetched.stdout or '').strip()
                     if fetched_version:
@@ -292,20 +309,13 @@ class SystemUpdateService:
         except Exception:
             pass
 
-        show_remote = subprocess.run(
-            ['git', 'show', f'{remote_head_ref}:VERSION'],
-            cwd=str(self.repo_root),
-            capture_output=True,
-            text=True,
-            timeout=8,
-            check=False,
-        )
+        show_remote, _retried = self._run_git_command(['show', f'{remote_head_ref}:VERSION'], timeout_seconds=8)
         if show_remote.returncode == 0:
             remote_version = (show_remote.stdout or '').strip()
             if remote_version:
                 return remote_version, f'git {remote_head_ref}:VERSION', None
 
-        reason = self._summarize_probe_output(show_remote)
+        reason = self._friendly_repository_error(show_remote)
         return None, f'git {remote_head_ref}:VERSION', reason
 
     def _command_steps(self, force: bool, compose_base: list[str] | None = None) -> list[UpdateStep]:
@@ -454,14 +464,7 @@ class SystemUpdateService:
             or 'unknown'
         )
         try:
-            result = subprocess.run(
-                ['git', 'rev-parse', 'HEAD'],
-                cwd=str(self.repo_root),
-                capture_output=True,
-                text=True,
-                timeout=8,
-                check=False,
-            )
+            result, _retried = self._run_git_command(['rev-parse', 'HEAD'], timeout_seconds=8)
             if result.returncode == 0:
                 commit = (result.stdout or '').strip() or 'unknown'
         except Exception:

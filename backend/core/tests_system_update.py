@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+import subprocess
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -154,3 +155,38 @@ class SystemUpdateServiceTests(TestCase):
         self.assertEqual(payload['repository']['source'], 'test-source')
         self.assertIsNone(payload['repository']['error'])
         self.assertTrue(payload['update_available'])
+
+    def test_run_git_command_retries_with_safe_directory_on_dubious_ownership(self):
+        service = SystemUpdateService()
+        first = subprocess.CompletedProcess(
+            args=['git', 'show', 'origin/HEAD:VERSION'],
+            returncode=128,
+            stdout='',
+            stderr="fatal: detected dubious ownership in repository at '/opt/hefaistos'",
+        )
+        second = subprocess.CompletedProcess(
+            args=['git', '-c', f'safe.directory={service.repo_root}', 'show', 'origin/HEAD:VERSION'],
+            returncode=0,
+            stdout='1.5.46\n',
+            stderr='',
+        )
+
+        with patch('core.system_update_service.subprocess.run', side_effect=[first, second]) as run_mock:
+            result, retried = service._run_git_command(['show', 'origin/HEAD:VERSION'], timeout_seconds=8)
+
+        self.assertTrue(retried)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual((result.stdout or '').strip(), '1.5.46')
+        self.assertEqual(run_mock.call_count, 2)
+
+    def test_friendly_repository_error_for_dubious_ownership(self):
+        result = subprocess.CompletedProcess(
+            args=['git', 'show', 'origin/HEAD:VERSION'],
+            returncode=128,
+            stdout='',
+            stderr="fatal: detected dubious ownership in repository at '/opt/hefaistos'",
+        )
+
+        message = SystemUpdateService._friendly_repository_error(result)
+        self.assertIn('ownership protection', message)
+        self.assertIn('safe.directory', message)
