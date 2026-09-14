@@ -131,7 +131,7 @@ export const MARKDOWN_PLACEHOLDERS = {
 
 // Markdown rendering CSS classes
 export const MARKDOWN_PROSE_CLASSES = {
-  default: 'prose lg:prose-xl',
+  default: 'prose prose-sm max-w-none',
   small: 'prose prose-sm',
   compact: 'prose prose-sm max-w-none',
   inline: 'prose prose-sm max-w-none inline',

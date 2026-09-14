@@ -182,13 +182,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           ),
           // Style headings for better hierarchy
           h1: ({ node, ...props }) => (
-            <h1 className="text-2xl font-bold mt-4 mb-2" style={headingStyle} {...props} />
+            <h1 className="text-lg font-bold mt-4 mb-2" style={headingStyle} {...props} />
           ),
           h2: ({ node, ...props }) => (
-            <h2 className="text-xl font-bold mt-3 mb-2" style={headingStyle} {...props} />
+            <h2 className="text-base font-bold mt-3 mb-2" style={headingStyle} {...props} />
           ),
           h3: ({ node, ...props }) => (
-            <h3 className="text-lg font-semibold mt-2 mb-1" style={headingStyle} {...props} />
+            <h3 className="text-sm font-semibold mt-2 mb-1" style={headingStyle} {...props} />
           ),
           // Ensure lists are properly styled
           ul: ({ node, ...props }) => (

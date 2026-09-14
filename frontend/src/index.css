@@ -1457,6 +1457,16 @@ code {
   color: var(--hef-text-muted);
 }
 
+/* Keep markdown editor and preview text aligned with platform body sizing. */
+.EasyMDEContainer .CodeMirror,
+.EasyMDEContainer .CodeMirror-scroll,
+.EasyMDEContainer .editor-preview,
+.EasyMDEContainer .editor-preview-full,
+.EasyMDEContainer .editor-preview-side {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 /* Capability map modal (portal-rendered, outside workbench-theme wrapper) */
 .workbench-map-modal .bg-white {
   background: var(--hef-bg-surface) !important;
