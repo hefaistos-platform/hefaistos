@@ -31,6 +31,7 @@ Force mode (recovery; downtime expected):
 - Basic secret redaction is applied to logged command output.
 - Per-step and overall job timeouts are enforced.
 - Final readiness check runs `docker compose ps --services --filter status=running` and fails the job if no services are reported running.
+- Update check response includes both installed local version and repository version from git origin (default branch `VERSION` file) so operators can clearly see what is running versus what is available.
 
 ## API endpoints
 
@@ -38,5 +39,12 @@ Force mode (recovery; downtime expected):
 - `POST /api/system/config/update/start` (body: `{ "force": true|false }`)
 - `GET /api/system/config/update/jobs/{job_id}`
 - `GET /api/system/config/update/jobs/{job_id}/logs?start=0&limit=500`
+
+`GET /api/system/config/update/check` returns:
+
+- `local_version`: installed version on this instance.
+- `current_version`: legacy alias of `local_version` for backward compatibility.
+- `repository.version`: version read from repository origin default branch `VERSION`.
+- `update_available`: `true` when repository version is newer, `false` when same/older, `null` when versions cannot be compared.
 
 All endpoints require authenticated superuser access.

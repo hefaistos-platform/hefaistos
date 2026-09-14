@@ -2245,6 +2245,14 @@ interface SystemUpdateJobState {
 
 interface SystemUpdateCheckState {
   current_version: string;
+  local_version?: string;
+  repository?: {
+    version?: string | null;
+    source?: string | null;
+    checked_at?: string | null;
+    error?: string | null;
+  };
+  update_available?: boolean | null;
   build?: {
     commit?: string | null;
     checked_at?: string | null;
@@ -2275,7 +2283,7 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
   const [starting, setStarting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchCheck = async () => {
+  const fetchCheck = async (announceResult = false) => {
     setChecking(true);
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/system/config/update/check`, {
@@ -2287,6 +2295,23 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
         throw new Error(payload?.detail || `Check failed (${response.status})`);
       }
       setCheckData(payload);
+
+      if (announceResult) {
+        const localVersion = payload?.local_version || payload?.current_version || 'unknown';
+        const repositoryVersion = payload?.repository?.version;
+        const updateAvailable = payload?.update_available;
+
+        if (repositoryVersion && updateAvailable === true) {
+          message.info(`Update available: installed ${localVersion}, repository ${repositoryVersion}.`);
+        } else if (repositoryVersion && updateAvailable === false) {
+          message.success(`No update available: installed ${localVersion} matches repository ${repositoryVersion}.`);
+        } else if (repositoryVersion) {
+          message.info(`Version check completed: installed ${localVersion}, repository ${repositoryVersion}.`);
+        } else {
+          message.warning(`Version check completed, but repository version could not be resolved. Installed: ${localVersion}.`);
+        }
+      }
+
       if (payload?.running_job_id && !activeJob?.id) {
         setActiveJob({ id: payload.running_job_id, mode: 'default', status: 'RUNNING' });
       }
@@ -2351,7 +2376,7 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
       if (!jobId) throw new Error('Missing job id in response');
       setActiveJob({ id: jobId, mode: payload?.mode || (forceMode ? 'force' : 'default'), status: payload?.status || 'PENDING' });
       await fetchJob(jobId);
-      await fetchCheck();
+      await fetchCheck(false);
       message.success('System update job started.');
     } catch (error: any) {
       message.error(error?.message || 'Failed to start update');
@@ -2362,7 +2387,7 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
 
   useEffect(() => {
     if (!isSuperuser) return;
-    void fetchCheck();
+    void fetchCheck(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuperuser]);
 
@@ -2382,13 +2407,37 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
 
   const canUpdate = Boolean(checkData?.update_capability?.can_update);
   const isRunning = activeJob?.status === 'RUNNING' || activeJob?.status === 'PENDING';
+  const localVersion = checkData?.local_version || checkData?.current_version || '—';
+  const repositoryVersion = checkData?.repository?.version || '—';
+  const updateAvailabilityText = checkData?.update_available === true
+    ? 'Update available'
+    : checkData?.update_available === false
+      ? 'Up to date'
+      : 'Unknown';
 
   return (
     <Card title="System Update" bordered>
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          Installed version is local to this instance. Repository version is fetched from the git origin default branch.
+        </Typography.Paragraph>
         <Typography.Text>
-          Current Version: <strong>{checkData?.current_version || '—'}</strong>
+          Installed Version (local): <strong>{localVersion}</strong>
         </Typography.Text>
+        <Typography.Text>
+          Repository Version (origin): <strong>{repositoryVersion}</strong>
+        </Typography.Text>
+        <Typography.Text>
+          Version Status: <strong>{updateAvailabilityText}</strong>
+        </Typography.Text>
+        <Typography.Text>
+          Repository Check Time: <strong>{checkData?.repository?.checked_at || '—'}</strong>
+        </Typography.Text>
+        {checkData?.repository?.error && (
+          <Typography.Text type="warning">
+            Repository version check warning: {checkData.repository.error}
+          </Typography.Text>
+        )}
         <Typography.Text>
           Build Commit: <strong>{checkData?.build?.commit || '—'}</strong>
         </Typography.Text>
@@ -2403,7 +2452,7 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
         </label>
 
         <Space>
-          <AntButton onClick={() => void fetchCheck()} loading={checking}>Check updates</AntButton>
+          <AntButton onClick={() => void fetchCheck(true)} loading={checking}>Check updates</AntButton>
           <AntButton type="primary" danger onClick={() => void startUpdate()} disabled={!canUpdate || isRunning} loading={starting}>
             Update now
           </AntButton>

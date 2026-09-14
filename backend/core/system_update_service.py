@@ -84,6 +84,34 @@ def _configured_version_fallback() -> str | None:
     return None
 
 
+def _extract_numeric_version_tuple(raw_version: str | None) -> tuple[int, ...] | None:
+    """Parse a loose dotted version string (optionally prefixed with 'v')."""
+    if not raw_version:
+        return None
+    cleaned = raw_version.strip()
+    if cleaned.lower().startswith('v'):
+        cleaned = cleaned[1:]
+    match = re.match(r'^(\d+(?:\.\d+)*)', cleaned)
+    if not match:
+        return None
+    try:
+        return tuple(int(part) for part in match.group(1).split('.'))
+    except Exception:
+        return None
+
+
+def _compare_versions(local_version: str | None, repo_version: str | None) -> bool | None:
+    """Return True when repo version is newer, False when not newer, None when unknown."""
+    local_tuple = _extract_numeric_version_tuple(local_version)
+    repo_tuple = _extract_numeric_version_tuple(repo_version)
+    if local_tuple is None or repo_tuple is None:
+        return None
+    width = max(len(local_tuple), len(repo_tuple))
+    padded_local = local_tuple + (0,) * (width - len(local_tuple))
+    padded_repo = repo_tuple + (0,) * (width - len(repo_tuple))
+    return padded_repo > padded_local
+
+
 _REDACTION_PATTERNS = [
     re.compile(r'(?i)(bearer\s+)[^\s\"\']+'),
     re.compile(r'(?i)((?:password|passwd|secret|token|api[_-]?key|authorization)\s*[:=]\s*)[^\s\"\']+'),
@@ -215,6 +243,70 @@ class SystemUpdateService:
             return False, f'compose runtime probe failed: {self._summarize_probe_output(runtime_probe)}', compose_base
 
         return True, command_reason, compose_base
+
+    def _read_repository_version(self) -> tuple[str | None, str, str | None]:
+        """Resolve latest repo VERSION from origin/default branch without mutating local files."""
+        env_override = (os.environ.get('HEFAISTOS_REPOSITORY_VERSION') or '').strip()
+        if env_override:
+            return env_override, 'HEFAISTOS_REPOSITORY_VERSION', None
+
+        remote_head_ref = 'origin/HEAD'
+        try:
+            symref_probe = subprocess.run(
+                ['git', 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
+                cwd=str(self.repo_root),
+                capture_output=True,
+                text=True,
+                timeout=6,
+                check=False,
+            )
+            if symref_probe.returncode == 0:
+                candidate_ref = (symref_probe.stdout or '').strip()
+                if candidate_ref:
+                    remote_head_ref = candidate_ref
+        except Exception:
+            pass
+
+        try:
+            fetch_probe = subprocess.run(
+                ['git', 'fetch', '--quiet', '--depth=1', 'origin'],
+                cwd=str(self.repo_root),
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            if fetch_probe.returncode == 0:
+                show_fetched = subprocess.run(
+                    ['git', 'show', 'FETCH_HEAD:VERSION'],
+                    cwd=str(self.repo_root),
+                    capture_output=True,
+                    text=True,
+                    timeout=8,
+                    check=False,
+                )
+                if show_fetched.returncode == 0:
+                    fetched_version = (show_fetched.stdout or '').strip()
+                    if fetched_version:
+                        return fetched_version, 'git FETCH_HEAD:VERSION', None
+        except Exception:
+            pass
+
+        show_remote = subprocess.run(
+            ['git', 'show', f'{remote_head_ref}:VERSION'],
+            cwd=str(self.repo_root),
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
+        )
+        if show_remote.returncode == 0:
+            remote_version = (show_remote.stdout or '').strip()
+            if remote_version:
+                return remote_version, f'git {remote_head_ref}:VERSION', None
+
+        reason = self._summarize_probe_output(show_remote)
+        return None, f'git {remote_head_ref}:VERSION', reason
 
     def _command_steps(self, force: bool, compose_base: list[str] | None = None) -> list[UpdateStep]:
         cmd = compose_base or ['docker', 'compose']
@@ -352,9 +444,9 @@ class SystemUpdateService:
 
     def get_version_info(self) -> dict[str, Any]:
         version_file = self.repo_root / 'VERSION'
-        current_version = version_file.read_text(encoding='utf-8').strip() if version_file.exists() else 'unknown'
-        if not current_version or current_version == 'unknown':
-            current_version = _configured_version_fallback() or 'unknown'
+        local_version = version_file.read_text(encoding='utf-8').strip() if version_file.exists() else 'unknown'
+        if not local_version or local_version == 'unknown':
+            local_version = _configured_version_fallback() or 'unknown'
 
         commit = (
             (os.environ.get('HEFAISTOS_BUILD_COMMIT') or '').strip()
@@ -376,9 +468,19 @@ class SystemUpdateService:
             pass
 
         capability, capability_reason, _compose_base = self._check_update_capability()
+        repository_version, repository_source, repository_error = self._read_repository_version()
+        update_available = _compare_versions(local_version, repository_version)
 
         return {
-            'current_version': current_version,
+            'current_version': local_version,
+            'local_version': local_version,
+            'repository': {
+                'version': repository_version,
+                'source': repository_source,
+                'checked_at': _iso_utc(_utc_now()),
+                'error': repository_error,
+            },
+            'update_available': update_available,
             'build': {
                 'commit': commit,
                 'checked_at': _iso_utc(_utc_now()),

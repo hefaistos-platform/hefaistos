@@ -57,6 +57,14 @@ describe('SystemUpdateTab', () => {
           ok: true,
           json: async () => ({
             current_version: '1.0.0',
+            local_version: '1.0.0',
+            repository: {
+              version: '1.0.1',
+              source: 'git origin/main:VERSION',
+              checked_at: '2026-01-01T00:00:00Z',
+              error: null,
+            },
+            update_available: true,
             build: { commit: 'abc123' },
             update_capability: { can_update: true, reason: 'ok' },
             running_job_id: null,
@@ -91,7 +99,7 @@ describe('SystemUpdateTab', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Current Version/i)).toBeInTheDocument();
+      expect(screen.getByText(/Installed Version \(local\)/i)).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('switch'));

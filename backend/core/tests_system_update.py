@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import tempfile
 import uuid
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -133,3 +135,22 @@ class SystemUpdateServiceTests(TestCase):
             service.start_update(actor_id='1', actor_username='root', force=False)
 
         self.assertEqual(ctx.exception.job_id, 'already-running')
+
+    def test_get_version_info_includes_local_and_repository_versions(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            (repo_root / 'VERSION').write_text('1.2.3\n', encoding='utf-8')
+            (repo_root / 'docker-compose.yml').write_text('services: {}\n', encoding='utf-8')
+
+            service = SystemUpdateService(repo_root=repo_root)
+
+            with patch.object(service, '_check_update_capability', return_value=(True, 'ok', ['docker', 'compose'])):
+                with patch.object(service, '_read_repository_version', return_value=('1.2.4', 'test-source', None)):
+                    payload = service.get_version_info()
+
+        self.assertEqual(payload['local_version'], '1.2.3')
+        self.assertEqual(payload['current_version'], '1.2.3')
+        self.assertEqual(payload['repository']['version'], '1.2.4')
+        self.assertEqual(payload['repository']['source'], 'test-source')
+        self.assertIsNone(payload['repository']['error'])
+        self.assertTrue(payload['update_available'])
