@@ -123,7 +123,24 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         components={{
           // Ensure links open in new tab for security and prevent accidental navigation
           a: ({ node, ...props }) => (
-            <a {...props} target="_blank" rel="noopener noreferrer" />
+            <a
+              {...props}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--hef-text-link)' }}
+            />
+          ),
+          strong: ({ node, ...props }) => (
+            <strong style={{ color: 'var(--hef-text-primary)' }} {...props} />
+          ),
+          b: ({ node, ...props }) => (
+            <b style={{ color: 'var(--hef-text-primary)' }} {...props} />
+          ),
+          em: ({ node, ...props }) => (
+            <em style={{ color: 'var(--hef-text-primary)' }} {...props} />
+          ),
+          i: ({ node, ...props }) => (
+            <i style={{ color: 'var(--hef-text-primary)' }} {...props} />
           ),
           // Add consistent styling to code blocks with proper contrast
           pre: ({ node, ...props }) => (
