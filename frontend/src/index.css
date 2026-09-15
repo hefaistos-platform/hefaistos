@@ -1457,6 +1457,43 @@ code {
   color: var(--hef-text-muted);
 }
 
+:root[data-theme='dark'] .prose,
+:root[data-theme='dark'] .prose * {
+  --tw-prose-body: var(--hef-text-primary);
+  --tw-prose-headings: var(--hef-text-primary);
+  --tw-prose-lead: var(--hef-text-secondary);
+  --tw-prose-links: var(--hef-text-link);
+  --tw-prose-bold: var(--hef-text-primary);
+  --tw-prose-counters: var(--hef-text-secondary);
+  --tw-prose-bullets: var(--hef-text-secondary);
+  --tw-prose-hr: var(--hef-border);
+  --tw-prose-quotes: var(--hef-text-primary);
+  --tw-prose-quote-borders: var(--hef-border-strong);
+  --tw-prose-captions: var(--hef-text-muted);
+  --tw-prose-code: var(--hef-text-primary);
+  --tw-prose-pre-code: var(--hef-text-primary);
+  --tw-prose-pre-bg: var(--hef-bg-subtle);
+  --tw-prose-th-borders: var(--hef-border);
+  --tw-prose-td-borders: var(--hef-border);
+  --tw-prose-kbd: var(--hef-text-primary);
+  --tw-prose-kbd-shadows: var(--hef-border-strong);
+}
+
+:root[data-theme='dark'] .prose strong,
+:root[data-theme='dark'] .prose b,
+:root[data-theme='dark'] .prose em,
+:root[data-theme='dark'] .prose i,
+:root[data-theme='dark'] .prose code,
+:root[data-theme='dark'] .prose kbd,
+:root[data-theme='dark'] .prose pre {
+  color: var(--hef-text-primary) !important;
+}
+
+:root[data-theme='dark'] .prose code::before,
+:root[data-theme='dark'] .prose code::after {
+  content: none !important;
+}
+
 /* Keep markdown editor and preview text aligned with platform body sizing. */
 .EasyMDEContainer .CodeMirror,
 .EasyMDEContainer .CodeMirror-scroll,
