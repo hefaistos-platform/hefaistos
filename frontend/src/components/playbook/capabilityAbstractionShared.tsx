@@ -133,10 +133,10 @@ export const REVIEW_STATUS_OPTIONS = [
 
 export const ROBUSTNESS_LEVEL_OPTIONS = [
   { value: 1, label: '1 - Ephemeral' },
-  { value: 2, label: '2 - Tool / artifact' },
-  { value: 3, label: '3 - Moderate' },
-  { value: 4, label: '4 - Strong behavior' },
-  { value: 5, label: '5 - Invariant / technique' },
+  { value: 2, label: '2 - Implementation / attacker-controlled' },
+  { value: 3, label: '3 - System-constrained interaction' },
+  { value: 4, label: '4 - Low-variance behavior' },
+  { value: 5, label: '5 - Invariant / core to technique' },
 ];
 
 export type CapabilityAbstractionEntry = {
