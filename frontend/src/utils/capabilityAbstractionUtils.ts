@@ -75,9 +75,9 @@ export function getRobustnessColor(level?: number): string {
 export function getRobustnessLabel(level?: number): string {
   const labels: Record<number, string> = {
     1: 'Ephemeral',
-    2: 'Weak',
-    3: 'Moderate',
-    4: 'Strong',
+    2: 'Attacker-Controlled',
+    3: 'System-Constrained',
+    4: 'Low-Variance',
     5: 'Invariant',
   };
 

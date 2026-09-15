@@ -100,10 +100,10 @@ class DetectionPlaybook(models.Model):
     # --- SECTION 3: ANALYTIC DETAILS ---
     class RobustnessLevel(models.IntegerChoices):
         LEVEL_1 = 1, "Level 1: Ephemeral (IP, Domain, Hash)"
-        LEVEL_2 = 2, "Level 2: Core to Adversary-Brought Tool"
-        LEVEL_3 = 3, "Level 3: Core to Pre-Existing Tool (LOLBin)"
-        LEVEL_4 = 4, "Level 4: Core to Some Implementations"
-        LEVEL_5 = 5, "Level 5: Core to Technique (Invariant)"
+        LEVEL_2 = 2, "Level 2: Implementation / Attacker-Controlled"
+        LEVEL_3 = 3, "Level 3: System-Constrained Interaction (LOLBin)"
+        LEVEL_4 = 4, "Level 4: Low-Variance Behaviors / Core Sometimes"
+        LEVEL_5 = 5, "Level 5: Invariant Behaviors / Core to Technique"
 
     robustness_level = models.IntegerField(
         choices=RobustnessLevel.choices,

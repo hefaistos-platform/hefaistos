@@ -64,9 +64,9 @@ export const PlaybookSidebar: React.FC<SidebarProps> = ({
   const getLevelInfo = (level: number) => {
       switch (level) {
           case 1: return { color: 'bg-red-100 text-red-800', label: 'Ephemeral', desc: 'Hash, IP, Domain' };
-          case 2: return { color: 'bg-orange-100 text-orange-800', label: 'Tool Artifact', desc: 'Default flags, pipe names' };
-          case 3: return { color: 'bg-yellow-100 text-yellow-800', label: 'LOLBin / Tool', desc: 'powershell.exe, reg.exe' };
-          case 4: return { color: 'bg-blue-100 text-blue-800', label: 'Behavioral', desc: 'API calls, Access rights' };
+          case 2: return { color: 'bg-orange-100 text-orange-800', label: 'Attacker-Controlled', desc: 'Default flags, pipe names' };
+          case 3: return { color: 'bg-yellow-100 text-yellow-800', label: 'System-Constrained', desc: 'powershell.exe, reg.exe' };
+          case 4: return { color: 'bg-blue-100 text-blue-800', label: 'Low-Variance', desc: 'API calls, Access rights' };
           case 5: return { color: 'bg-green-100 text-green-800', label: 'Invariant', desc: 'Technique choke point' };
           default: return { color: 'bg-gray-100 text-gray-800', label: 'Not Set', desc: 'Select logic level' };
       }
@@ -223,9 +223,9 @@ export const PlaybookSidebar: React.FC<SidebarProps> = ({
                             >
                                 <option value="0">Select Level...</option>
                                 <option value="1">Level 1: Ephemeral (Hash/IP)</option>
-                                <option value="2">Level 2: Tool Artifact (String/Flag)</option>
-                                <option value="3">Level 3: LOLBin (CommandLine)</option>
-                                <option value="4">Level 4: Behavior (API/RPC)</option>
+                                <option value="2">Level 2: Attacker-Controlled (String/Flag)</option>
+                                <option value="3">Level 3: System-Constrained (CommandLine)</option>
+                                <option value="4">Level 4: Low-Variance (API/RPC)</option>
                                 <option value="5">Level 5: Invariant (Choke Point)</option>
                             </select>
                             <p className="text-[10px] text-gray-500 mt-1 italic leading-tight">

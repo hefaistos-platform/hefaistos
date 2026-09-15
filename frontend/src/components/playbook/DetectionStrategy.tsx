@@ -615,11 +615,11 @@ ${ruleBody}
      if (desc.includes("hash") || desc.includes("ip address") || desc.includes("domain")) {
          level = 1; // Ephemeral
      } else if (desc.includes("pipe") || desc.includes("flag") || desc.includes("string")) {
-         level = 2; // Tool Artifact
+         level = 2; // Implementation / Attacker-Controlled
      } else if (desc.includes("api") || desc.includes("rpc") || desc.includes("call")) {
-         level = 4; // Behavior
+         level = 4; // Low-Variance Behaviors / Core Sometimes
      } else if (desc.includes("invariant") || desc.includes("always")) {
-         level = 5; // Invariant
+         level = 5; // Invariant Behaviors / Core to Technique
      }
 
      // 3. Update Parent

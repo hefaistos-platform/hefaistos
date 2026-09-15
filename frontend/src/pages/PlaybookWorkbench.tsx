@@ -61,9 +61,9 @@ import { ReferenceContextItem, ReferenceContextPanel } from '../components/playb
 const RobustnessBadge: React.FC<{ level: number }> = ({ level }) => {
   const config: Record<number, { color: string; label: string }> = {
     1: { color: 'bg-red-500', label: 'Ephemeral (Hash/IP)' },
-    2: { color: 'bg-orange-500', label: 'Weak (Filename)' },
-    3: { color: 'bg-yellow-500', label: 'Moderate (Artifact)' },
-    4: { color: 'bg-blue-500', label: 'Strong (Tool)' },
+    2: { color: 'bg-orange-500', label: 'Attacker-Controlled' },
+    3: { color: 'bg-yellow-500', label: 'System-Constrained' },
+    4: { color: 'bg-blue-500', label: 'Low-Variance' },
     5: { color: 'bg-green-500', label: 'Invariant (TTP)' },
   };
   

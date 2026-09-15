@@ -17,10 +17,10 @@ export const PLAYBOOK_TYPE_CHOICES = [
 // Centralized Robustness choices (mirror Django DetectionPlaybook choices)
 export const ROBUSTNESS_CHOICES = [
   { value: 1, label: 'Level 1: Ephemeral (IP, Domain, Hash)' },
-  { value: 2, label: 'Level 2: Core to Adversary-Brought Tool' },
-  { value: 3, label: 'Level 3: Core to Pre-Existing Tool (LOLBin)' },
-  { value: 4, label: 'Level 4: Core to Some Implementations' },
-  { value: 5, label: 'Level 5: Core to Technique (Invariant)' },
+  { value: 2, label: 'Level 2: Implementation / Attacker-Controlled' },
+  { value: 3, label: 'Level 3: System-Constrained Interaction (LOLBin)' },
+  { value: 4, label: 'Level 4: Low-Variance Behaviors / Core Sometimes' },
+  { value: 5, label: 'Level 5: Invariant Behaviors / Core to Technique' },
 ];
 
 export const EVENT_ROBUSTNESS_CHOICES = [
