@@ -80,7 +80,7 @@ class Command(BaseCommand):
             rag_sync_schedule=RuleRepository.RAGSyncSchedule.DISABLED,
         ).filter(
             Q(rag_last_sync_status_at__lte=stale_cutoff)
-            | Q(rag_last_sync_status_at__isnull=True, updated_at__lte=stale_cutoff)
+            | Q(rag_last_sync_status_at__isnull=True, last_synced__lte=stale_cutoff)
         )
 
         if stale_repos.exists():

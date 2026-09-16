@@ -53,10 +53,31 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 django.setup()
 
 from django.core.management import call_command
+from django.db import connections
 from organizations.ai_tasks import run_due_ai_tasks
 
 # Configuration
 CHECK_INTERVAL_SECONDS = 300  # 5 minutes between checks
+
+
+def _ensure_fresh_db_connection():
+    """
+    Force Django to drop any stale/dead DB connection before running a task.
+
+    This is a long-running standalone process (not a web request cycle), so
+    Django's usual request_started/request_finished signals that normally
+    trigger close_old_connections() never fire here. A connection opened once
+    can sit idle across every CHECK_INTERVAL_SECONDS sleep until Postgres (or
+    a proxy in front of it) kills it, after which the next query fails with
+    "connection already closed" — this was silently breaking every scheduled
+    task in this loop (repo pulls, RAG syncs, HEFAISTOS pulls, MISP auto-pulls,
+    AI tasks), not just one of them. Closing here forces Django to reconnect
+    lazily on the next query.
+    """
+    try:
+        connections.close_all()
+    except Exception as e:
+        logger.warning("Could not close stale DB connections: %s", e)
 
 
 def run_scheduled_pulls():
@@ -194,6 +215,10 @@ def run_loop():
     
     while True:
         try:
+            # Ensure a fresh DB connection before this cycle's tasks — see
+            # _ensure_fresh_db_connection() docstring for why this is required.
+            _ensure_fresh_db_connection()
+
             # Run scheduled pulls
             run_scheduled_pulls()
 
@@ -226,6 +251,7 @@ def run_loop():
 def run_once():
     """Run scheduler once and exit (for use with Ofelia/cron)."""
     logger.info("Hefaistos Scheduler - Single Execution Mode")
+    _ensure_fresh_db_connection()
     success = run_scheduled_pulls()
     success = run_scheduled_rag_syncs() and success
     success = run_scheduled_hefaistos_pulls() and success
