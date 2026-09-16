@@ -4,7 +4,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("playbooks", "0047_mve_statuses"),
+        ("playbooks", "0049_alter_detectionplaybook_robustness_level"),
     ]
 
     operations = [
