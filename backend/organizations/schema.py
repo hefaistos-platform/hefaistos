@@ -680,6 +680,7 @@ class OpenTideFieldMetadata(graphene.ObjectType):
 class PreviewOpenTideMetadata(graphene.ObjectType):
     """Preview of OpenTide metadata with AI enrichment markers."""
 
+    tvm_yaml = graphene.JSONString(description="TVM (Threat Vector Model) structure as JSON, including threat.surface")
     mdr_yaml = graphene.JSONString(description="Complete MDR structure as JSON (detection rules are user-provided)")
     bdr_yaml = graphene.JSONString(description="BDR structure (null if not applicable)")
     dom_yaml = graphene.JSONString(description="DOM structure as JSON")
@@ -1388,6 +1389,7 @@ class Query(graphene.ObjectType):
 
         from playbooks.models import PlaybookGraph
         from playbooks.utils.opentide_compiler import (
+            compile_tvm_yaml,
             compile_mdr_yaml_with_ai,
             compile_dom_yaml_with_ai,
         )
@@ -1415,6 +1417,7 @@ class Query(graphene.ObjectType):
                 pass
 
         # Compile with optional AI enrichment
+        tvm_data = compile_tvm_yaml(playbook)
         mdr_data = compile_mdr_yaml_with_ai(playbook, ai_settings, use_ai_enrichment)
         dom_data = compile_dom_yaml_with_ai(playbook, ai_settings, use_ai_enrichment)
 
@@ -1434,6 +1437,7 @@ class Query(graphene.ObjectType):
         dom_out = _strip_ai_metadata(dom_data)
 
         return PreviewOpenTideMetadata(
+            tvm_yaml=tvm_data,
             mdr_yaml=mdr_out,
             bdr_yaml=None,
             dom_yaml=dom_out,
@@ -1495,6 +1499,7 @@ class Query(graphene.ObjectType):
                 for f in field_metadata_raw
             ]
             result = PreviewOpenTideMetadata(
+                tvm_yaml=rd.get('tvm_yaml'),
                 mdr_yaml=rd.get('mdr_yaml'),
                 bdr_yaml=rd.get('bdr_yaml'),
                 dom_yaml=rd.get('dom_yaml'),
@@ -1556,6 +1561,7 @@ class Query(graphene.ObjectType):
                 for f in field_metadata_raw
             ]
             result = PreviewOpenTideMetadata(
+                tvm_yaml=rd.get('tvm_yaml'),
                 mdr_yaml=rd.get('mdr_yaml'),
                 bdr_yaml=rd.get('bdr_yaml'),
                 dom_yaml=rd.get('dom_yaml'),

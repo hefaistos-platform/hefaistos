@@ -54,6 +54,7 @@ def _build_preview_result(task):
     """
     from playbooks.models import PlaybookGraph
     from playbooks.utils.opentide_compiler import (
+        compile_tvm_yaml,
         compile_mdr_yaml_with_ai,
         compile_bdr_yaml_with_ai,
         compile_dom_yaml_with_ai,
@@ -80,6 +81,7 @@ def _build_preview_result(task):
             pass
 
     # Compile MDR and DOM
+    tvm_data = compile_tvm_yaml(playbook)
     mdr_data = compile_mdr_yaml_with_ai(playbook, ai_settings, use_ai_enrichment)
     dom_data = compile_dom_yaml_with_ai(playbook, ai_settings, use_ai_enrichment)
 
@@ -117,11 +119,13 @@ def _build_preview_result(task):
 
     # Strip internal tracking keys (_ai_generated, _validation_warning, etc.)
     _INTERNAL = frozenset(['_ai_generated', '_validation_warning'])
+    tvm_out = {k: v for k, v in tvm_data.items() if k not in _INTERNAL}
     mdr_out = {k: v for k, v in mdr_data.items() if k not in _INTERNAL}
     dom_out = {k: v for k, v in dom_data.items() if k not in _INTERNAL}
     bdr_out = ({k: v for k, v in bdr_data.items() if k not in _INTERNAL} if bdr_data else None)
 
     return {
+        'tvm_yaml': tvm_out,
         'mdr_yaml': mdr_out,
         'bdr_yaml': bdr_out,
         'dom_yaml': dom_out,

@@ -348,6 +348,7 @@ export const OpenTidePreviewModal: React.FC<OpenTidePreviewModalProps> = ({
   );
 
   // Derive YAML strings (memoised)
+  const tvmYaml = useMemo(() => jsonStringToYaml(preview?.tvmYaml), [preview?.tvmYaml]);
   const mdrYaml = useMemo(() => jsonStringToYaml(preview?.mdrYaml), [preview?.mdrYaml]);
   const domYaml = useMemo(() => jsonStringToYaml(preview?.domYaml), [preview?.domYaml]);
 
@@ -419,6 +420,18 @@ export const OpenTidePreviewModal: React.FC<OpenTidePreviewModalProps> = ({
   const tabItems = useMemo(() => {
     const items = [
       {
+        key: 'tvm',
+        label: `TVM${rawYamlEdits['tvm'] ? ' ✏️' : ''}`,
+        children: (
+          <YamlTab
+            yamlText={tvmYaml}
+            label="TVM"
+            editedValue={rawYamlEdits['tvm']}
+            onEdit={(v) => handleYamlEdit('tvm', v)}
+          />
+        ),
+      },
+      {
         key: 'mdr',
         label: `MDR${rawYamlEdits['mdr'] ? ' ✏️' : ''}`,
         children: (
@@ -458,7 +471,7 @@ export const OpenTidePreviewModal: React.FC<OpenTidePreviewModalProps> = ({
     });
 
     return items;
-  }, [mdrYaml, domYaml, preview, overrides, overrideCount, handleOverride, handleReset, rawYamlEdits, handleYamlEdit]);
+  }, [tvmYaml, mdrYaml, domYaml, preview, overrides, overrideCount, handleOverride, handleReset, rawYamlEdits, handleYamlEdit]);
 
   // ---------------------------------------------------------------------------
   // Render

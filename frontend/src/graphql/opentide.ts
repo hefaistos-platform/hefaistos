@@ -22,6 +22,7 @@ export const PREVIEW_OPENTIDE_METADATA = gql`
       useAiEnrichment: $useAiEnrichment
       forceBdrGeneration: $forceBdrGeneration
     ) {
+      tvmYaml
       mdrYaml
       bdrYaml
       domYaml
@@ -76,6 +77,7 @@ export const GET_OPENTIDE_PREVIEW_STATUS = gql`
       startedAt
       completedAt
       result {
+        tvmYaml
         mdrYaml
         bdrYaml
         domYaml
@@ -106,6 +108,7 @@ export const GET_LATEST_OPENTIDE_PREVIEW = gql`
       forceBdrGeneration
       completedAt
       result {
+        tvmYaml
         mdrYaml
         bdrYaml
         domYaml
@@ -171,6 +174,7 @@ export interface FieldMetadata {
 }
 
 export interface PreviewOpentideMetadataResult {
+  tvmYaml: string | null;       // JSON string representation of the TVM dict (includes threat.surface)
   mdrYaml: string | null;       // JSON string representation of the MDR dict
   bdrYaml: string | null;       // null when BDR is not applicable
   domYaml: string | null;       // JSON string representation of the DOM dict
