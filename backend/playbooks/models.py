@@ -712,7 +712,65 @@ class PlaybookGraph(models.Model):
         )
     )
 
+    # --- TELEMETRY TAGGING (Milestone 1: derivation only, no org-health verification) ---
+    # Derived list of telemetry the detection is expected to depend on, generated as a
+    # byproduct of technique + narrative + rule analysis (never a precondition for
+    # authoring). Each entry: { source, component, fields, rationale, origin, status }.
+    # `status` is always "unverified" in this milestone: entries are derived from MITRE
+    # reference vocabulary (MitreDataComponent / ChokepointEntry / DataSourceField), not
+    # confirmed against any real organization environment. See
+    # Docs/TELEMETRY_TAGGING.md for the full design and gate rules.
+    telemetry_requirements = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "AI-derived/edited telemetry requirement tags for this Workbench object. "
+            "Always unverified reference-vocabulary hypotheses in this milestone; see "
+            "Docs/TELEMETRY_TAGGING.md."
+        ),
+    )
+    telemetry_requirements_generated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp of the last successful telemetry-tag derivation run.",
+    )
+
     # --- AUTOMATION HELPERS ---
+
+    # --- TELEMETRY TAGGING GATE ---
+    # Required-field gate documented in Docs/TELEMETRY_TAGGING.md. Kept as an instance
+    # method (rather than only frontend logic) so the GraphQL mutation can enforce the
+    # hard block server-side regardless of what the UI does.
+    def telemetry_tagging_missing_fields(self) -> list:
+        """
+        Return the list of human-readable required-field labels that are still
+        empty/unset for this Workbench object, per the telemetry-tagging gate:
+
+        1. ATT&CK TTP           -> mitre_technique
+        2. Strategic Goal       -> goal
+        3. Technical Context    -> technical_context
+        4. Detection Rule       -> detection_rule
+        5. Threat Surface Taxonomy -> threat_surface
+
+        Field #5 lives in the otherwise-optional "Part 4: SOAR Configuration"
+        section, but is a hard precondition for telemetry-tag derivation
+        regardless of that section's visibility state for the current user.
+        """
+        missing = []
+        if self.mitre_technique_id is None:
+            missing.append("ATT&CK TTP")
+        if not (self.goal or "").strip():
+            missing.append("Strategic Goal")
+        if not (self.technical_context or "").strip():
+            missing.append("Technical Context")
+        if not (self.detection_rule or "").strip():
+            missing.append("Detection Rule")
+        if not self.threat_surface:
+            missing.append("Threat Surface Taxonomy")
+        return missing
+
+    def telemetry_tagging_gate_passed(self) -> bool:
+        return len(self.telemetry_tagging_missing_fields()) == 0
 
     # --- OPENTIDE METADATA HELPERS ---
     def compile_opentide_metadata(self) -> dict:

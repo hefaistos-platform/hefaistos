@@ -905,6 +905,11 @@ class PlaybookGraphType(DjangoObjectType):
     threat_actors = graphene.JSONString()
     threat_surface = graphene.JSONString()
 
+    # Telemetry Tagging (Milestone 1)
+    telemetry_requirements = graphene.JSONString()
+    telemetry_requirements_generated_at = graphene.DateTime()
+    telemetry_tagging_missing_fields = graphene.List(graphene.String)
+
     class Meta:
         model = PlaybookGraph
         fields = (
@@ -922,7 +927,11 @@ class PlaybookGraphType(DjangoObjectType):
              "downstream_correlation_requirements",
              "opentide_yaml", "configured_platforms",
              "tlp_classification", "public_references", "internal_references", "threat_actors", "threat_surface",
+             "telemetry_requirements", "telemetry_requirements_generated_at",
          )
+
+    def resolve_telemetry_tagging_missing_fields(self, info):
+        return self.telemetry_tagging_missing_fields()
 
     def resolve_tags(self, info):
         return self.tags.names() # Returns list of tag names
@@ -6728,6 +6737,148 @@ class GenerateMveDetectionRule(graphene.Mutation):
         )
 
 
+class DeriveTelemetryRequirements(graphene.Mutation):
+    """
+    Milestone 1 telemetry tagging: AI-assisted derivation of the telemetry a
+    detection is expected to depend on, run as a byproduct of already-completed
+    behavior-first analysis. See Docs/TELEMETRY_TAGGING.md for full design.
+
+    Hard-gated: requires ATT&CK TTP, Strategic Goal, Technical Context,
+    Detection Rule, and Threat Surface Taxonomy to already be populated on the
+    target PlaybookGraph. The gate is enforced here server-side regardless of
+    what the calling UI has already checked, since this is a security/quality
+    control, not just a UX nicety.
+
+    Output entries are always tagged status="unverified" (reference-vocabulary
+    hypotheses, not a confirmed organization-environment inventory) and are
+    never auto-committed as authoritative — the caller/UI is expected to let
+    the analyst review/edit before the final save persists them.
+    """
+
+    class Arguments:
+        id = graphene.UUID(required=True)
+
+    playbook_graph = graphene.Field(PlaybookGraphType)
+    telemetry_requirements = graphene.JSONString()
+    missing_fields = graphene.List(graphene.String)
+    ok = graphene.Boolean()
+
+    class Meta:
+        description = (
+            "Derive telemetry requirement tags for a Workbench object. Hard-blocked "
+            "until ATT&CK TTP, Strategic Goal, Technical Context, Detection Rule, and "
+            "Threat Surface Taxonomy are all populated."
+        )
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST, Roles.REVIEWER])
+    def mutate(root, info, id, **kwargs):
+        user = info.context.user
+        if user.is_anonymous:
+            raise Exception("Authentication credentials were not provided")
+
+        try:
+            graph = PlaybookGraph.objects.select_related(
+                "organization", "mitre_technique"
+            ).get(pk=id, organization=user.organization)
+        except PlaybookGraph.DoesNotExist:
+            raise Exception("Workbench not found or you do not have permission")
+
+        missing = graph.telemetry_tagging_missing_fields()
+        if missing:
+            return DeriveTelemetryRequirements(
+                playbook_graph=graph,
+                telemetry_requirements=graph.telemetry_requirements,
+                missing_fields=missing,
+                ok=False,
+            )
+
+        from ai_assistant.models import UserAISettings
+        from ai_assistant.schema import _get_effective_ai_settings
+        from ai_assistant.telemetry_derivation import (
+            TelemetryGateError,
+            derive_telemetry_requirements,
+        )
+        from django.utils import timezone
+
+        user_ai_settings, _ = UserAISettings.objects.get_or_create(user=user)
+        ai_settings = _get_effective_ai_settings(user_ai_settings)
+
+        try:
+            derived = derive_telemetry_requirements(graph, ai_settings)
+        except TelemetryGateError as exc:
+            return DeriveTelemetryRequirements(
+                playbook_graph=graph,
+                telemetry_requirements=graph.telemetry_requirements,
+                missing_fields=exc.missing_fields,
+                ok=False,
+            )
+
+        graph.telemetry_requirements = derived
+        graph.telemetry_requirements_generated_at = timezone.now()
+        graph.save(update_fields=[
+            "telemetry_requirements",
+            "telemetry_requirements_generated_at",
+            "updated_at",
+        ])
+
+        return DeriveTelemetryRequirements(
+            playbook_graph=graph,
+            telemetry_requirements=derived,
+            missing_fields=[],
+            ok=True,
+        )
+
+
+class UpdateTelemetryRequirements(graphene.Mutation):
+    """
+    Persist an analyst-edited telemetry requirement list (add/remove/edit
+    entries after reviewing the AI-derived draft, or fully manual entries).
+    Does not re-run derivation or re-check the gate: editing/curating an
+    existing list is always allowed once at least one derivation has produced
+    a list, or when the analyst wants to hand-author entries directly.
+    """
+
+    class Arguments:
+        id = graphene.UUID(required=True)
+        telemetry_requirements = graphene.JSONString(required=True)
+
+    playbook_graph = graphene.Field(PlaybookGraphType)
+
+    class Meta:
+        description = "Save an analyst-edited telemetry requirement tag list for a Workbench object."
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST, Roles.REVIEWER])
+    def mutate(root, info, id, telemetry_requirements, **kwargs):
+        user = info.context.user
+        if user.is_anonymous:
+            raise Exception("Authentication credentials were not provided")
+
+        try:
+            graph = PlaybookGraph.objects.get(pk=id, organization=user.organization)
+        except PlaybookGraph.DoesNotExist:
+            raise Exception("Workbench not found or you do not have permission")
+
+        if not isinstance(telemetry_requirements, list):
+            raise Exception("telemetry_requirements must be a JSON list")
+
+        cleaned = []
+        for entry in telemetry_requirements:
+            if not isinstance(entry, dict):
+                continue
+            entry = dict(entry)
+            entry.setdefault("origin", "manual")
+            entry.setdefault("status", "unverified")
+            entry["status"] = "unverified"  # milestone 1: never allow client to claim verified
+            cleaned.append(entry)
+
+        graph.telemetry_requirements = cleaned
+        graph.save(update_fields=["telemetry_requirements", "updated_at"])
+
+        return UpdateTelemetryRequirements(playbook_graph=graph)
+
+
 class Mutation(graphene.ObjectType):
     admin_approve_deployment = AdminApproveDeployment.Field()
     # Playbook & Graph CRUD
@@ -6826,3 +6977,7 @@ class Mutation(graphene.ObjectType):
     start_mve_validation = StartMveValidation.Field()
     generate_mve_detection_rule = GenerateMveDetectionRule.Field()
     export_mve_open_tide_yaml = ExportMveOpenTideYaml.Field()
+
+    # Telemetry Tagging (Milestone 1)
+    derive_telemetry_requirements = DeriveTelemetryRequirements.Field()
+    update_telemetry_requirements = UpdateTelemetryRequirements.Field()
