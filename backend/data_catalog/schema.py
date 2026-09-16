@@ -1,5 +1,7 @@
 import graphene
+from datetime import timedelta
 from django.db import transaction
+from django.utils import timezone
 from graphene_django import DjangoObjectType
 from.models import DataSource, DataSourceField, MitreDeepImportJob
 from identity.decorators import role_required, Roles
@@ -411,7 +413,18 @@ class ImportMitreRequiredDataSources(graphene.Mutation):
 class RunMitreDeepImport(graphene.Mutation):
     """
     Admin-only mutation to queue a deep MITRE required-data-source import job.
+
+    Runs as an in-process background thread (see data_catalog.tasks), which
+    means a backend restart mid-import kills the thread without ever updating
+    the job's status — the row is orphaned at PENDING/RUNNING forever. Before
+    refusing to start a new job because one is "already running", auto-fail
+    any job that has been PENDING/RUNNING longer than STALE_THRESHOLD so a
+    dead job never permanently blocks retriggering. Mirrors the same
+    stale-job self-healing pattern already used by
+    rules.management.commands.run_scheduled_rag_syncs.
     """
+
+    STALE_THRESHOLD = timedelta(minutes=60)
 
     class Arguments:
         include_revoked = graphene.Boolean(
@@ -431,6 +444,23 @@ class RunMitreDeepImport(graphene.Mutation):
             raise Exception("Authentication credentials were not provided")
         if not getattr(user, 'organization', None):
             raise Exception("Your account is not linked to an organization")
+
+        # Self-heal any orphaned job before deciding whether one is "already
+        # running" — see the class docstring for why this is necessary.
+        stale_cutoff = timezone.now() - RunMitreDeepImport.STALE_THRESHOLD
+        now = timezone.now()
+        MitreDeepImportJob.objects.filter(
+            organization=user.organization,
+            status__in=[MitreDeepImportJob.Status.PENDING, MitreDeepImportJob.Status.RUNNING],
+            created_at__lte=stale_cutoff,
+        ).update(
+            status=MitreDeepImportJob.Status.FAILED,
+            error='Marked failed by staleness watchdog: job exceeded '
+                  f'{int(RunMitreDeepImport.STALE_THRESHOLD.total_seconds() // 60)} minutes without '
+                  'completing (likely orphaned by a backend restart mid-import).',
+            updated_at=now,
+            finished_at=now,
+        )
 
         running_job = MitreDeepImportJob.objects.filter(
             organization=user.organization,
