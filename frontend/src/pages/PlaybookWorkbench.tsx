@@ -125,6 +125,11 @@ const GET_PLAYBOOK_GRAPH_QUERY = gql`
       testScenario
       testExpectedOutput
 
+      # --- Telemetry Tagging (Milestone 1) ---
+      telemetryRequirements
+      telemetryRequirementsGeneratedAt
+      telemetryTaggingMissingFields
+
       # --- Metadata & Valuation ---
       customId
       version
@@ -354,6 +359,33 @@ const UPDATE_PLAYBOOK_TAGS_MUTATION = gql`
   mutation UpdatePlaybookTags($graphId: UUID!, $tags: [String]!) {
     updatePlaybookDetails(graphId: $graphId, tags: $tags) {
       graph { id tags }
+    }
+  }
+`;
+
+const DERIVE_TELEMETRY_REQUIREMENTS_MUTATION = gql`
+  mutation DeriveTelemetryRequirements($id: UUID!) {
+    deriveTelemetryRequirements(id: $id) {
+      ok
+      missingFields
+      telemetryRequirements
+      playbookGraph {
+        id
+        telemetryRequirements
+        telemetryRequirementsGeneratedAt
+        telemetryTaggingMissingFields
+      }
+    }
+  }
+`;
+
+const UPDATE_TELEMETRY_REQUIREMENTS_MUTATION = gql`
+  mutation UpdateTelemetryRequirements($id: UUID!, $telemetryRequirements: JSONString!) {
+    updateTelemetryRequirements(id: $id, telemetryRequirements: $telemetryRequirements) {
+      playbookGraph {
+        id
+        telemetryRequirements
+      }
     }
   }
 `;
@@ -811,6 +843,8 @@ export const PlaybookWorkbench = () => {
   const [createGraph] = useMutation<CreateGraphResponse>(CREATE_PLAYBOOK_GRAPH_MUTATION);
   const [updatePlaybookDetails] = useMutation(UPDATE_PLAYBOOK_DETAILS_MUTATION);
   const [updatePlaybookTags] = useMutation(UPDATE_PLAYBOOK_TAGS_MUTATION);
+  const [deriveTelemetryRequirements, { loading: derivingTelemetry }] = useMutation(DERIVE_TELEMETRY_REQUIREMENTS_MUTATION);
+  const [updateTelemetryRequirements] = useMutation(UPDATE_TELEMETRY_REQUIREMENTS_MUTATION);
   const [updateWorkbenchVisibilityDefaults, { loading: savingWorkbenchDefaults }] = useMutation(
     UPDATE_WORKBENCH_VISIBILITY_DEFAULTS_MUTATION,
   );
@@ -1347,16 +1381,54 @@ export const PlaybookWorkbench = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNewPlaybook, navigate, createGraph, updatePlaybookDetails, searchParams]);
   
-  const handleTechniqueChange = useCallback((technique: any) => {
+  const handleTechniqueChange = useCallback(async (technique: any) => {
     if (!playbookId) return;
-    
-    updatePlaybookDetails({
+
+    await updatePlaybookDetails({
       variables: {
         graphId: playbookId,
         mitreTechniqueId: technique?.techniqueId || "",
       }
     });
-  }, [playbookId, updatePlaybookDetails]);
+
+    // Auto-tag the workbench with the selected ATT&CK technique ID so it
+    // shows up alongside manual tags without the analyst re-typing it.
+    // Mirrors the existing "tag by format on rule save" pattern below.
+    if (technique?.techniqueId) {
+      try {
+        const currentTags: string[] = (data?.playbookGraph?.tags || []).slice();
+        const hasTag = currentTags.some(t => t.toUpperCase() === technique.techniqueId.toUpperCase());
+        if (!hasTag) {
+          const updated = [...currentTags, technique.techniqueId];
+          await updatePlaybookTags({ variables: { graphId: playbookId, tags: updated } });
+        }
+      } catch (e) {
+        console.error('Failed to auto-tag ATT&CK technique:', e);
+      }
+    }
+  }, [playbookId, updatePlaybookDetails, updatePlaybookTags, data]);
+
+  // Telemetry Tagging (Milestone 1): trigger AI derivation. The five-field
+  // gate is enforced server-side in the mutation; this handler just surfaces
+  // the result (ok / missingFields / telemetryRequirements) to the caller.
+  const handleDeriveTelemetry = useCallback(async () => {
+    if (!playbookId) return null;
+    const result = await deriveTelemetryRequirements({ variables: { id: playbookId } });
+    return result?.data?.deriveTelemetryRequirements ?? null;
+  }, [playbookId, deriveTelemetryRequirements]);
+
+  // Persist an analyst-edited/curated telemetry requirement list. Always
+  // comes back with status forced to "unverified" server-side regardless of
+  // what is sent, since no org-environment verification layer exists yet.
+  const handleSaveTelemetryRequirements = useCallback(async (entries: any[]) => {
+    if (!playbookId) return;
+    await updateTelemetryRequirements({
+      variables: {
+        id: playbookId,
+        telemetryRequirements: JSON.stringify(entries),
+      },
+    });
+  }, [playbookId, updateTelemetryRequirements]);
 
   const handleCapabilitySelectionChange = useCallback(async (ids: string[], focusLayer: string) => {
     if (!playbookId) return;
@@ -2878,6 +2950,9 @@ export const PlaybookWorkbench = () => {
               onTabChange={setSidebarTab}
               collapsed={isSidebarCollapsed}
               onCollapsedChange={setIsSidebarCollapsed}
+              onDeriveTelemetry={handleDeriveTelemetry}
+              derivingTelemetry={derivingTelemetry}
+              onSaveTelemetryRequirements={handleSaveTelemetryRequirements}
           />
         </div>
 

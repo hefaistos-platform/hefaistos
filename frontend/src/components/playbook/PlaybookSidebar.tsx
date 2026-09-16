@@ -15,6 +15,9 @@ interface SidebarProps {
     createdAt: string;
     notes?: string | null;
     nodes?: Array<{ id: string; mitreAttackMappings?: Array<{ id: string; techniqueId: string; name: string }> }>;
+    telemetryRequirements?: string | null; // JSONString from backend
+    telemetryRequirementsGeneratedAt?: string | null;
+    telemetryTaggingMissingFields?: string[] | null;
   };
   onUpdate: (field: string, value: any) => void;
   onUpdateNodeMappings?: (techniqueIds: string[]) => void;
@@ -24,6 +27,13 @@ interface SidebarProps {
   onTabChange: (tab: 'DETAILS' | 'NOTES') => void;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
+  onDeriveTelemetry?: () => Promise<{
+    ok: boolean;
+    missingFields: string[];
+    telemetryRequirements: string;
+  } | null>;
+  derivingTelemetry?: boolean;
+  onSaveTelemetryRequirements?: (entries: any[]) => Promise<void>;
 }
 
 export const PlaybookSidebar: React.FC<SidebarProps> = ({
@@ -36,10 +46,48 @@ export const PlaybookSidebar: React.FC<SidebarProps> = ({
   onTabChange,
   collapsed,
   onCollapsedChange,
+  onDeriveTelemetry,
+  derivingTelemetry,
+  onSaveTelemetryRequirements,
 }) => {
     // Local state for the tag input field
     const [tagInput, setTagInput] = useState("");
-  
+
+    // Local state for Telemetry Tagging (Milestone 1)
+    const [telemetryError, setTelemetryError] = useState<string[] | null>(null);
+    const parsedTelemetryRequirements: Array<{
+      id?: string;
+      source?: string;
+      component?: string;
+      fields?: string[];
+      rationale?: string;
+      origin?: string;
+      status?: string;
+    }> = (() => {
+      try {
+        return playbook.telemetryRequirements ? JSON.parse(playbook.telemetryRequirements) : [];
+      } catch {
+        return [];
+      }
+    })();
+
+    const handleDeriveTelemetryClick = async () => {
+      if (!onDeriveTelemetry) return;
+      setTelemetryError(null);
+      const result = await onDeriveTelemetry();
+      if (result && !result.ok) {
+        setTelemetryError(result.missingFields || []);
+      }
+    };
+
+    const handleRemoveTelemetryEntry = async (idToRemove: string | undefined, idx: number) => {
+      if (!onSaveTelemetryRequirements) return;
+      const updated = parsedTelemetryRequirements.filter((entry, i) =>
+        idToRemove ? entry.id !== idToRemove : i !== idx
+      );
+      await onSaveTelemetryRequirements(updated);
+    };
+
     // Handler: Add Tag
     const handleAddTag = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && tagInput.trim()) {
@@ -355,6 +403,96 @@ export const PlaybookSidebar: React.FC<SidebarProps> = ({
                                                         )}
                                                     </div>
                                                 </div>
+
+                        {/* 4b. Telemetry Tagging (Milestone 1) */}
+                        <div className="mt-6">
+                            <label className="text-xs font-bold text-gray-700 block mb-1">
+                                Telemetry Tags
+                            </label>
+                            <p className="text-[10px] text-gray-500 mb-2 leading-tight">
+                                Derived from ATT&amp;CK TTP, Strategic Goal, Technical Context, Detection Rule
+                                and Threat Surface Taxonomy. Always unverified reference-vocabulary hypotheses —
+                                review before relying on them.
+                            </p>
+
+                            <button
+                                type="button"
+                                onClick={handleDeriveTelemetryClick}
+                                disabled={
+                                    !onDeriveTelemetry ||
+                                    derivingTelemetry ||
+                                    Boolean(playbook.telemetryTaggingMissingFields && playbook.telemetryTaggingMissingFields.length > 0)
+                                }
+                                title={
+                                    playbook.telemetryTaggingMissingFields && playbook.telemetryTaggingMissingFields.length > 0
+                                        ? `Missing required fields: ${playbook.telemetryTaggingMissingFields.join(', ')}`
+                                        : 'Derive telemetry requirement tags from the completed analysis'
+                                }
+                                className="w-full py-2 px-3 text-xs font-semibold rounded border transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
+                            >
+                                {derivingTelemetry ? 'Deriving…' : 'Derive Telemetry Tags'}
+                            </button>
+
+                            {playbook.telemetryTaggingMissingFields && playbook.telemetryTaggingMissingFields.length > 0 && (
+                                <p className="text-[10px] text-amber-600 mt-1 leading-tight">
+                                    Missing: {playbook.telemetryTaggingMissingFields.join(', ')}
+                                </p>
+                            )}
+                            {telemetryError && telemetryError.length > 0 && (
+                                <p className="text-[10px] text-red-600 mt-1 leading-tight">
+                                    Blocked — missing: {telemetryError.join(', ')}
+                                </p>
+                            )}
+
+                            {playbook.telemetryRequirementsGeneratedAt && (
+                                <p className="text-[10px] text-gray-400 mt-1">
+                                    Last derived: {new Date(playbook.telemetryRequirementsGeneratedAt).toLocaleString()}
+                                </p>
+                            )}
+
+                            <div className="mt-2 space-y-2">
+                                {parsedTelemetryRequirements.length === 0 && (
+                                    <p className="text-[11px] text-gray-400 italic">No telemetry tags yet.</p>
+                                )}
+                                {parsedTelemetryRequirements.map((entry, idx) => (
+                                    <div
+                                        key={entry.id || idx}
+                                        className="p-2 rounded border border-gray-200 bg-gray-50 text-[11px] group relative"
+                                    >
+                                        <button
+                                            onClick={() => handleRemoveTelemetryEntry(entry.id, idx)}
+                                            className="absolute top-1 right-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            aria-label="Remove telemetry tag"
+                                        >
+                                            ×
+                                        </button>
+                                        <div className="flex items-center gap-1 flex-wrap pr-4">
+                                            <span className="font-semibold text-gray-700">{entry.source || 'Unknown source'}</span>
+                                            {entry.component && (
+                                                <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px]">
+                                                    {entry.component}
+                                                </span>
+                                            )}
+                                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] uppercase tracking-wide">
+                                                {entry.status || 'unverified'}
+                                            </span>
+                                        </div>
+                                        {entry.fields && entry.fields.length > 0 && (
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                                {entry.fields.map((f, fi) => (
+                                                    <span key={fi} className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 text-[10px]">
+                                                        {f}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {entry.rationale && (
+                                            <p className="text-[10px] text-gray-500 mt-1 leading-tight">{entry.rationale}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
 
                         {/* 5. Node ATT&CK Mappings (when a node is selected) */}
                         <div className="mt-6">
