@@ -207,10 +207,16 @@ export const SoarConfiguration: React.FC<SoarProps> = ({ data, onSave }) => {
   // --- Downstream Correlation Requirements state ---
   const [joinFieldInput, setJoinFieldInput] = useState('');
 
-  // Sync local state when prop data changes (e.g. initial load / refetch)
+  // Sync local state when prop data changes (e.g. initial load / refetch).
+  // Skip the resync while the user has unsaved local edits (isDirty) —
+  // otherwise a refetch triggered elsewhere on the page (another field
+  // autosaving, a tab switch, etc.) silently reverts everything the user
+  // just clicked/typed in this section before they hit Save, including
+  // Threat Surface Taxonomy selections.
   useEffect(() => {
+      if (isDirty) return;
       setLocalData(normalizeSoarData(data));
-  }, [data]);
+  }, [data, isDirty]);
 
   // ── Generic list helpers ──────────────────────────────────────────────────
 
@@ -555,9 +561,10 @@ export const SoarConfiguration: React.FC<SoarProps> = ({ data, onSave }) => {
           : undefined}
       >
         <p className="text-xs text-gray-500 mb-3">
-          Specify which surfaces this threat targets. Surfaces are automatically detected from the
-          technical context and can be extended or overridden here. These values populate the{' '}
-          <code className="px-1 bg-gray-100 rounded">threat.surface</code> field in the TVM.
+          Specify which surfaces this threat targets (manual entry — this is not
+          auto-detected from technical context). These values populate the{' '}
+          <code className="px-1 bg-gray-100 rounded">threat.surface</code> field in the TVM
+          and are required for Telemetry Tag derivation.
         </p>
 
         {/* Quick-pick grid */}
@@ -632,7 +639,8 @@ export const SoarConfiguration: React.FC<SoarProps> = ({ data, onSave }) => {
           </div>
         ) : (
           <p className="text-xs text-gray-400 italic mt-1">
-            No surfaces selected. Surfaces will be auto-detected from the technical context.
+            No surfaces selected. Add one from the quick-pick list above, or type a custom value —
+            this field is not auto-populated.
           </p>
         )}
       </CollapsibleSection>
