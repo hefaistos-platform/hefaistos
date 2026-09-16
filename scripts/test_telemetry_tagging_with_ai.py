@@ -1,14 +1,21 @@
 """
 Smoke test for Telemetry Tagging (Milestone 1) — full end-to-end run using a
-user that has a real AI provider configured (pass username as the first
-python-manage.py-shell argument is not supported here, so edit TEST_USERNAME
-below or just leave it as 'hunt3r').
+user that has a real AI provider configured. Replace INSERT_USERNAME below
+with a valid username that has a configured AI provider, or set it via the
+TELEMETRY_TEST_USERNAME environment variable (takes precedence over the
+constant below).
 
 Run via:
   docker compose exec -T backend python manage.py shell < scripts/test_telemetry_tagging_with_ai.py
+
+Or without editing the file:
+  docker compose exec -T -e TELEMETRY_TEST_USERNAME=<username> backend \
+    python manage.py shell < scripts/test_telemetry_tagging_with_ai.py
 """
 
-TEST_USERNAME = "hunt3r"
+import os
+
+TEST_USERNAME = os.environ.get("TELEMETRY_TEST_USERNAME", "INSERT_USERNAME")
 
 from organizations.models import Organization
 from identity.models import CustomUser
@@ -22,9 +29,16 @@ print("=" * 70)
 print(f"TELEMETRY TAGGING SMOKE TEST (with real AI provider, user={TEST_USERNAME})")
 print("=" * 70)
 
-user = CustomUser.objects.filter(username=TEST_USERNAME).first()
+user = CustomUser.objects.filter(username=TEST_USERNAME).first() if TEST_USERNAME and TEST_USERNAME != "INSERT_USERNAME" else None
 if not user:
-    print(f"FAIL: user '{TEST_USERNAME}' not found.")
+    print(
+        f"FAIL: no valid username set (got '{TEST_USERNAME}'). "
+        "Edit TEST_USERNAME in this script or set the TELEMETRY_TEST_USERNAME "
+        "environment variable to a username that has a configured AI provider "
+        "before running, e.g.:\n"
+        "  docker compose exec -T -e TELEMETRY_TEST_USERNAME=<username> backend "
+        "python manage.py shell < scripts/test_telemetry_tagging_with_ai.py"
+    )
 else:
     org = user.organization
     print(f"User: {user.username}, Organization: {org.name if org else None}")
