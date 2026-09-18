@@ -101,6 +101,7 @@ const GET_PLAYBOOK_GRAPH_QUERY = gql`
         applicableTelemetry
         detectionValue
         robustnessLevel
+        column
         sourceKind
         reviewStatus
         version
@@ -325,6 +326,7 @@ const UPDATE_PLAYBOOK_DETAILS_MUTATION = gql`
           applicableTelemetry
           detectionValue
           robustnessLevel
+          column
           sourceKind
           reviewStatus
           version

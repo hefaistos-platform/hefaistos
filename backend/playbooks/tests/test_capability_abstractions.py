@@ -52,6 +52,7 @@ class CapabilityAbstractionGraphQLTests(GraphQLTestCase):
             abstraction_layer=CapabilityAbstraction.AbstractionLayer.TOOL,
             component_artifact="mshta.exe",
             detection_value="Quick win for signed binary proxy execution",
+            column=CapabilityAbstraction.Column.APPLICATION,
             source_kind=CapabilityAbstraction.SourceKind.SEEDED,
             is_baseline=True,
         )
@@ -63,6 +64,7 @@ class CapabilityAbstractionGraphQLTests(GraphQLTestCase):
             abstraction_layer=CapabilityAbstraction.AbstractionLayer.PROCESS_BEHAVIOR,
             component_artifact="mshta child process chain",
             detection_value="Stronger process behavior anchor",
+            column=CapabilityAbstraction.Column.USER_MODE,
             source_kind=CapabilityAbstraction.SourceKind.CUSTOM,
             review_status=CapabilityAbstraction.ReviewStatus.REVIEWED,
         )
@@ -92,6 +94,7 @@ class CapabilityAbstractionGraphQLTests(GraphQLTestCase):
                 capabilityAbstractions(techniqueId: $techniqueId) {
                     id
                     componentArtifact
+                    column
                     isSharedBaseline
                     organizationName
                 }
@@ -104,6 +107,9 @@ class CapabilityAbstractionGraphQLTests(GraphQLTestCase):
         self.assertIn("mshta.exe", component_names)
         self.assertIn("mshta child process chain", component_names)
         self.assertNotIn("remote script retrieval", component_names)
+        columns_by_component = {item["componentArtifact"]: item["column"] for item in payload}
+        self.assertEqual(columns_by_component["mshta.exe"], "A")
+        self.assertEqual(columns_by_component["mshta child process chain"], "U")
 
     def test_update_playbook_details_sets_selected_capabilities_and_focus_layer(self):
         mutation = '''
@@ -163,12 +169,14 @@ class CapabilityAbstractionGraphQLTests(GraphQLTestCase):
             mutation CreateCapabilityAbstraction(
                 $techniqueId: String!,
                 $abstractionLayer: String!,
-                $componentArtifact: String!
+                $componentArtifact: String!,
+                $column: String
             ) {
                 createCapabilityAbstraction(
                     techniqueId: $techniqueId,
                     abstractionLayer: $abstractionLayer,
-                    componentArtifact: $componentArtifact
+                    componentArtifact: $componentArtifact,
+                    column: $column
                 ) {
                     capabilityAbstraction {
                         id
@@ -182,6 +190,7 @@ class CapabilityAbstractionGraphQLTests(GraphQLTestCase):
                 "techniqueId": self.technique_two.technique_id,
                 "abstractionLayer": "TOOL",
                 "componentArtifact": "custom powershell artifact",
+                "column": "K",
             },
         )
         self.assertResponseNoErrors(response)
@@ -189,6 +198,28 @@ class CapabilityAbstractionGraphQLTests(GraphQLTestCase):
         created = CapabilityAbstraction.objects.get(id=created_id)
         self.assertEqual(created.technique.technique_id, self.technique_two.technique_id)
         self.assertEqual(created.organization, self.org)
+        self.assertEqual(created.column, CapabilityAbstraction.Column.KERNEL_MODE)
+
+    def test_update_capability_abstraction_updates_column(self):
+        mutation = '''
+            mutation UpdateCapabilityAbstraction($id: UUID!, $column: String) {
+                updateCapabilityAbstraction(
+                    capabilityAbstractionId: $id,
+                    column: $column
+                ) {
+                    capabilityAbstraction {
+                        id
+                        column
+                    }
+                }
+            }
+        '''
+        response = self.query(mutation, variables={"id": str(self.org_entry.id), "column": "P"})
+        self.assertResponseNoErrors(response)
+        payload = json.loads(response.content)["data"]["updateCapabilityAbstraction"]["capabilityAbstraction"]
+        self.assertEqual(payload["column"], "P")
+        self.org_entry.refresh_from_db()
+        self.assertEqual(self.org_entry.column, CapabilityAbstraction.Column.PAYLOAD_VISIBILITY)
 
     def test_delete_capability_abstraction_allows_admin_for_custom_org_entry(self):
         self.client.force_login(self.admin_user)

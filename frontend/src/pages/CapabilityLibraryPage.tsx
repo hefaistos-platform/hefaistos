@@ -11,6 +11,7 @@ import {
   CapabilityAbstractionFormModal,
   CapabilityAbstractionFormValues,
   CREATE_CAPABILITY_ABSTRACTION_MUTATION,
+  getColumnLabel,
   getLayerLabel,
   LAYER_OPTIONS,
   REVIEW_STATUS_OPTIONS,
@@ -31,6 +32,7 @@ const CAPABILITY_LIBRARY_PAGE_QUERY = gql`
       applicableTelemetry
       detectionValue
       robustnessLevel
+      column
       sourceKind
       reviewStatus
       version
@@ -519,6 +521,7 @@ export const CapabilityLibraryPage: React.FC = () => {
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
             <Space wrap>
               <Tag color="geekblue">{getLayerLabel(selectedEntry.abstractionLayer)}</Tag>
+              {selectedEntry.column && <Tag color="purple">{getColumnLabel(selectedEntry.column)}</Tag>}
               <Tag>{selectedEntry.reviewStatus || 'DRAFT'}</Tag>
               <Tag>{selectedEntry.organizationName || 'Unknown'}</Tag>
               <Tag>Version {selectedEntry.version || 1}</Tag>
@@ -533,6 +536,9 @@ export const CapabilityLibraryPage: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="Last updated">
                 {formatDate(selectedEntry.updatedAt)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Column">
+                {getColumnLabel(selectedEntry.column)}
               </Descriptions.Item>
               <Descriptions.Item label="Adversary purpose">
                 {selectedEntry.adversaryPurpose || 'Not specified'}

@@ -10,6 +10,7 @@ import {
   CapabilityAbstractionEntry,
   CapabilityAbstractionFormModal,
   CapabilityAbstractionFormValues,
+  getColumnLabel,
   CREATE_CAPABILITY_ABSTRACTION_MUTATION,
   DELETE_CAPABILITY_ABSTRACTION_MUTATION,
   LAYER_OPTIONS,
@@ -279,6 +280,7 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
           applicableTelemetry: restValues.applicableTelemetry,
           detectionValue: restValues.detectionValue,
           robustnessLevel: restValues.robustnessLevel,
+          column: restValues.column,
           reviewStatus: restValues.reviewStatus,
           sourceKind: 'CUSTOM',
         };
@@ -586,6 +588,7 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
                             <Tag color={getRobustnessColor(entry.robustnessLevel)}>
                               Robustness {entry.robustnessLevel || 0}
                             </Tag>
+                            {entry.column && <Tag color="purple">{getColumnLabel(entry.column)}</Tag>}
                             <Tag>{entry.sourceKind === 'SEEDED' ? 'Seeded' : 'Custom'}</Tag>
                             <Tag>{entry.reviewStatus || 'DRAFT'}</Tag>
                             {entry.isSharedBaseline && <Tag color="purple">Shared baseline</Tag>}
@@ -604,6 +607,9 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
                           </Paragraph>
                           <Paragraph style={{ marginBottom: 8 }}>
                             <strong>Detection value:</strong> {entry.detectionValue || 'Not specified'}
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 8 }}>
+                            <strong>Column:</strong> {getColumnLabel(entry.column)}
                           </Paragraph>
                           <Paragraph style={{ marginBottom: 0 }}>
                             <strong>Evasions / variants:</strong> {entry.commonEvasions || 'Not specified'}

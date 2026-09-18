@@ -8,6 +8,7 @@ export type CapabilityAbstractionEntry = {
   applicableTelemetry?: string;
   detectionValue?: string;
   robustnessLevel?: number;
+  column?: string;
   sourceKind?: string;
   reviewStatus?: string;
   version?: number;

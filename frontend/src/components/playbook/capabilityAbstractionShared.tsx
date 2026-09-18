@@ -16,6 +16,7 @@ export const CAPABILITY_ABSTRACTIONS_QUERY = gql`
       applicableTelemetry
       detectionValue
       robustnessLevel
+      column
       sourceKind
       reviewStatus
       version
@@ -53,6 +54,7 @@ export const CREATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
     $applicableTelemetry: String
     $detectionValue: String
     $robustnessLevel: Int
+    $column: String
     $reviewStatus: String
   ) {
     createCapabilityAbstraction(
@@ -65,6 +67,7 @@ export const CREATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
       applicableTelemetry: $applicableTelemetry
       detectionValue: $detectionValue
       robustnessLevel: $robustnessLevel
+      column: $column
       reviewStatus: $reviewStatus
     ) {
       capabilityAbstraction {
@@ -86,6 +89,7 @@ export const UPDATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
     $applicableTelemetry: String
     $detectionValue: String
     $robustnessLevel: Int
+    $column: String
     $reviewStatus: String
   ) {
     updateCapabilityAbstraction(
@@ -98,6 +102,7 @@ export const UPDATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
       applicableTelemetry: $applicableTelemetry
       detectionValue: $detectionValue
       robustnessLevel: $robustnessLevel
+      column: $column
       reviewStatus: $reviewStatus
     ) {
       capabilityAbstraction {
@@ -139,6 +144,14 @@ export const ROBUSTNESS_LEVEL_OPTIONS = [
   { value: 5, label: '5 - Invariant / core to technique' },
 ];
 
+export const COLUMN_OPTIONS = [
+  { value: 'A', label: 'Column A: Application' },
+  { value: 'U', label: 'Column U: User-Mode' },
+  { value: 'K', label: 'Column K: Kernel-Mode' },
+  { value: 'P', label: 'Column P: Payload Visibility' },
+  { value: 'H', label: 'Column H: Header Visibility' },
+];
+
 export type CapabilityAbstractionEntry = {
   id: string;
   abstractionLayer: string;
@@ -149,6 +162,7 @@ export type CapabilityAbstractionEntry = {
   applicableTelemetry?: string;
   detectionValue?: string;
   robustnessLevel?: number;
+  column?: string;
   sourceKind?: string;
   reviewStatus?: string;
   version?: number;
@@ -179,11 +193,16 @@ export type CapabilityAbstractionFormValues = {
   applicableTelemetry?: string;
   detectionValue?: string;
   robustnessLevel?: number;
+  column?: string;
   reviewStatus?: string;
 };
 
 export function getLayerLabel(layer: string): string {
   return LAYER_OPTIONS.find((option) => option.value === layer)?.label || layer;
+}
+
+export function getColumnLabel(column?: string): string {
+  return COLUMN_OPTIONS.find((option) => option.value === column)?.label || column || 'Not specified';
 }
 
 interface CapabilityAbstractionFormModalProps {
@@ -228,6 +247,7 @@ export const CapabilityAbstractionFormModal: React.FC<CapabilityAbstractionFormM
         applicableTelemetry: editingEntry.applicableTelemetry,
         detectionValue: editingEntry.detectionValue,
         robustnessLevel: editingEntry.robustnessLevel,
+        column: editingEntry.column,
         reviewStatus: editingEntry.reviewStatus,
       });
       return;
@@ -295,6 +315,9 @@ export const CapabilityAbstractionFormModal: React.FC<CapabilityAbstractionFormM
         </Form.Item>
         <Form.Item name="robustnessLevel" label="Robustness level">
           <Select options={ROBUSTNESS_LEVEL_OPTIONS} />
+        </Form.Item>
+        <Form.Item name="column" label="Column">
+          <Select allowClear options={COLUMN_OPTIONS} />
         </Form.Item>
         <Form.Item name="reviewStatus" label="Review status">
           <Select options={REVIEW_STATUS_OPTIONS} />

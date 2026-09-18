@@ -240,6 +240,13 @@ class CapabilityAbstraction(models.Model):
         REVIEWED = 'REVIEWED', 'Reviewed'
         APPROVED = 'APPROVED', 'Approved'
 
+    class Column(models.TextChoices):
+        APPLICATION = 'A', 'Column A: Application'
+        USER_MODE = 'U', 'Column U: User-Mode'
+        KERNEL_MODE = 'K', 'Column K: Kernel-Mode'
+        PAYLOAD_VISIBILITY = 'P', 'Column P: Payload Visibility'
+        HEADER_VISIBILITY = 'H', 'Column H: Header Visibility'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     technique = models.ForeignKey(
         MitreAttackTechnique,
@@ -278,6 +285,12 @@ class CapabilityAbstraction(models.Model):
     robustness_level = models.IntegerField(
         default=0,
         help_text="Suggested robustness tradeoff for this abstraction (1-5, aligned to the workbench badge scale).",
+    )
+    column = models.CharField(
+        max_length=1,
+        choices=Column.choices,
+        blank=True,
+        default='',
     )
     source_kind = models.CharField(
         max_length=16,
