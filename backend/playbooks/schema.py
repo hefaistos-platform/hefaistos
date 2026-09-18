@@ -586,6 +586,7 @@ class CapabilityAbstractionType(DjangoObjectType):
             "applicable_telemetry",
             "detection_value",
             "robustness_level",
+            "column",
             "source_kind",
             "review_status",
             "is_baseline",
@@ -2418,6 +2419,7 @@ class CreateCapabilityAbstraction(graphene.Mutation):
         applicable_telemetry = graphene.String()
         detection_value = graphene.String()
         robustness_level = graphene.Int()
+        column = graphene.String()
         review_status = graphene.String()
 
     capability_abstraction = graphene.Field(CapabilityAbstractionType)
@@ -2441,6 +2443,11 @@ class CreateCapabilityAbstraction(graphene.Mutation):
         if review_status not in valid_review_statuses:
             raise Exception("Invalid review status")
 
+        column_value = (kwargs.get('column') or '').upper()
+        valid_columns = {choice[0] for choice in CapabilityAbstraction.Column.choices}
+        if column_value and column_value not in valid_columns:
+            raise Exception("Invalid capability abstraction column")
+
         capability = CapabilityAbstraction.objects.create(
             technique=technique,
             organization=user.organization,
@@ -2454,6 +2461,7 @@ class CreateCapabilityAbstraction(graphene.Mutation):
             applicable_telemetry=kwargs.get('applicable_telemetry') or '',
             detection_value=kwargs.get('detection_value') or '',
             robustness_level=kwargs.get('robustness_level') or 0,
+            column=column_value,
             review_status=review_status,
             source_kind=CapabilityAbstraction.SourceKind.CUSTOM,
             is_baseline=False,
@@ -2472,6 +2480,7 @@ class UpdateCapabilityAbstraction(graphene.Mutation):
         applicable_telemetry = graphene.String()
         detection_value = graphene.String()
         robustness_level = graphene.Int()
+        column = graphene.String()
         review_status = graphene.String()
 
     capability_abstraction = graphene.Field(CapabilityAbstractionType)
@@ -2490,6 +2499,7 @@ class UpdateCapabilityAbstraction(graphene.Mutation):
 
         valid_layers = {choice[0] for choice in CapabilityAbstraction.AbstractionLayer.choices}
         valid_review_statuses = {choice[0] for choice in CapabilityAbstraction.ReviewStatus.choices}
+        valid_columns = {choice[0] for choice in CapabilityAbstraction.Column.choices}
         dirty = False
 
         if 'abstraction_layer' in kwargs and kwargs['abstraction_layer'] is not None:
@@ -2512,6 +2522,12 @@ class UpdateCapabilityAbstraction(graphene.Mutation):
             if field in kwargs and kwargs[field] is not None:
                 setattr(capability, field, kwargs[field])
                 dirty = True
+        if 'column' in kwargs and kwargs['column'] is not None:
+            column_value = kwargs['column'].upper()
+            if column_value and column_value not in valid_columns:
+                raise Exception("Invalid capability abstraction column")
+            capability.column = column_value
+            dirty = True
         if 'review_status' in kwargs and kwargs['review_status'] is not None:
             review_status = kwargs['review_status'].upper()
             if review_status not in valid_review_statuses:
