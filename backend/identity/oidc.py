@@ -37,6 +37,7 @@ class OidcProviderConfig:
 
 _DISCOVERY_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _DISCOVERY_CACHE_SECONDS = 300
+_OIDC_TOKEN_CLOCK_SKEW_SECONDS = 300
 _OIDC_CA_DIR = os.path.join(tempfile.gettempdir(), "hefaistos_oidc_ca")
 
 
@@ -314,6 +315,7 @@ def complete_code_exchange(request, code: str, state: str) -> tuple[str, OidcPro
         algorithms=["RS256", "RS384", "RS512"],
         audience=config.client_id,
         issuer=issuer,
+        leeway=_OIDC_TOKEN_CLOCK_SKEW_SECONDS,
         options={"verify_at_hash": False},
     )
     if str(claims.get("nonce") or "") != str(state_payload.get("nonce") or ""):
