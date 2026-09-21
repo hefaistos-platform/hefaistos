@@ -1371,7 +1371,11 @@ def _is_local_login_allowed_for_user(user, settings_obj: AuthProviderSettings) -
     if not settings_obj.enable_entra and not settings_obj.enable_oidc:
         return True
 
-    if settings_obj.auth_mode == AuthProviderSettings.AuthMode.ENTRA_AND_LOCAL_BREAKGLASS:
+    breakglass_modes = {
+        AuthProviderSettings.AuthMode.ENTRA_AND_LOCAL_BREAKGLASS,
+        AuthProviderSettings.AuthMode.OIDC_AND_LOCAL_BREAKGLASS,
+    }
+    if settings_obj.auth_mode in breakglass_modes:
         if not settings_obj.allow_local_breakglass:
             return False
         allowed = settings_obj.breakglass_usernames_list()

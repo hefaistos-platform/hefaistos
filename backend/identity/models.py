@@ -329,6 +329,7 @@ class AuthProviderSettings(models.Model):
         OIDC_ONLY = 'OIDC_ONLY', 'Generic OIDC only'
         ENTRA_AND_OIDC = 'ENTRA_AND_OIDC', 'Entra + Generic OIDC'
         ENTRA_AND_LOCAL_BREAKGLASS = 'ENTRA_AND_LOCAL_BREAKGLASS', 'Entra + Local Break-glass'
+        OIDC_AND_LOCAL_BREAKGLASS = 'OIDC_AND_LOCAL_BREAKGLASS', 'Generic OIDC + Local Break-glass'
 
     class DefaultLoginProvider(models.TextChoices):
         ENTRA = 'ENTRA', 'Entra'
