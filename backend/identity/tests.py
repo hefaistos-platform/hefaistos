@@ -722,12 +722,11 @@ class ResetLocalLoginCommandTests(TestCase):
         self.assertIn("derived from user 'hunt3r'", stdout.getvalue())
 
     def test_add_username_falls_back_to_global_for_users_without_org(self):
-        user = User.objects.create_user(
+        User.objects.create_user(
             username="globaluser",
             email="global@example.com",
             ******,
         )
-        del user  # unused beyond creation
 
         stdout = StringIO()
         call_command("reset_local_login", add_username="globaluser", stdout=stdout)
