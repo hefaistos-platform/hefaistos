@@ -13,7 +13,7 @@ HEFAISTOS PRO uses hybrid semantic versioning:
 
 ## Bump rules
 
-Every push to `main` (or legacy `sharp`) produces a version bump using commit messages in that push range:
+Every push to `main` produces a version bump using commit messages in that push range:
 
 - `MAJOR` if any commit indicates breaking change:
   - `BREAKING CHANGE:` in commit body, or
@@ -23,10 +23,10 @@ Every push to `main` (or legacy `sharp`) produces a version bump using commit me
 
 ## Release rules
 
-- SHARP automation updates `VERSION` and commits it back to the release branch (`main`; legacy fallback `sharp`).
-- SHARP automation writes a per-version changelog to `Versions/vX.Y.Z/changelog.md`.
+- Automation updates `VERSION` and commits it back to the release branch (`main`).
+- Automation writes a per-version changelog to `Versions/vX.Y.Z/changelog.md`.
 - Stable releases are created by a manual workflow that:
-  - validates the selected commit is on the release branch (`main`; legacy fallback `sharp`),
+  - validates the selected commit is on the release branch (`main`),
   - reads `VERSION` from that commit,
   - creates annotated git tag `vMAJOR.MINOR.PATCH`.
 

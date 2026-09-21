@@ -37,7 +37,7 @@ Recommended: allow only workflow-based version commit pattern:
 
 ## 4) How SHARP auto bump works
 
-On each push to `main` (legacy fallback: `sharp`):
+On each push to `main`:
 
 1. Workflow inspects commits in `before..after`.
 2. Calculates bump (`major|minor|patch`) from commit messages.
@@ -57,7 +57,7 @@ Run workflow `Create Stable Release Tag` manually:
 1. Open `Actions -> Create Stable Release Tag`.
 2. Click `Run workflow`.
 3. Optional: set `target_sha` (if empty, current release branch HEAD is used).
-4. Workflow validates commit ancestry on the release branch (`main`, fallback `sharp`).
+4. Workflow validates commit ancestry on the release branch (`main`).
 5. Workflow creates and pushes annotated tag `vX.Y.Z`.
 
 ## 6) Commit message conventions (important)
@@ -90,7 +90,7 @@ When a stable tag `v*` is pushed:
    - `Fixes`: commits starting with `fix:`
    - `Removals`: commits indicating deletion/removal or breaking `!`
    - `Changes`: all remaining commits
-4. The file is committed to the release branch (`main`, fallback `sharp`) by `github-actions[bot]` using skip markers.
+4. The file is committed to the release branch (`main`) by `github-actions[bot]` using skip markers.
 
 ## 8) Operational notes
 

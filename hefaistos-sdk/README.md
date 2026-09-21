@@ -56,9 +56,9 @@ These instructions are for a Linux-based server.
 You must create your first organization and user.
 ```
 bash
-git clone -b sharp https://github.com/hefaistos-platform/hefaistos.git
+git clone -b main https://github.com/hefaistos-platform/hefaistos.git
 cd hefaistos
-git pull origin sharp
+git pull origin main
 ```
 
 ### 3. Build & Start All Services
