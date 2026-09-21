@@ -7,7 +7,7 @@
 **Enterprise Detection Engineering & Threat Intelligence Platform**
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](./LICENSE)
-[![Platform Version](https://img.shields.io/badge/platform-1.6.0-0A66C2.svg)](./VERSION) <!-- hefaistos-version-badge -->
+[![Platform Version](https://img.shields.io/badge/platform-1.6.1-0A66C2.svg)](./VERSION) <!-- hefaistos-version-badge -->
 [![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://python.org)
 [![Django](https://img.shields.io/badge/django-6.0.5-green.svg)](https://djangoproject.com)
 [![React](https://img.shields.io/badge/react-19.2-61dafb.svg)](https://reactjs.org)
