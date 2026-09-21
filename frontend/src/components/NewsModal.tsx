@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { gql } from '@apollo/client';
 import { useQuery, useMutation } from '@apollo/client/react';
-import { Modal, List, Tag, Button, Space, Select, Typography, Empty } from 'antd';
+import { Modal, List, Tag, Button, Space, Select, Typography, Empty, theme } from 'antd';
 import { 
   CloseOutlined, 
   CheckOutlined,
@@ -100,6 +100,7 @@ interface NewsModalProps {
 }
 
 export const NewsModal: React.FC<NewsModalProps> = ({ open, onClose }) => {
+  const { token } = theme.useToken();
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
   
   const { data, loading, refetch } = useQuery<AllNewsData>(ALL_NEWS_QUERY, {
@@ -212,7 +213,7 @@ export const NewsModal: React.FC<NewsModalProps> = ({ open, onClose }) => {
                 opacity: post.isRead ? 0.6 : 1,
                 borderLeft: post.isPinned ? '4px solid #1677ff' : undefined,
                 paddingLeft: post.isPinned ? 12 : 16,
-                background: post.isRead ? '#fafafa' : '#ffffff',
+                background: post.isRead ? token.colorFillAlter : token.colorBgContainer,
                 transition: 'all 0.2s',
                 cursor: 'pointer'
               }}

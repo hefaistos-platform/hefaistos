@@ -541,6 +541,11 @@ code {
   opacity: 1 !important;
 }
 
+.configuration-theme .ant-select.ant-select-disabled .ant-select-selector {
+  background: var(--ant-color-bg-container-disabled, var(--hef-bg-subtle)) !important;
+  color: var(--hef-text-primary) !important;
+}
+
 .configuration-theme .config-auth-select .ant-select-selection-item,
 .configuration-theme .config-auth-select .ant-select-selection-search-input,
 .configuration-theme .config-auth-select .ant-select-arrow {
