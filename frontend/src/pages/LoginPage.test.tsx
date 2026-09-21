@@ -1,9 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-function mockUseQuery(...args: any[]) {
-  return mockUseQueryImpl(...args);
-}
 
 const mockUseQueryImpl = jest.fn(() => ({ data: undefined }));
 // Minimal Apollo hook mock: only useMutation needed, returns tuple expected by component
@@ -12,7 +9,7 @@ jest.mock('@apollo/client', () => ({
 }));
 jest.mock('@apollo/client/react', () => ({
   useMutation: () => [jest.fn(), { loading: false, error: null }],
-  useQuery: (...args: any[]) => mockUseQuery(...args),
+  useQuery: (...args: any[]) => mockUseQueryImpl(...args),
   useApolloClient: () => ({ query: jest.fn(), clearStore: jest.fn() }),
 }));
 import { AuthProvider } from '../context/AuthContext';
