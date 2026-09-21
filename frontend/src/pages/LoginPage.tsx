@@ -80,6 +80,11 @@ const PUBLIC_AUTH_OPTIONS_QUERY = gql`
       enableOidc
       showLocalLogin
     }
+    publicAuthOrganizations {
+      id
+      enableEntra
+      enableOidc
+    }
   }
 `;
 
@@ -153,6 +158,11 @@ interface PublicAuthOptionsData {
     enableOidc: boolean;
     showLocalLogin: boolean;
   };
+  publicAuthOrganizations: Array<{
+    id: string;
+    enableEntra: boolean;
+    enableOidc: boolean;
+  }>;
 }
 
 interface StartOidcLoginData {
@@ -200,9 +210,12 @@ export const LoginPage = () => {
   const loading = loginLoading || verifyLoading || startingOidc || completingOidc;
   const error = loginError || verifyError;
   const authOptions = publicAuthData?.publicAuthOptions;
+  const oidcOrganizations = publicAuthData?.publicAuthOrganizations ?? [];
+  const hasOrgEntra = oidcOrganizations.some((org) => org.enableEntra);
+  const hasOrgOidc = oidcOrganizations.some((org) => org.enableOidc);
   const canUseLocalLogin = authOptions?.showLocalLogin ?? true;
-  const canUseEntra = authOptions?.enableEntra ?? true;
-  const canUseGenericOidc = authOptions?.enableOidc ?? true;
+  const canUseEntra = Boolean(authOptions?.enableEntra || hasOrgEntra);
+  const canUseGenericOidc = Boolean(authOptions?.enableOidc || hasOrgOidc);
   const showOidcOptions = (canUseEntra || canUseGenericOidc) && !mfaStep;
   const themeMenuItems: MenuProps['items'] = [
     {
@@ -384,7 +397,7 @@ export const LoginPage = () => {
             onClick={() => handleOidcSignIn('ENTRA')}
             disabled={loading || !username.trim()}
           >
-            ENTRA Login
+            Login with Entra
           </Button>
         )}
         {canUseGenericOidc && (
@@ -397,7 +410,7 @@ export const LoginPage = () => {
             onClick={() => handleOidcSignIn('OIDC')}
             disabled={loading || !username.trim()}
           >
-            OIDC Login
+            Login with OIDC
           </Button>
         )}
       </div>
@@ -498,8 +511,21 @@ export const LoginPage = () => {
                 <Alert
                   type="info"
                   showIcon
+                  style={{ marginBottom: 16 }}
                   message="Local username/password login is disabled. Please use your configured OIDC provider."
                 />
+                <Form layout="vertical">
+                  <Form.Item label="Username or email" required>
+                    <Input
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      size="large"
+                      autoFocus
+                      disabled={loading}
+                      placeholder="Enter your username or email"
+                    />
+                  </Form.Item>
+                </Form>
                 {renderOidcOptions()}
               </>
             )
