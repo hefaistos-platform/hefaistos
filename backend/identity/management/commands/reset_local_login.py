@@ -68,7 +68,18 @@ class Command(BaseCommand):
         }
         if (settings_obj.enable_entra or settings_obj.enable_oidc) and \
                 settings_obj.auth_mode not in _breakglass_modes:
-            if settings_obj.enable_oidc:
+            if settings_obj.enable_entra and settings_obj.enable_oidc:
+                # Both providers active: prefer Entra breakglass mode and warn.
+                new_mode = AuthProviderSettings.AuthMode.ENTRA_AND_LOCAL_BREAKGLASS
+                self.stdout.write(
+                    self.style.WARNING(
+                        '  Both Entra and OIDC are enabled. Switching to '
+                        f'{new_mode}. Generic OIDC will remain available but '
+                        'the primary SSO will be Entra. Adjust auth_mode in '
+                        'the web UI once you regain access if needed.'
+                    )
+                )
+            elif settings_obj.enable_oidc:
                 new_mode = AuthProviderSettings.AuthMode.OIDC_AND_LOCAL_BREAKGLASS
             else:
                 new_mode = AuthProviderSettings.AuthMode.ENTRA_AND_LOCAL_BREAKGLASS
