@@ -1,6 +1,6 @@
-# HEFAISTOS Authentication Setup (SHARP)
+# HEFAISTOS Authentication Setup
 
-This document defines the SHARP authentication direction selected for HEFAISTOS:
+This document defines the authentication direction selected for HEFAISTOS:
 
 - Primary: `Microsoft Entra ID (OIDC)`
 - Secondary: `Generic OIDC` (Okta/Auth0/Keycloak/authentik/etc.)

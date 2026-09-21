@@ -1,16 +1,16 @@
-# HEFAISTOS Installation Manual (SHARP)
+# HEFAISTOS Installation Manual
 
-This manual is the operator-oriented installation guide for SHARP branch deployments.
+This manual is the operator-oriented installation guide for `main` branch deployments.
 
 ## 1. Scope and Assumptions
 
-- This guide is for clean SHARP deployments.
+- This guide is for clean `main` branch deployments.
 - No in-place data migration is expected.
 - Destructive volume reset (`docker compose down -v`) is accepted.
 
-## 2. SHARP Version Baseline
+## 2. Version Baseline
 
-These are the pinned SHARP infrastructure/runtime targets:
+These are the pinned infrastructure/runtime targets:
 
 | Component | Pinned version |
 |---|---|
