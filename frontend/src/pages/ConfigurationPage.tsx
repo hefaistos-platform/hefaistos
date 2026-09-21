@@ -2953,6 +2953,7 @@ export const ConfigurationPage: React.FC = () => {
                   <option value="OIDC_ONLY">OIDC_ONLY</option>
                   <option value="ENTRA_AND_OIDC">ENTRA_AND_OIDC</option>
                   <option value="ENTRA_AND_LOCAL_BREAKGLASS">ENTRA_AND_LOCAL_BREAKGLASS</option>
+                  <option value="OIDC_AND_LOCAL_BREAKGLASS">OIDC_AND_LOCAL_BREAKGLASS</option>
                 </select>
               </div>
               <div>

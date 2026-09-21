@@ -60,6 +60,26 @@ class Command(BaseCommand):
 
         changed_fields = []
 
+        # Ensure auth_mode is a breakglass variant when an SSO provider is active,
+        # otherwise the auth logic won't reach the allow_local_breakglass check.
+        _breakglass_modes = {
+            AuthProviderSettings.AuthMode.ENTRA_AND_LOCAL_BREAKGLASS,
+            AuthProviderSettings.AuthMode.OIDC_AND_LOCAL_BREAKGLASS,
+        }
+        if (settings_obj.enable_entra or settings_obj.enable_oidc) and \
+                settings_obj.auth_mode not in _breakglass_modes:
+            if settings_obj.enable_oidc:
+                new_mode = AuthProviderSettings.AuthMode.OIDC_AND_LOCAL_BREAKGLASS
+            else:
+                new_mode = AuthProviderSettings.AuthMode.ENTRA_AND_LOCAL_BREAKGLASS
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f'  auth_mode: {settings_obj.auth_mode} → {new_mode}'
+                )
+            )
+            settings_obj.auth_mode = new_mode
+            changed_fields.append('auth_mode')
+
         if not settings_obj.allow_local_breakglass:
             settings_obj.allow_local_breakglass = True
             changed_fields.append('allow_local_breakglass')
@@ -100,6 +120,7 @@ class Command(BaseCommand):
         if not allow_list:
             allow_list = '(empty — all superusers may use local login)'
         self.stdout.write('\nCurrent break-glass allow-list: ' + allow_list)
+        self.stdout.write('Auth mode:      ' + str(settings_obj.auth_mode))
         self.stdout.write(
             'OIDC enabled:   ' + str(settings_obj.enable_oidc)
         )
