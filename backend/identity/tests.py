@@ -691,7 +691,10 @@ class ResetLocalLoginCommandTests(TestCase):
         )
 
     def test_add_username_targets_users_org_settings(self):
-        AuthProviderSettings.get_solo()
+        global_settings = AuthProviderSettings.get_solo()
+        global_settings.enable_oidc = True
+        global_settings.breakglass_usernames = "admin"
+        global_settings.save(update_fields=["enable_oidc", "breakglass_usernames"])
         org_settings = AuthProviderSettings.get_for_organization(self.org)
         org_settings.enable_oidc = True
         org_settings.auth_mode = AuthProviderSettings.AuthMode.OIDC_ONLY
@@ -711,13 +714,10 @@ class ResetLocalLoginCommandTests(TestCase):
 
         org_settings.refresh_from_db()
         global_settings = AuthProviderSettings.get_solo()
-        self.assertEqual(
-            org_settings.auth_mode,
-            AuthProviderSettings.AuthMode.OIDC_AND_LOCAL_BREAKGLASS,
-        )
+        self.assertEqual(org_settings.auth_mode, AuthProviderSettings.AuthMode.OIDC_AND_LOCAL_BREAKGLASS)
         self.assertTrue(org_settings.allow_local_breakglass)
         self.assertIn("hunt3r", org_settings.breakglass_usernames_list())
-        self.assertFalse(global_settings.enable_oidc)
+        self.assertTrue(global_settings.enable_oidc)
         self.assertNotIn("hunt3r", global_settings.breakglass_usernames_list())
         self.assertIn("derived from user 'hunt3r'", stdout.getvalue())
 
