@@ -87,7 +87,7 @@ class OidcTokenValidationTests(TestCase):
         mock_signing_key.return_value = object()
 
         def _decode_with_skew_acceptance(*args, **kwargs):
-            if kwargs.get("leeway", 0) >= (_OIDC_TOKEN_CLOCK_SKEW_SECONDS - 1):
+            if kwargs.get("leeway", 0) == _OIDC_TOKEN_CLOCK_SKEW_SECONDS:
                 return {"nonce": "nonce-2", "exp": int(time()) + 300}
             raise jwt.ImmatureSignatureError("The token is not yet valid (iat)")
 
