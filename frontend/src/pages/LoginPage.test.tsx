@@ -3,12 +3,17 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 const mockUseQueryImpl = jest.fn(() => ({ data: undefined }));
+const mockMutationFns: jest.Mock[] = [];
 // Minimal Apollo hook mock: only useMutation needed, returns tuple expected by component
 jest.mock('@apollo/client', () => ({
   gql: (lits: any) => lits,
 }));
 jest.mock('@apollo/client/react', () => ({
-  useMutation: () => [jest.fn(), { loading: false, error: null }],
+  useMutation: () => {
+    const fn = jest.fn(() => Promise.resolve({ data: {} }));
+    mockMutationFns.push(fn);
+    return [fn, { loading: false, error: null }];
+  },
   useQuery: (...args: any[]) => mockUseQueryImpl(...args),
   useApolloClient: () => ({ query: jest.fn(), clearStore: jest.fn() }),
 }));
@@ -19,6 +24,7 @@ import { LoginPage } from './LoginPage';
 beforeEach(() => {
   mockUseQueryImpl.mockReset();
   mockUseQueryImpl.mockReturnValue({ data: undefined });
+  mockMutationFns.length = 0;
 });
 
 test('renders login page and opens terms modal', () => {
@@ -82,5 +88,41 @@ test('shows OIDC login controls when local login is disabled', () => {
 
   expect(screen.queryByPlaceholderText(/enter your password/i)).not.toBeInTheDocument();
   expect(screen.getByPlaceholderText(/enter your username or email/i)).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /login with oidc/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /login with oidc/i })).toBeEnabled();
+});
+
+test('allows starting OIDC login without entering a username', () => {
+  mockUseQueryImpl.mockReturnValue({
+    data: {
+      publicAuthOptions: {
+        authMode: 'OIDC_ONLY',
+        defaultLoginProvider: 'OIDC',
+        enableEntra: false,
+        enableOidc: true,
+        showLocalLogin: false,
+      },
+      publicAuthOrganizations: [],
+    },
+  });
+
+  render(
+    <MemoryRouter>
+      <ThemeProvider>
+        <AuthProvider>
+          <LoginPage />
+        </AuthProvider>
+      </ThemeProvider>
+    </MemoryRouter>
+  );
+
+  const oidcButton = screen.getByRole('button', { name: /login with oidc/i });
+  fireEvent.click(oidcButton);
+
+  expect(
+    mockMutationFns.some((fn) =>
+      fn.mock.calls.some(
+        (call) => JSON.stringify(call[0]) === JSON.stringify({ variables: { provider: 'OIDC', identifier: '' } })
+      )
+    )
+  ).toBe(true);
 });

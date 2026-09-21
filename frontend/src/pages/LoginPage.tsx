@@ -300,10 +300,6 @@ export const LoginPage = () => {
   const handleOidcSignIn = async (provider: 'ENTRA' | 'OIDC') => {
     setOidcError('');
     const identifier = username.trim();
-    if (!identifier) {
-      setOidcError('Enter username or email before OIDC sign-in.');
-      return;
-    }
     try {
       const res = await startOidcLogin({ variables: { provider, identifier } });
       const url = res.data?.startOidcLogin?.authorizationUrl;
@@ -395,7 +391,7 @@ export const LoginPage = () => {
             size="large"
             style={{ fontWeight: 600 }}
             onClick={() => handleOidcSignIn('ENTRA')}
-            disabled={loading || !username.trim()}
+            disabled={loading}
           >
             Login with Entra
           </Button>
@@ -408,7 +404,7 @@ export const LoginPage = () => {
             size="large"
             style={{ fontWeight: 600 }}
             onClick={() => handleOidcSignIn('OIDC')}
-            disabled={loading || !username.trim()}
+            disabled={loading}
           >
             Login with OIDC
           </Button>
