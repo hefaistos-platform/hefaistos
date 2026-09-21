@@ -1,7 +1,11 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-const mockUseQuery = jest.fn(() => ({ data: undefined }));
+function mockUseQuery(...args: any[]) {
+  return mockUseQueryImpl(...args);
+}
+
+const mockUseQueryImpl = jest.fn(() => ({ data: undefined }));
 // Minimal Apollo hook mock: only useMutation needed, returns tuple expected by component
 jest.mock('@apollo/client', () => ({
   gql: (lits: any) => lits,
@@ -16,8 +20,8 @@ import { ThemeProvider } from '../context/ThemeContext';
 import { LoginPage } from './LoginPage';
 
 beforeEach(() => {
-  mockUseQuery.mockReset();
-  mockUseQuery.mockReturnValue({ data: undefined });
+  mockUseQueryImpl.mockReset();
+  mockUseQueryImpl.mockReturnValue({ data: undefined });
 });
 
 test('renders login page and opens terms modal', () => {
@@ -50,7 +54,7 @@ test('renders login page and opens terms modal', () => {
 });
 
 test('shows OIDC login controls when local login is disabled', () => {
-  mockUseQuery.mockReturnValue({
+  mockUseQueryImpl.mockReturnValue({
     data: {
       publicAuthOptions: {
         authMode: 'OIDC_ONLY',
