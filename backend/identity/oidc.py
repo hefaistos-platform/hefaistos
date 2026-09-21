@@ -38,7 +38,7 @@ class OidcProviderConfig:
 _DISCOVERY_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _DISCOVERY_CACHE_SECONDS = 300
 # Allow small provider/server clock drift during JWT time-claim validation.
-_OIDC_TOKEN_CLOCK_SKEW_SECONDS = 300
+_OIDC_TOKEN_CLOCK_SKEW_SECONDS = 60
 _OIDC_CA_DIR = os.path.join(tempfile.gettempdir(), "hefaistos_oidc_ca")
 
 
