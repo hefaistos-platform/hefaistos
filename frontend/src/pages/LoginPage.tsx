@@ -214,8 +214,8 @@ export const LoginPage = () => {
   const hasOrgEntra = oidcOrganizations.some((org) => org.enableEntra);
   const hasOrgOidc = oidcOrganizations.some((org) => org.enableOidc);
   const canUseLocalLogin = authOptions?.showLocalLogin ?? true;
-  const canUseEntra = Boolean(authOptions?.enableEntra || hasOrgEntra);
-  const canUseGenericOidc = Boolean(authOptions?.enableOidc || hasOrgOidc);
+  const canUseEntra = authOptions == null ? true : Boolean(authOptions.enableEntra || hasOrgEntra);
+  const canUseGenericOidc = authOptions == null ? true : Boolean(authOptions.enableOidc || hasOrgOidc);
   const showOidcOptions = (canUseEntra || canUseGenericOidc) && !mfaStep;
   const themeMenuItems: MenuProps['items'] = [
     {
