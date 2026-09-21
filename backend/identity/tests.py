@@ -1,8 +1,10 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied
+from django.core.management import call_command
 from organizations.models import Organization, OrganizationBillingProfile
 from unittest.mock import MagicMock, patch
+from io import StringIO
 import pyotp
 import json
 
@@ -674,3 +676,62 @@ class MultiOrganizationAuthTests(TestCase):
         kwargs = service.send_message.call_args.kwargs
         self.assertEqual(kwargs["to"], ["platform-admin@example.com"])
         self.assertEqual(kwargs["headers"]["Reply-To"], "john.doe@example.com")
+
+
+class ResetLocalLoginCommandTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Scoped Auth Org")
+        self.user = User.objects.create_user(
+            username="hunt3r",
+            email="hunt3r@example.com",
+            ******,
+            organization=self.org,
+            default_organization=self.org,
+            role=Roles.ADMIN,
+        )
+
+    def test_add_username_targets_users_org_settings(self):
+        AuthProviderSettings.get_solo()
+        org_settings = AuthProviderSettings.get_for_organization(self.org)
+        org_settings.enable_oidc = True
+        org_settings.auth_mode = AuthProviderSettings.AuthMode.OIDC_ONLY
+        org_settings.allow_local_breakglass = False
+        org_settings.breakglass_usernames = "admin"
+        org_settings.save(
+            update_fields=[
+                "enable_oidc",
+                "auth_mode",
+                "allow_local_breakglass",
+                "breakglass_usernames",
+            ]
+        )
+
+        stdout = StringIO()
+        call_command("reset_local_login", add_username="hunt3r", stdout=stdout)
+
+        org_settings.refresh_from_db()
+        global_settings = AuthProviderSettings.get_solo()
+        self.assertEqual(
+            org_settings.auth_mode,
+            AuthProviderSettings.AuthMode.OIDC_AND_LOCAL_BREAKGLASS,
+        )
+        self.assertTrue(org_settings.allow_local_breakglass)
+        self.assertIn("hunt3r", org_settings.breakglass_usernames_list())
+        self.assertFalse(global_settings.enable_oidc)
+        self.assertNotIn("hunt3r", global_settings.breakglass_usernames_list())
+        self.assertIn("derived from user 'hunt3r'", stdout.getvalue())
+
+    def test_add_username_falls_back_to_global_for_users_without_org(self):
+        user = User.objects.create_user(
+            username="globaluser",
+            email="global@example.com",
+            ******,
+        )
+        del user  # unused beyond creation
+
+        stdout = StringIO()
+        call_command("reset_local_login", add_username="globaluser", stdout=stdout)
+
+        global_settings = AuthProviderSettings.get_solo()
+        self.assertIn("globaluser", global_settings.breakglass_usernames_list())
+        self.assertIn("global (platform-wide)", stdout.getvalue())

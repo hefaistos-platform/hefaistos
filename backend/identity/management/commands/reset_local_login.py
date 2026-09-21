@@ -12,6 +12,7 @@ The command enables the break-glass flag so local users can log in again.
 Optionally adds a username to the break-glass allow-list.
 """
 from django.core.management.base import BaseCommand
+from django.contrib.auth import get_user_model
 
 from identity.models import AuthProviderSettings
 
@@ -45,6 +46,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         org_id = options.get('org_id')
         add_username = options.get('add_username')
+        user_model = get_user_model()
 
         if org_id:
             settings_obj = AuthProviderSettings.resolve_for_org_id(org_id)
@@ -54,6 +56,21 @@ class Command(BaseCommand):
                 )
                 return
             scope_label = f'organisation {org_id}'
+        elif add_username:
+            target_user = (
+                user_model.objects.select_related('organization')
+                .filter(username__iexact=add_username.strip())
+                .first()
+            )
+            if target_user and target_user.organization_id:
+                settings_obj = AuthProviderSettings.get_for_organization(target_user.organization)
+                scope_label = (
+                    f"organisation {target_user.organization_id} "
+                    f"(derived from user '{target_user.username}')"
+                )
+            else:
+                settings_obj = AuthProviderSettings.get_solo()
+                scope_label = 'global (platform-wide)'
         else:
             settings_obj = AuthProviderSettings.get_solo()
             scope_label = 'global (platform-wide)'
