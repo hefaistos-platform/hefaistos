@@ -69,7 +69,7 @@ class Command(BaseCommand):
 
         if add_username:
             username_lower = add_username.strip().lower()
-            existing = [u for u in settings_obj.breakglass_usernames_list() if u]
+            existing = [u.lower() for u in settings_obj.breakglass_usernames_list() if u]
             if username_lower not in existing:
                 existing.append(username_lower)
                 settings_obj.breakglass_usernames = ','.join(existing)
@@ -96,10 +96,10 @@ class Command(BaseCommand):
                 )
             )
 
-        self.stdout.write(
-            '\nCurrent break-glass allow-list: '
-            + (', '.join(settings_obj.breakglass_usernames_list()) or '(empty — all local users allowed for superusers)')
-        )
+        allow_list = ', '.join(settings_obj.breakglass_usernames_list())
+        if not allow_list:
+            allow_list = '(empty — all superusers may use local login)'
+        self.stdout.write('\nCurrent break-glass allow-list: ' + allow_list)
         self.stdout.write(
             'OIDC enabled:   ' + str(settings_obj.enable_oidc)
         )
