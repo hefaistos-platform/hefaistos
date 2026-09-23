@@ -18,10 +18,12 @@ import { PixelIcon } from './ui/PixelIcon';
 import { GraphToolbar } from './playbook/GraphToolbar';
 import CapabilityAbstractionLayerBands from './CapabilityAbstractionLayerBands';
 import { LayerBand } from '../utils/capabilityAbstractionUtils';
+import { resolveWorkbenchMapTitle } from '../utils/workbenchNaming';
 
 interface CapabilityAbstractionMapModalProps {
   isOpen: boolean;
   onClose: () => void;
+  workbenchTitle: string;
   derivedNodes: Node[];
   derivedEdges: Edge[];
   manualNodes: Node[];
@@ -52,6 +54,7 @@ type CapabilityAbstractionMapModalInnerProps = CapabilityAbstractionMapModalProp
 const CapabilityAbstractionMapModalInner: React.FC<CapabilityAbstractionMapModalInnerProps> = ({
   isOpen,
   onClose,
+  workbenchTitle,
   derivedNodes,
   derivedEdges,
   manualNodes,
@@ -129,7 +132,7 @@ const CapabilityAbstractionMapModalInner: React.FC<CapabilityAbstractionMapModal
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center gap-2 text-xs font-bold text-gray-600 uppercase tracking-wider">
               <PixelIcon name="share-2" className="w-4 h-4" />
-              Capability Abstraction Map
+              {resolveWorkbenchMapTitle(workbenchTitle)}
             </div>
             {coverageSummary.total > 0 && (
               <div className="hidden lg:flex items-center gap-2 text-[10px] text-gray-500 normal-case">
