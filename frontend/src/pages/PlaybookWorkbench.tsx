@@ -56,7 +56,7 @@ import {
 import CapabilityAbstractionMapModal from '../components/CapabilityAbstractionMapModal';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { ReferenceContextItem, ReferenceContextPanel } from '../components/playbook/ReferenceContextPanel';
-import { getNewWorkbenchDefaultTitle, resolveWorkbenchMapTitle } from '../utils/workbenchNaming';
+import { DEFAULT_WORKBENCH_TITLE, resolveWorkbenchMapTitle } from '../utils/workbenchNaming';
 
 // Robustness Badge Component
 const RobustnessBadge: React.FC<{ level: number }> = ({ level }) => {
@@ -1345,7 +1345,7 @@ export const PlaybookWorkbench = () => {
       
       const createAndSetup = async () => {
         // Use the standard workbench default title
-        const defaultTitle = getNewWorkbenchDefaultTitle();
+        const defaultTitle = DEFAULT_WORKBENCH_TITLE;
         
         const title = window.prompt('Name your new workbench', defaultTitle);
         if (!title) {

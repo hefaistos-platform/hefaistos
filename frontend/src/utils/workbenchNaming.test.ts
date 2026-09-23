@@ -1,4 +1,4 @@
-import { getNewWorkbenchDefaultTitle, resolveWorkbenchMapTitle } from './workbenchNaming';
+import { DEFAULT_WORKBENCH_TITLE, resolveWorkbenchMapTitle } from './workbenchNaming';
 
 describe('workbenchNaming', () => {
   it('uses the workbench title for map title when provided', () => {
@@ -6,12 +6,12 @@ describe('workbenchNaming', () => {
   });
 
   it('falls back to New Workbench when title is empty', () => {
-    expect(resolveWorkbenchMapTitle('')).toBe('New Workbench');
-    expect(resolveWorkbenchMapTitle('   ')).toBe('New Workbench');
-    expect(resolveWorkbenchMapTitle(null)).toBe('New Workbench');
+    expect(resolveWorkbenchMapTitle('')).toBe(DEFAULT_WORKBENCH_TITLE);
+    expect(resolveWorkbenchMapTitle('   ')).toBe(DEFAULT_WORKBENCH_TITLE);
+    expect(resolveWorkbenchMapTitle(null)).toBe(DEFAULT_WORKBENCH_TITLE);
   });
 
   it('defaults new workbench naming independent of ATT&CK TTP', () => {
-    expect(getNewWorkbenchDefaultTitle()).toBe('New Workbench');
+    expect(DEFAULT_WORKBENCH_TITLE).toBe('New Workbench');
   });
 });

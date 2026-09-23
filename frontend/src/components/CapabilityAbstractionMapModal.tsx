@@ -23,7 +23,7 @@ import { resolveWorkbenchMapTitle } from '../utils/workbenchNaming';
 interface CapabilityAbstractionMapModalProps {
   isOpen: boolean;
   onClose: () => void;
-  workbenchTitle: string;
+  workbenchTitle?: string | null;
   derivedNodes: Node[];
   derivedEdges: Edge[];
   manualNodes: Node[];
