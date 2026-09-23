@@ -88,8 +88,8 @@ type TranslationLanguageCode = 'CZ' | 'DE' | 'SP' | 'FR';
  * the user sees the translation rather than both languages at once.  If the
  * value does not match the bilingual format it is returned unchanged.
  */
-function extractTranslatedDisplayText(value: string): string {
-  if (!value) return value;
+function extractTranslatedDisplayText(value: string | null | undefined): string {
+  if (!value) return '';
   const match = value.match(
     /^\s*\[Translation:\s*(?:CZ|DE|SP|FR)\]\s*\n([\s\S]*?)\n\s*---\s*\n\s*\[Original\]/i,
   );
@@ -216,7 +216,7 @@ export const DeepDive = React.memo<DeepDiveProps>(({ playbookId, data, onChange,
         // The full bilingual value is persisted to the backend via onChange so that the
         // backend's re-translation logic (_split_translated_response_playbook) can always
         // recover the original English text for future retranslations.
-        const displayText = payload?.translatedText?.trim() || extractTranslatedDisplayText(translatedResponse);
+        const displayText = extractTranslatedDisplayText(translatedResponse);
         setLocalData(prev => ({ ...prev, response: displayText }));
         onChange('response', translatedResponse);
         setShowTranslateControls(false);
