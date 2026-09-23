@@ -1896,6 +1896,23 @@ code {
   border-color: var(--hef-border) !important;
 }
 
+:root[data-theme='dark'] .knowledge-theme-modal .ant-tag,
+:root[data-theme='dark'] .knowledge-theme .ant-tag {
+  color: rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+:root[data-theme='dark'] .knowledge-theme-modal .ant-tag-checkable,
+:root[data-theme='dark'] .knowledge-theme .ant-tag-checkable {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+:root[data-theme='dark'] .knowledge-theme-modal .ant-tag-checkable-checked,
+:root[data-theme='dark'] .knowledge-theme .ant-tag-checkable-checked {
+  color: #fff !important;
+}
+
 /* News admin/editor */
 .news-admin-theme .ant-card,
 .news-admin-theme .ant-card-head,

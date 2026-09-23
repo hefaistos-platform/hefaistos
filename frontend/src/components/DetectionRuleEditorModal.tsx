@@ -566,6 +566,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   }>>({});
   const [hasUnseenInsights, setHasUnseenInsights] = useState(false);
   const [lastInsightsPlatform, setLastInsightsPlatform] = useState<PlatformTab | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<'quickWin' | 'robust' | null>(null);
   const prevVisibleRef = useRef(false);
 
   // Git commit state
@@ -811,6 +812,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
       setPlatformRagReuse({});
       setHasUnseenInsights(false);
       setLastInsightsPlatform(null);
+      setSelectedVariant(null);
       setGenerateAllStatuses({});
       setGenerateAllErrors({});
       setOverwriteAllContent(DEFAULT_OVERWRITE_ALL_CONTENT);
@@ -1014,6 +1016,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     stopAiPolling();
     setAiTaskId(null);
     setPlatformGenerationInsights(prev => ({ ...prev, [activePlatformTab]: {} }));
+    setSelectedVariant(null);
     try {
       const res = await startGenerateRuleTask({
         variables: { playbookId, outputFormat: format },
@@ -1952,6 +1955,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                             setPlatformGenerationInsights({});
                             setLastInsightsPlatform(null);
                             setHasUnseenInsights(false);
+                            setSelectedVariant(null);
                           }}
                         >
                           Clear insights
@@ -1978,7 +1982,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                       <Space wrap className="pt-2">
                         {tabInsights.quickWinRule && lastInsightsPlatform && (
                           <Button
-                            type="default"
+                            type={selectedVariant === 'quickWin' ? 'primary' : 'default'}
                             onClick={() => {
                               const quickWinRule = tabInsights.quickWinRule || '';
                               setRuleContent(quickWinRule);
@@ -1986,6 +1990,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                               setMode('ai');
                               setActivePlatformTab(lastInsightsPlatform);
                               setActiveTab('editor');
+                              setSelectedVariant('quickWin');
                               message.success('Quick-win variant loaded into editor');
                             }}
                           >
@@ -1994,7 +1999,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                         )}
                         {tabInsights.robustRule && lastInsightsPlatform && (
                           <Button
-                            type="default"
+                            type={selectedVariant === 'robust' ? 'primary' : 'default'}
                             onClick={() => {
                               const robustRule = tabInsights.robustRule || '';
                               setRuleContent(robustRule);
@@ -2002,6 +2007,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                               setMode('ai');
                               setActivePlatformTab(lastInsightsPlatform);
                               setActiveTab('editor');
+                              setSelectedVariant('robust');
                               message.success('Robust variant loaded into editor');
                             }}
                           >
