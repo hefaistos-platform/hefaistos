@@ -91,7 +91,7 @@ type TranslationLanguageCode = 'CZ' | 'DE' | 'SP' | 'FR';
 function extractTranslatedDisplayText(value: string | null | undefined): string {
   if (!value) return '';
   const match = value.match(
-    /^\s*\[Translation:\s*(?:CZ|DE|SP|FR)\]\s*\n([\s\S]*?)\n\s*---\s*\n\s*\[Original\]/i,
+    /^\s*\[Translation:\s*[A-Z]{2,4}\]\s*\n([\s\S]*?)\n\s*---\s*\n\s*\[Original\]/i,
   );
   return match ? match[1].trim() : value;
 }
