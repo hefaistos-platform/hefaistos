@@ -56,6 +56,7 @@ import {
 import CapabilityAbstractionMapModal from '../components/CapabilityAbstractionMapModal';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { ReferenceContextItem, ReferenceContextPanel } from '../components/playbook/ReferenceContextPanel';
+import { DEFAULT_WORKBENCH_TITLE, resolveWorkbenchMapTitle } from '../utils/workbenchNaming';
 
 // Robustness Badge Component
 const RobustnessBadge: React.FC<{ level: number }> = ({ level }) => {
@@ -1082,13 +1083,13 @@ export const PlaybookWorkbench = () => {
 
     const result: Node[] = [];
 
-    if (data?.playbookGraph?.mitreTechnique) {
+    if (selectedAbstractions.length > 0) {
       result.push({
         id: 'technique-root',
         type: 'technique-root',
         position: { x: 400, y: -80 },
         data: {
-          label: `${data.playbookGraph.mitreTechnique.techniqueId}: ${data.playbookGraph.mitreTechnique.name}`,
+          label: resolveWorkbenchMapTitle(data?.playbookGraph?.title),
         },
         draggable: false,
       });
@@ -1128,14 +1129,15 @@ export const PlaybookWorkbench = () => {
       }));
 
     return [...result, ...gapNodes];
-  }, [data?.playbookGraph?.selectedCapabilityAbstractions, data?.playbookGraph?.mitreTechnique, data?.playbookGraph?.detectionFocusLayer, layerBandMap]);
+  }, [data?.playbookGraph?.selectedCapabilityAbstractions, data?.playbookGraph?.detectionFocusLayer, data?.playbookGraph?.title, layerBandMap]);
 
   const derivedEdges = useMemo<Edge[]>(() => {
-    if (!data?.playbookGraph?.mitreTechnique) {
+    const selectedAbstractions = data?.playbookGraph?.selectedCapabilityAbstractions ?? [];
+    if (selectedAbstractions.length === 0) {
       return [];
     }
 
-    return (data?.playbookGraph?.selectedCapabilityAbstractions ?? []).map((entry) => ({
+    return selectedAbstractions.map((entry) => ({
       id: `edge-root-${entry.id}`,
       source: 'technique-root',
       target: `ca-${entry.id}`,
@@ -1144,7 +1146,7 @@ export const PlaybookWorkbench = () => {
         stroke: entry.abstractionLayer === data?.playbookGraph?.detectionFocusLayer ? '#2563eb' : '#9ca3af',
       },
     }));
-  }, [data?.playbookGraph?.selectedCapabilityAbstractions, data?.playbookGraph?.detectionFocusLayer, data?.playbookGraph?.mitreTechnique]);
+  }, [data?.playbookGraph?.selectedCapabilityAbstractions, data?.playbookGraph?.detectionFocusLayer]);
 
   const nodeTypes = useMemo(
     () => ({
@@ -1342,11 +1344,8 @@ export const PlaybookWorkbench = () => {
       const techniqueId = searchParams.get('technique');
       
       const createAndSetup = async () => {
-        // Set default title based on technique parameters
-        let defaultTitle = 'New Workbench';
-        if (techniqueId) {
-          defaultTitle = `Detection: ${techniqueId}`;
-        }
+        // Use the standard workbench default title
+        const defaultTitle = DEFAULT_WORKBENCH_TITLE;
         
         const title = window.prompt('Name your new workbench', defaultTitle);
         if (!title) {
@@ -2404,7 +2403,7 @@ export const PlaybookWorkbench = () => {
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="flex items-center gap-2 text-xs font-bold text-gray-600 uppercase tracking-wider">
                                 <PixelIcon name="share-2" className="w-4 h-4" /> {/* "Network/Graph" icon */}
-                                Capability Abstraction Map
+                                {resolveWorkbenchMapTitle(data?.playbookGraph?.title)}
                             </div>
                             {coverageSummary.total > 0 && (
                               <div className="hidden lg:flex items-center gap-2 text-[10px] text-gray-500 normal-case">
@@ -2964,6 +2963,7 @@ export const PlaybookWorkbench = () => {
       <CapabilityAbstractionMapModal
         isOpen={isMapModalOpen}
         onClose={() => setIsMapModalOpen(false)}
+        workbenchTitle={data.playbookGraph.title}
         derivedNodes={derivedNodes}
         derivedEdges={derivedEdges}
         manualNodes={nodes}
