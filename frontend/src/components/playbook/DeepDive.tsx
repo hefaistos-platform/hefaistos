@@ -30,7 +30,15 @@ const DEEP_DIVE_FIELDS: Array<keyof DeepDiveFormData> = [
 ];
 
 const isSameDeepDiveData = (left: DeepDiveFormData, right: DeepDiveFormData) =>
-  DEEP_DIVE_FIELDS.every((field) => left[field] === right[field]);
+  DEEP_DIVE_FIELDS.every((field) => {
+    if (field === 'response') {
+      // Compare the display-form of both sides so that a bilingual backend
+      // value (after a translation save) does not cause the editor to reset
+      // when the editor is already showing only the translated portion.
+      return extractTranslatedDisplayText(left[field]) === extractTranslatedDisplayText(right[field]);
+    }
+    return left[field] === right[field];
+  });
 
 const RULES_CONNECTION_QUERY = gql`
   query RulesConnection($text: String, $first: Int!, $after: String, $repositoryId: ID) {
@@ -65,6 +73,28 @@ const TRANSLATE_RESPONSE_PLAYBOOK_MUTATION = gql`
 `;
 
 type TranslationLanguageCode = 'CZ' | 'DE' | 'SP' | 'FR';
+
+/**
+ * The backend stores a bilingual response playbook as:
+ *   [Translation: XX]
+ *   <translated text>
+ *
+ *   ---
+ *
+ *   [Original]
+ *   <original text>
+ *
+ * This helper returns only the translated portion for display in the editor so
+ * the user sees the translation rather than both languages at once.  If the
+ * value does not match the bilingual format it is returned unchanged.
+ */
+function extractTranslatedDisplayText(value: string | null | undefined): string {
+  if (!value) return '';
+  const match = value.match(
+    /^\s*\[Translation:\s*[A-Z]{2,4}\]\s*\n([\s\S]*?)\n\s*---\s*\n\s*\[Original\]/i,
+  );
+  return match ? match[1].trim() : value;
+}
 
 const TRANSLATION_LANGUAGE_OPTIONS: Array<{ value: TranslationLanguageCode; label: string }> = [
   { value: 'CZ', label: 'CZ (Czech)' },
@@ -181,7 +211,13 @@ export const DeepDive = React.memo<DeepDiveProps>(({ playbookId, data, onChange,
       const translatedResponse = payload?.responsePlaybook?.trim() || '';
 
       if (payload?.success && translatedResponse) {
-        setLocalData(prev => ({ ...prev, response: translatedResponse }));
+        // Show only the translated portion in the editor so the user sees the
+        // translated language, not the raw bilingual "[Translation: XX] … [Original] …" block.
+        // The full bilingual value is persisted to the backend via onChange so that the
+        // backend's re-translation logic (_split_translated_response_playbook) can always
+        // recover the original English text for future retranslations.
+        const displayText = extractTranslatedDisplayText(translatedResponse);
+        setLocalData(prev => ({ ...prev, response: displayText }));
         onChange('response', translatedResponse);
         setShowTranslateControls(false);
         message.success(payload.message || `Response Playbook translated to ${targetLanguage}.`);
@@ -328,7 +364,7 @@ export const DeepDive = React.memo<DeepDiveProps>(({ playbookId, data, onChange,
           </div>
         </div>
         <SimpleMDE 
-            value={localData.response} 
+            value={extractTranslatedDisplayText(localData.response)} 
             onChange={(val) => handleChange('response', val)} 
             onBlur={() => handleBlur('response')}
             options={responseOptions}
