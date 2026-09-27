@@ -239,11 +239,6 @@ export const CapabilityLibraryPage: React.FC = () => {
     [entries, rows, selectedEntryId]
   );
 
-  useEffect(() => {
-    if (!selectedEntryId && rows.length > 0 && searchParams.get('capabilityId')) {
-      setSelectedEntryId(searchParams.get('capabilityId'));
-    }
-  }, [rows, searchParams, selectedEntryId]);
 
   const updateParams = (updates: Record<string, string | undefined | null>) => {
     const next = new URLSearchParams(searchParams);
@@ -295,9 +290,6 @@ export const CapabilityLibraryPage: React.FC = () => {
         },
       });
       targetId = response?.data?.createCapabilityAbstraction?.capabilityAbstraction?.id || null;
-      if (techniqueId) {
-        setTechniqueFilter(techniqueId);
-      }
       message.success('Capability abstraction created.');
     }
 
