@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from io import StringIO
 import pyotp
 import json
+import secrets
 
 from identity.models import AccountSetupToken, UserMfaSettings, UserOrganizationMembership, AuthProviderSettings
 from identity.schema import (
@@ -684,11 +685,12 @@ class ResetLocalLoginCommandTests(TestCase):
         self.user = User.objects.create_user(
             username="hunt3r",
             email="hunt3r@example.com",
-            password="Hunt3rPass123!",
             organization=self.org,
             default_organization=self.org,
             role=Roles.ADMIN,
         )
+        self.user.set_password(secrets.token_urlsafe(24))
+        self.user.save(update_fields=["password"])
 
     def test_add_username_targets_users_org_settings(self):
         global_settings = AuthProviderSettings.get_solo()
@@ -722,11 +724,12 @@ class ResetLocalLoginCommandTests(TestCase):
         self.assertIn("derived from user 'hunt3r'", stdout.getvalue())
 
     def test_add_username_falls_back_to_global_for_users_without_org(self):
-        User.objects.create_user(
+        global_user = User.objects.create_user(
             username="globaluser",
             email="global@example.com",
-            password="GlobalPass123!",
         )
+        global_user.set_password(secrets.token_urlsafe(24))
+        global_user.save(update_fields=["password"])
 
         stdout = StringIO()
         call_command("reset_local_login", add_username="globaluser", stdout=stdout)
