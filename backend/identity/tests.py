@@ -684,7 +684,7 @@ class ResetLocalLoginCommandTests(TestCase):
         self.user = User.objects.create_user(
             username="hunt3r",
             email="hunt3r@example.com",
-            ******,
+            password="Hunt3rPass123!",
             organization=self.org,
             default_organization=self.org,
             role=Roles.ADMIN,
@@ -725,7 +725,7 @@ class ResetLocalLoginCommandTests(TestCase):
         User.objects.create_user(
             username="globaluser",
             email="global@example.com",
-            ******,
+            password="GlobalPass123!",
         )
 
         stdout = StringIO()
