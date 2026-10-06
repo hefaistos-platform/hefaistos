@@ -267,10 +267,11 @@ def _can_manage_auth_settings(user) -> bool:
         return False
     if is_bot_auditor_user(user):
         return False
+    role = getattr(user, 'role', None)
     return bool(
         getattr(user, 'is_superuser', False)
         or getattr(user, 'is_staff', False)
-        or getattr(user, 'role', None) == Roles.ADMIN
+        or role in {Roles.ADMIN, Roles.RESOURCE_MANAGER, 'SUPERADMIN', 'SUPERUSER'}
     )
 
 

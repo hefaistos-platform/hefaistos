@@ -70,6 +70,12 @@ const GET_CONFIG_ACCESS = gql`
   }
 `;
 
+export const isConfigurationAccessAllowed = (role?: string | null, isSuperuser = false) => {
+  const normalizedRole = (role || '').toUpperCase();
+  const allowedRoles = ['ADMIN', 'RESOURCE_MANAGER', 'SUPERADMIN', 'SUPERUSER'];
+  return allowedRoles.includes(normalizedRole) || Boolean(isSuperuser);
+};
+
 const DELETE_USER_MUTATION = gql`
   mutation DeleteUser($userId: ID!) {
     deleteUser(userId: $userId) {
@@ -2495,10 +2501,7 @@ export const ConfigurationPage: React.FC = () => {
     me?: { id: string; role: string; isSuperuser?: boolean | null } | null
   }>(GET_CONFIG_ACCESS, { fetchPolicy: 'cache-first' });
 
-  const isConfigAdmin = useMemo(() => {
-    const role = (accessData?.me?.role || '').toUpperCase();
-    return role === 'ADMIN' || role === 'RESOURCE_MANAGER' || role === 'SUPERADMIN' || Boolean(accessData?.me?.isSuperuser);
-  }, [accessData?.me?.isSuperuser, accessData?.me?.role]);
+  const isConfigAdmin = useMemo(() => isConfigurationAccessAllowed(accessData?.me?.role, Boolean(accessData?.me?.isSuperuser)), [accessData?.me?.isSuperuser, accessData?.me?.role]);
   const isCurrentSuperuser = Boolean(accessData?.me?.isSuperuser);
 
   const isBotAuditorRole = useMemo(() => {

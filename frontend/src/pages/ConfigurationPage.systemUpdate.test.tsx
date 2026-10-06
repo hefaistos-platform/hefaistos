@@ -28,13 +28,22 @@ jest.mock('./settings/HefPublishTargets', () => () => <div data-testid="hef-publ
 jest.mock('./settings/AITasks', () => () => <div data-testid="ai-tasks-tab" />);
 jest.mock('./settings/InstanceSharing', () => () => <div data-testid="instance-sharing" />);
 
-import { SystemUpdateTab } from './ConfigurationPage';
+import { SystemUpdateTab, isConfigurationAccessAllowed } from './ConfigurationPage';
 
 describe('SystemUpdateTab', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseQuery.mockReturnValue({ data: {}, loading: false, error: null, refetch: jest.fn() });
     mockUseMutation.mockReturnValue([jest.fn(), { loading: false }]);
+  });
+
+  test('allows config access for admin, resource manager, superuser, and django superuser while denying analyst role', () => {
+    expect(isConfigurationAccessAllowed('ADMIN', false)).toBe(true);
+    expect(isConfigurationAccessAllowed('RESOURCE_MANAGER', false)).toBe(true);
+    expect(isConfigurationAccessAllowed('SUPERADMIN', false)).toBe(true);
+    expect(isConfigurationAccessAllowed('SUPERUSER', false)).toBe(true);
+    expect(isConfigurationAccessAllowed('ANALYST', false)).toBe(false);
+    expect(isConfigurationAccessAllowed('ANALYST', true)).toBe(true);
   });
 
   test('shows superuser-only warning when viewer is not superuser', () => {

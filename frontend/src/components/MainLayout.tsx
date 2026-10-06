@@ -167,7 +167,7 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
       { key: 'profile', icon: <TeamOutlined />, label: 'My Profile', onClick: () => navigate('/profile') },
     ];
 
-  if (!isElOne && (currentRole === 'ADMIN' || isSuperuser || isBotAuditor)) {
+  if (!isElOne && (currentRole === 'ADMIN' || currentRole === 'SUPERADMIN' || currentRole === 'SUPERUSER' || isSuperuser || isBotAuditor)) {
     items.push({ key: 'news', icon: <BulbOutlined />, label: 'News Management', onClick: () => navigate('/mgmt/news') });
     items.push({ key: 'config', icon: <AppstoreOutlined />, label: 'Configuration', onClick: () => navigate('/mgmt/config') });
     items.push({ key: 'logs', icon: <FileSearchOutlined />, label: 'Logs', onClick: () => navigate('/mgmt/logs') });

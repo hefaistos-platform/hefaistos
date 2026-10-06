@@ -114,6 +114,14 @@ class RoleRequiredDecoratorTests(TestCase):
         result = wrapped(info)
         self.assertEqual(result, "ok")
 
+    def test_analyst_role_still_denied_for_admin_only_access(self):
+        """Analyst roles remain blocked from admin-only access even when they are not a Django superuser."""
+        user = self._make_user(role=Roles.ANALYST)
+        info = _make_info(user)
+        wrapped = role_required([Roles.ADMIN])(_dummy_func)
+        with self.assertRaises(PermissionDenied):
+            wrapped(info)
+
     def test_staff_bypasses_role_check(self):
         """A staff member (platform admin) bypasses org-scoped role checks regardless of their role field."""
         user = self._make_user(role=Roles.ANALYST, is_staff=True)
