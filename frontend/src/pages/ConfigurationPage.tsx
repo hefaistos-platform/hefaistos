@@ -2306,6 +2306,7 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
     : checkData?.update_available === false
       ? 'Up to date'
       : 'Unknown';
+  const shouldShowUpdateWarning = checkData?.update_available === true;
 
   return (
     <Card title="Version control" bordered>
@@ -2333,12 +2334,14 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
         <Typography.Text>
           Build Commit: <strong>{checkData?.build?.commit || '—'}</strong>
         </Typography.Text>
-        <Alert
-          type="warning"
-          showIcon
-          message="You should update your copy of HEFAISTOS."
-          description="If you skip updates forever, one day the gremlins, entropy, and Murphy's law will hold a team meeting on your server and promote chaos to production."
-        />
+        {shouldShowUpdateWarning && (
+          <Alert
+            type="warning"
+            showIcon
+            message="You should update your copy of HEFAISTOS."
+            description="If you skip updates forever, one day the gremlins, entropy, and Murphy's law will hold a team meeting on your server and promote chaos to production."
+          />
+        )}
         <Typography.Text strong>Manual upgrade guide:</Typography.Text>
         <ol className="list-decimal ml-5 text-sm space-y-1">
           <li>SSH to your server.</li>

@@ -119,4 +119,43 @@ describe('SystemUpdateTab', () => {
     confirmMock.mockRestore();
     fetchMock.mockRestore();
   });
+
+  test('hides update warning when local and repository versions match', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch' as any).mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/api/system/config/update/check')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            current_version: '1.0.1',
+            local_version: '1.0.1',
+            repository: {
+              version: '1.0.1',
+              source: 'git origin/main:VERSION',
+              checked_at: '2026-01-01T00:00:00Z',
+              error: null,
+            },
+            update_available: false,
+            build: { commit: 'abc123' },
+            update_capability: { can_update: true, reason: 'ok' },
+            running_job_id: null,
+          }),
+        } as Response);
+      }
+      return Promise.reject(new Error(`Unexpected fetch URL: ${url}`));
+    });
+
+    render(
+      <App>
+        <SystemUpdateTab isSuperuser={true} />
+      </App>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Version Status:/i)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/You should update your copy of HEFAISTOS\./i)).not.toBeInTheDocument();
+    fetchMock.mockRestore();
+  });
 });
