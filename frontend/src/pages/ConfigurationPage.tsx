@@ -2224,25 +2224,6 @@ const DacTab: React.FC<{ repositories: Repo[] }> = ({ repositories }) => {
   );
 };
 
-type SystemUpdateStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED';
-
-interface SystemUpdateJobState {
-  id: string;
-  mode: string;
-  status: SystemUpdateStatus | string;
-  started_at?: string | null;
-  ended_at?: string | null;
-  failed_step?: string | null;
-  error?: string | null;
-  summary?: {
-    success?: boolean;
-    mode?: string;
-    failed_step?: string | null;
-    started_at?: string | null;
-    ended_at?: string | null;
-  };
-}
-
 interface SystemUpdateCheckState {
   current_version: string;
   local_version?: string;
@@ -2257,11 +2238,6 @@ interface SystemUpdateCheckState {
     commit?: string | null;
     checked_at?: string | null;
   };
-  update_capability?: {
-    can_update?: boolean;
-    reason?: string | null;
-  };
-  running_job_id?: string | null;
 }
 
 const systemUpdateHeaders = () => {
@@ -2276,12 +2252,7 @@ const systemUpdateHeaders = () => {
 
 export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuser }) => {
   const [checkData, setCheckData] = useState<SystemUpdateCheckState | null>(null);
-  const [activeJob, setActiveJob] = useState<SystemUpdateJobState | null>(null);
-  const [logs, setLogs] = useState<Array<{ ts: string; line: string }>>([]);
-  const [forceMode, setForceMode] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [starting, setStarting] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
   const fetchCheck = async (announceResult = false) => {
     setChecking(true);
@@ -2311,77 +2282,10 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
           message.warning(`Version check completed, but repository version could not be resolved. Installed: ${localVersion}.`);
         }
       }
-
-      if (payload?.running_job_id && !activeJob?.id) {
-        setActiveJob({ id: payload.running_job_id, mode: 'default', status: 'RUNNING' });
-      }
     } catch (error: any) {
       message.error(error?.message || 'Failed to check update status');
     } finally {
       setChecking(false);
-    }
-  };
-
-  const fetchJob = async (jobId: string) => {
-    const statusResponse = await fetch(`${getApiBaseUrl()}/api/system/config/update/jobs/${jobId}`, {
-      method: 'GET',
-      headers: systemUpdateHeaders(),
-    });
-    const statusPayload = await statusResponse.json().catch(() => ({}));
-    if (!statusResponse.ok) {
-      throw new Error(statusPayload?.detail || `Status failed (${statusResponse.status})`);
-    }
-    setActiveJob(statusPayload);
-
-    const logsResponse = await fetch(`${getApiBaseUrl()}/api/system/config/update/jobs/${jobId}/logs?start=0&limit=600`, {
-      method: 'GET',
-      headers: systemUpdateHeaders(),
-    });
-    const logsPayload = await logsResponse.json().catch(() => ({}));
-    if (!logsResponse.ok) {
-      throw new Error(logsPayload?.detail || `Logs failed (${logsResponse.status})`);
-    }
-    setLogs(Array.isArray(logsPayload?.logs) ? logsPayload.logs : []);
-  };
-
-  const refreshActiveJob = async () => {
-    if (!activeJob?.id) return;
-    setRefreshing(true);
-    try {
-      await fetchJob(activeJob.id);
-    } catch (error: any) {
-      message.error(error?.message || 'Failed to refresh update job');
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const startUpdate = async () => {
-    if (!window.confirm(`Start a ${forceMode ? 'force' : 'default'} system-wide update now?`)) {
-      return;
-    }
-
-    setStarting(true);
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/system/config/update/start`, {
-        method: 'POST',
-        headers: systemUpdateHeaders(),
-        body: JSON.stringify({ force: forceMode }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.detail || `Update start failed (${response.status})`);
-      }
-      const jobId = payload?.job_id as string;
-      if (!jobId) throw new Error('Missing job id in response');
-      setActiveJob({ id: jobId, mode: payload?.mode || (forceMode ? 'force' : 'default'), status: payload?.status || 'PENDING' });
-      await fetchJob(jobId);
-      await fetchCheck(false);
-      message.success('System update job started.');
-    } catch (error: any) {
-      message.error(error?.message || 'Failed to start update');
-    } finally {
-      setStarting(false);
     }
   };
 
@@ -2391,22 +2295,10 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuperuser]);
 
-  useEffect(() => {
-    if (!isSuperuser || !activeJob?.id) return;
-    const poll = window.setInterval(() => {
-      if (activeJob.status === 'RUNNING' || activeJob.status === 'PENDING') {
-        void refreshActiveJob();
-      }
-    }, 3000);
-    return () => window.clearInterval(poll);
-  }, [isSuperuser, activeJob?.id, activeJob?.status]);
-
   if (!isSuperuser) {
-    return <Alert type="warning" showIcon message="System update controls are restricted to superuser accounts." />;
+    return <Alert type="warning" showIcon message="Version control details are restricted to superuser accounts." />;
   }
 
-  const canUpdate = Boolean(checkData?.update_capability?.can_update);
-  const isRunning = activeJob?.status === 'RUNNING' || activeJob?.status === 'PENDING';
   const localVersion = checkData?.local_version || checkData?.current_version || '—';
   const repositoryVersion = checkData?.repository?.version || '—';
   const updateAvailabilityText = checkData?.update_available === true
@@ -2416,7 +2308,7 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
       : 'Unknown';
 
   return (
-    <Card title="System Update" bordered>
+    <Card title="Version control" bordered>
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
           Installed version is local to this instance. Repository version is fetched from the git origin default branch.
@@ -2441,41 +2333,24 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
         <Typography.Text>
           Build Commit: <strong>{checkData?.build?.commit || '—'}</strong>
         </Typography.Text>
-        <Typography.Text>
-          Update Capability: <strong>{canUpdate ? 'Ready' : 'Unavailable'}</strong>
-          {checkData?.update_capability?.reason ? ` (${checkData.update_capability.reason})` : ''}
-        </Typography.Text>
-
-        <label className="flex items-center justify-between gap-3 text-sm border border-gray-200 rounded px-3 py-2">
-          <span><strong>Force update (down/up)</strong> — advanced recovery mode with downtime.</span>
-          <Switch checked={forceMode} onChange={setForceMode} disabled={isRunning} />
-        </label>
+        <Alert
+          type="warning"
+          showIcon
+          message="You should update your copy of HEFAISTOS."
+          description="If you skip updates forever, one day the gremlins, entropy, and Murphy's law will hold a team meeting on your server and promote chaos to production."
+        />
+        <Typography.Text strong>Manual upgrade guide:</Typography.Text>
+        <ol className="list-decimal ml-5 text-sm space-y-1">
+          <li>SSH to your server.</li>
+          <li>Run <code>cd &lt;hefaistos_home_directory&gt;</code>.</li>
+          <li>Run <code>git pull</code>.</li>
+          <li><code>docker compose down --remove-orphans && docker compose build --pull && docker compose --profile workers --profile obs --profile devtools up -d && docker compose --profile batch run --rm migrate</code></li>
+          <li>You are done, congratulations.</li>
+        </ol>
 
         <Space>
-          <AntButton onClick={() => void fetchCheck(true)} loading={checking}>Check updates</AntButton>
-          <AntButton type="primary" danger onClick={() => void startUpdate()} disabled={!canUpdate || isRunning} loading={starting}>
-            Update now
-          </AntButton>
-          <AntButton onClick={() => void refreshActiveJob()} disabled={!activeJob?.id} loading={refreshing}>
-            Refresh job
-          </AntButton>
+          <AntButton onClick={() => void fetchCheck(true)} loading={checking}>Check versions</AntButton>
         </Space>
-
-        {activeJob?.id && (
-          <div className="config-theme-panel rounded-lg border-2 border-hefaistos-border p-4">
-            <Typography.Paragraph style={{ marginBottom: 8 }}>
-              Job: <strong>{activeJob.id}</strong> • Status: <strong>{activeJob.status}</strong> • Mode: <strong>{activeJob.mode}</strong>
-            </Typography.Paragraph>
-            {activeJob.failed_step && (
-              <Typography.Paragraph type="danger" style={{ marginBottom: 8 }}>
-                Failed step: {activeJob.failed_step}{activeJob.error ? ` (${activeJob.error})` : ''}
-              </Typography.Paragraph>
-            )}
-            <pre style={{ maxHeight: 280, overflow: 'auto', padding: 12, background: '#0f172a', color: '#e2e8f0', borderRadius: 6, margin: 0 }}>
-              {logs.length ? logs.map((entry) => `[${entry.ts}] ${entry.line}`).join('\\n') : 'No logs yet.'}
-            </pre>
-          </div>
-        )}
       </Space>
     </Card>
   );
@@ -3453,7 +3328,7 @@ export const ConfigurationPage: React.FC = () => {
     }] : []),
     ...(isCurrentSuperuser ? [{
       key: 'system-update',
-      label: 'System Update',
+      label: 'Version control',
       children: <App><SystemUpdateTab isSuperuser={isCurrentSuperuser} /></App>,
     }] : []),
   ];
