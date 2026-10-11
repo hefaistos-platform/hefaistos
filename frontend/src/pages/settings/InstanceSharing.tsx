@@ -176,7 +176,7 @@ interface RemotePeer {
   name: string;
   remoteUrl: string;
   remoteInstanceId: string;
-  defaultScope: 'WORKBENCH' | 'RULES' | 'ACH' | 'ADVOPS' | 'ALL';
+  defaultScope: 'WORKBENCH' | 'RULES' | 'ACH' | 'ADVOPS' | 'CAPABILITY' | 'ALL';
   autoPullEnabled: boolean;
   autoPullSchedule: 'DAILY' | 'WEEKLY';
   nextAutoPullAt?: string | null;
@@ -218,6 +218,7 @@ const scopeOptions = [
   { label: 'Rules', value: 'RULES' },
   { label: 'ACH', value: 'ACH' },
   { label: 'ADVOPS', value: 'ADVOPS' },
+  { label: 'Capability Abstraction Library', value: 'CAPABILITY' },
   { label: 'All', value: 'ALL' },
 ];
 const autoPullScheduleOptions = [

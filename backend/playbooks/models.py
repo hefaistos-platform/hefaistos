@@ -302,6 +302,10 @@ class CapabilityAbstraction(models.Model):
         choices=ReviewStatus.choices,
         default=ReviewStatus.DRAFT,
     )
+    allow_remote_pull = models.BooleanField(
+        default=False,
+        help_text="Allow approved organization-scoped entries to be pulled by remote HEFAISTOS instances.",
+    )
     is_baseline = models.BooleanField(
         default=False,
         help_text="True when this entry is part of the shared seeded baseline library.",

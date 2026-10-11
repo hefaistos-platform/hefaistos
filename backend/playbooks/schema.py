@@ -589,6 +589,7 @@ class CapabilityAbstractionType(DjangoObjectType):
             "column",
             "source_kind",
             "review_status",
+            "allow_remote_pull",
             "is_baseline",
             "version",
             "created_at",
@@ -2421,6 +2422,7 @@ class CreateCapabilityAbstraction(graphene.Mutation):
         robustness_level = graphene.Int()
         column = graphene.String()
         review_status = graphene.String()
+        allow_remote_pull = graphene.Boolean()
 
     capability_abstraction = graphene.Field(CapabilityAbstractionType)
 
@@ -2463,6 +2465,7 @@ class CreateCapabilityAbstraction(graphene.Mutation):
             robustness_level=kwargs.get('robustness_level') or 0,
             column=column_value,
             review_status=review_status,
+            allow_remote_pull=bool(kwargs.get('allow_remote_pull', False)),
             source_kind=CapabilityAbstraction.SourceKind.CUSTOM,
             is_baseline=False,
         )
@@ -2482,6 +2485,7 @@ class UpdateCapabilityAbstraction(graphene.Mutation):
         robustness_level = graphene.Int()
         column = graphene.String()
         review_status = graphene.String()
+        allow_remote_pull = graphene.Boolean()
 
     capability_abstraction = graphene.Field(CapabilityAbstractionType)
 
@@ -2533,6 +2537,10 @@ class UpdateCapabilityAbstraction(graphene.Mutation):
             if review_status not in valid_review_statuses:
                 raise Exception("Invalid review status")
             capability.review_status = review_status
+            dirty = True
+
+        if 'allow_remote_pull' in kwargs and kwargs['allow_remote_pull'] is not None:
+            capability.allow_remote_pull = bool(kwargs['allow_remote_pull'])
             dirty = True
 
         if dirty:

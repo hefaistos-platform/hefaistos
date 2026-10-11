@@ -171,6 +171,7 @@ describe('CapabilityLibraryPage', () => {
           techniqueId: 'T1218.005',
           abstractionLayer: 'TOOL',
           componentArtifact: 'calc.exe',
+          allowRemotePull: false,
         }),
       })
     );
@@ -189,6 +190,7 @@ describe('CapabilityLibraryPage', () => {
     fireEvent.change(within(modal).getAllByRole('textbox')[0], {
       target: { value: 'mshta.exe renamed' },
     });
+    fireEvent.click(within(modal).getByRole('switch', { name: /Allow remote pull/i }));
 
     fireEvent.click(within(modal).getByRole('button', { name: /^OK$/i }));
 
@@ -197,6 +199,7 @@ describe('CapabilityLibraryPage', () => {
         variables: expect.objectContaining({
           capabilityAbstractionId: 'cap-1',
           componentArtifact: 'mshta.exe renamed',
+          allowRemotePull: true,
         }),
       })
     );

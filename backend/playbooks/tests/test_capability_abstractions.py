@@ -88,6 +88,28 @@ class CapabilityAbstractionGraphQLTests(GraphQLTestCase):
         )
         self.client.force_login(self.user)
 
+    def test_remote_pull_setting_is_editable_only_in_own_organization(self):
+        mutation = '''
+            mutation SetCapabilityRemotePull($id: UUID!, $enabled: Boolean!) {
+                updateCapabilityAbstraction(capabilityAbstractionId: $id, allowRemotePull: $enabled) {
+                    capabilityAbstraction { id allowRemotePull }
+                }
+            }
+        '''
+        response = self.query(mutation, variables={'id': str(self.org_entry.id), 'enabled': True})
+        self.assertResponseNoErrors(response)
+        self.org_entry.refresh_from_db()
+        self.assertTrue(self.org_entry.allow_remote_pull)
+        response = self.query(mutation, variables={'id': str(self.org_entry.id), 'enabled': False})
+        self.assertResponseNoErrors(response)
+        self.org_entry.refresh_from_db()
+        self.assertFalse(self.org_entry.allow_remote_pull)
+        for entry in (self.shared_entry, self.hidden_entry):
+            response = self.query(mutation, variables={'id': str(entry.id), 'enabled': True})
+            self.assertIn('errors', json.loads(response.content))
+            entry.refresh_from_db()
+            self.assertFalse(entry.allow_remote_pull)
+
     def test_capability_abstractions_query_returns_baseline_and_org_scope(self):
         query = '''
             query CapabilityAbstractions($techniqueId: String!) {

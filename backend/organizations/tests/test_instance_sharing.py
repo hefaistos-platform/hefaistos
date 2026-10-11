@@ -22,14 +22,117 @@ from organizations.sharing import (
     key_allows_scope,
     normalize_auto_pull_schedule,
 )
-from playbooks.models import PlaybookGraph
+from platform_data.models import MitreAttackTechnique
+from playbooks.models import CapabilityAbstraction, PlaybookGraph
 from rules.models import DetectionRule, RuleRepository
+
+
+class CapabilitySharingTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name='Capability Source')
+        self.target = Organization.objects.create(name='Capability Target')
+        self.actor = get_user_model().objects.create_user(
+            username='capability_sharing', organization=self.target, role='ADMIN',
+        )
+        self.technique = MitreAttackTechnique.objects.create(
+            technique_id='T1059.001', stix_id='attack-pattern--cap-sharing', name='PowerShell',
+        )
+        self.peer = HefaistosRemotePeer.objects.create(
+            organization=self.target, name='Source', remote_url='https://example.com',
+            remote_instance_id=uuid.uuid4(), default_scope='CAPABILITY',
+        )
+        self.key = 'hefshare_capability_key'
+        self.share_key = HefaistosInboundShareKey.objects.create(
+            organization=self.org, name='Capability', key_hash=hash_api_key(self.key),
+            key_hint='cap...key', allowed_scopes=['CAPABILITY'],
+        )
+
+    def entry(self, name, **kwargs):
+        defaults = dict(
+            organization=self.org, technique=self.technique, abstraction_layer='TOOL',
+            component_artifact=name, review_status='APPROVED', allow_remote_pull=True,
+            detection_value='Detect script execution', column='A', robustness_level=3,
+        )
+        defaults.update(kwargs)
+        return CapabilityAbstraction.objects.create(**defaults)
+
+    def export(self, scope='CAPABILITY'):
+        return self.client.get(
+            f'/api/sharing/export?scope={scope}', HTTP_X_HEFAISTOS_SHARE_KEY=self.key,
+        )
+
+    def test_export_requires_approval_opt_in_and_organization_ownership(self):
+        self.entry('Allowed')
+        self.entry('Disabled', allow_remote_pull=False)
+        self.entry('Draft', review_status='DRAFT')
+        self.entry('Reviewed', review_status='REVIEWED')
+        self.entry('Other tenant', organization=self.target)
+        self.entry('Baseline', organization=None, is_baseline=True)
+        self.entry('Tenant baseline', is_baseline=True)
+        response = self.export()
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual([x['component_artifact'] for x in body['capability_abstractions']], ['Allowed'])
+        self.assertEqual(body['workbenches'], [])
+        self.assertEqual(body['capability_abstractions'][0]['technique_id'], 'T1059.001')
+
+    def test_all_includes_capabilities_and_scope_permission_is_enforced(self):
+        self.entry('Allowed')
+        self.assertEqual(self.export('ALL').status_code, 403)
+        self.share_key.allowed_scopes = ['ALL']
+        self.share_key.save()
+        self.assertEqual(len(self.export('ALL').json()['capability_abstractions']), 1)
+        self.share_key.allowed_scopes = ['WORKBENCH']
+        self.share_key.save()
+        self.assertEqual(self.export().status_code, 403)
+
+    def test_round_trip_deduplicates_without_enabling_resharing(self):
+        self.entry('PowerShell.exe')
+        payload = self.export().json()
+        summary, errors = import_payload_into_org(payload, self.target, self.actor, self.peer, 'CAPABILITY')
+        self.assertEqual(errors, [])
+        self.assertEqual(summary['capability_abstractions']['created'], 1)
+        imported = CapabilityAbstraction.objects.get(organization=self.target)
+        self.assertFalse(imported.allow_remote_pull)
+        self.assertFalse(imported.is_baseline)
+        self.assertEqual(imported.source_kind, 'CUSTOM')
+        self.assertEqual(imported.detection_value, 'Detect script execution')
+        payload['capability_abstractions'][0]['component_artifact'] = ' powershell.EXE '
+        payload['capability_abstractions'][0]['detection_value'] = 'Updated'
+        summary, errors = import_payload_into_org(payload, self.target, self.actor, self.peer, 'ALL')
+        self.assertEqual(errors, [])
+        self.assertEqual(summary['capability_abstractions']['updated'], 1)
+        self.assertEqual(CapabilityAbstraction.objects.filter(organization=self.target).count(), 1)
+        imported.refresh_from_db()
+        self.assertEqual(imported.detection_value, 'Updated')
+        self.assertFalse(imported.allow_remote_pull)
+
+    def test_import_validation_and_requested_scope(self):
+        self.entry('Allowed')
+        data = self.export().json()['capability_abstractions'][0]
+        invalid = [
+            {**data, 'review_status': 'DRAFT'}, {**data, 'technique_id': 'T0000'},
+            {**data, 'abstraction_layer': 'INVALID'}, {**data, 'column': 'INVALID'},
+            {**data, 'robustness_level': 10}, {**data, 'component_artifact': ''},
+        ]
+        payload = {'capability_abstractions': invalid}
+        summary, errors = import_payload_into_org(payload, self.target, self.actor, self.peer, 'CAPABILITY')
+        self.assertEqual(summary['capability_abstractions']['failed'], len(invalid))
+        self.assertEqual(len(errors), len(invalid))
+        self.assertFalse(CapabilityAbstraction.objects.filter(organization=self.target).exists())
+        summary, errors = import_payload_into_org(payload, self.target, self.actor, self.peer, 'ACH')
+        self.assertEqual(errors, [])
+        self.assertEqual(summary['capability_abstractions']['failed'], 0)
 
 
 class SharingScopePermissionTests(TestCase):
     def test_key_allows_scope_rules(self):
         self.assertTrue(key_allows_scope(['ALL'], 'WORKBENCH'))
-        self.assertTrue(key_allows_scope(['WORKBENCH', 'RULES', 'ACH', 'ADVOPS'], 'ALL'))
+        self.assertTrue(key_allows_scope(['WORKBENCH', 'RULES', 'ACH', 'ADVOPS', 'CAPABILITY'], 'ALL'))
+        self.assertFalse(key_allows_scope(['WORKBENCH', 'RULES', 'ACH', 'ADVOPS'], 'ALL'))
+        self.assertTrue(key_allows_scope(['ALL'], 'CAPABILITY'))
+        self.assertTrue(key_allows_scope(['CAPABILITY'], 'CAPABILITY'))
+        self.assertFalse(key_allows_scope(['WORKBENCH'], 'CAPABILITY'))
         self.assertTrue(key_allows_scope(['ADVOPS'], 'ADVOPS'))
         self.assertTrue(key_allows_scope(['RULES'], 'RULES'))
         self.assertFalse(key_allows_scope(['WORKBENCH'], 'ALL'))

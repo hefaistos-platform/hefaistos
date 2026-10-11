@@ -57,6 +57,22 @@ If available in your UI build, Workbench may expose a non-invasive **Open in Cap
 5. Save and validate.
 6. Continue using the capability in Workbench as before.
 
+## Instance sharing
+
+In **Configuration → Instance Sharing**, select **Capability Abstraction Library**
+as the scope for an inbound API key or a remote peer. **All** includes this library.
+
+To share an entry, edit it in Capability Library, set its review status to
+**Approved**, and enable **Allow remote pull**. Both conditions are required.
+Sharing exports only entries belonging to the organization; shared baseline
+entries are excluded. The key's optional tag filter applies to Workbench and Rules.
+
+Pulled entries become custom entries in the receiving organization's library.
+The matching ATT&CK technique must already exist locally. Repeated pulls update
+entries matching the technique, abstraction layer, and component/artifact name
+(ignoring case and repeated whitespace). New imported entries have remote pull
+disabled until explicitly enabled locally.
+
 ## Notes for maintainers
 
 - Keep Capability Library and Add Capability Abstraction aligned on schema/validation.

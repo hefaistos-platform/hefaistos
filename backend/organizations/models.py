@@ -12,6 +12,7 @@ SHARING_SCOPE_CHOICES = [
     ('RULES', 'Rules'),
     ('ACH', 'ACH'),
     ('ADVOPS', 'ADVOPS'),
+    ('CAPABILITY', 'Capability Abstraction Library'),
     ('ALL', 'All'),
 ]
 SHARING_SCOPE_VALUES = {choice[0] for choice in SHARING_SCOPE_CHOICES}
@@ -1362,7 +1363,7 @@ class HefaistosInboundShareKey(models.Model):
     allowed_scopes = models.JSONField(
         default=list,
         blank=True,
-        help_text='Allowed pull scopes for this key: WORKBENCH, RULES, ACH, ADVOPS, ALL.',
+        help_text='Allowed pull scopes for this key: WORKBENCH, RULES, ACH, ADVOPS, CAPABILITY, ALL.',
     )
     enforce_tag_filter = models.BooleanField(
         default=False,

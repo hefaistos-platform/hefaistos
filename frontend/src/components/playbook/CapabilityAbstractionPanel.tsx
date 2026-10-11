@@ -282,6 +282,7 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
           robustnessLevel: restValues.robustnessLevel,
           column: restValues.column,
           reviewStatus: restValues.reviewStatus,
+          allowRemotePull: restValues.allowRemotePull,
           sourceKind: 'CUSTOM',
         };
         const nextMap = new Map(selectedEntriesMap);

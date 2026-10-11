@@ -35,6 +35,7 @@ const CAPABILITY_LIBRARY_PAGE_QUERY = gql`
       column
       sourceKind
       reviewStatus
+      allowRemotePull
       version
       organizationName
       isEditable
@@ -525,6 +526,9 @@ export const CapabilityLibraryPage: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="ATT&CK technique">
                 {selectedEntry.technique ? `${selectedEntry.technique.techniqueId}: ${selectedEntry.technique.name}` : 'Not specified'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Remote pull">
+                {selectedEntry.allowRemotePull ? 'Enabled (requires Approved status)' : 'Disabled'}
               </Descriptions.Item>
               <Descriptions.Item label="Last updated">
                 {formatDate(selectedEntry.updatedAt)}

@@ -25,7 +25,7 @@ from organizations.models import (
     SHARING_SCOPE_VALUES,
 )
 
-ATOMIC_SCOPES = ('WORKBENCH', 'RULES', 'ACH', 'ADVOPS')
+ATOMIC_SCOPES = ('WORKBENCH', 'RULES', 'ACH', 'ADVOPS', 'CAPABILITY')
 WORKBENCH_REQUIRED_STATUS = 'DEPLOYED'
 ACH_REQUIRED_STATUS = 'FINISHED'
 ADVOPS_REQUIRED_STATUS = 'DEPLOYED'
@@ -395,6 +395,43 @@ def _advops_payload_for_org(organization) -> list[dict[str, Any]]:
     return payload
 
 
+CAPABILITY_CONTENT_FIELDS = (
+    'adversary_purpose', 'common_evasions', 'expected_observables',
+    'applicable_telemetry', 'detection_value',
+)
+
+
+def _capability_payload_for_org(organization) -> list[dict[str, Any]]:
+    from playbooks.models import CapabilityAbstraction
+
+    entries = CapabilityAbstraction.objects.filter(
+        organization=organization,
+        organization__isnull=False,
+        is_baseline=False,
+        review_status=CapabilityAbstraction.ReviewStatus.APPROVED,
+        allow_remote_pull=True,
+    ).select_related('technique').order_by('-updated_at', '-id')
+
+    payload = []
+    seen: set[tuple[str, str, str]] = set()
+    for entry in entries:
+        identity = (entry.technique.technique_id, entry.abstraction_layer, _normalized_name(entry.component_artifact))
+        if identity in seen:
+            continue
+        seen.add(identity)
+        payload.append({
+            'technique_id': entry.technique.technique_id,
+            'abstraction_layer': entry.abstraction_layer,
+            'component_artifact': entry.component_artifact,
+            **{field: getattr(entry, field) for field in CAPABILITY_CONTENT_FIELDS},
+            'robustness_level': entry.robustness_level,
+            'column': entry.column,
+            'review_status': entry.review_status,
+            'version': entry.version,
+        })
+    return payload
+
+
 def export_org_payload(
     organization,
     requested_scope: str,
@@ -417,6 +454,7 @@ def export_org_payload(
         'rules': [],
         'ach': [],
         'advops': [],
+        'capability_abstractions': [],
     }
 
     if 'WORKBENCH' in include_scopes:
@@ -427,6 +465,8 @@ def export_org_payload(
         payload['ach'] = _ach_payload_for_org(organization)
     if 'ADVOPS' in include_scopes:
         payload['advops'] = _advops_payload_for_org(organization)
+    if 'CAPABILITY' in include_scopes:
+        payload['capability_abstractions'] = _capability_payload_for_org(organization)
 
     return payload
 
@@ -757,6 +797,82 @@ def _import_advops(
             errors.append(f'ADVOPS #{idx + 1}: {exc}')
 
 
+def _import_capabilities(
+    capability_payload: list[dict[str, Any]],
+    organization,
+    actor,
+    summary: dict[str, dict[str, int]],
+    errors: list[str],
+) -> None:
+    from platform_data.models import MitreAttackTechnique
+    from playbooks.models import CapabilityAbstraction
+
+    for idx, data in enumerate(capability_payload or []):
+        try:
+            if not isinstance(data, dict):
+                raise ValueError('Invalid capability abstraction payload')
+            name = str(data.get('component_artifact') or '').strip()
+            layer = str(data.get('abstraction_layer') or '').strip().upper()
+            column = str(data.get('column') or '').strip().upper()
+            status = str(data.get('review_status') or '').strip().upper()
+            if not name or len(name) > 255:
+                raise ValueError('Capability component/artifact must contain 1–255 characters')
+            if layer not in CapabilityAbstraction.AbstractionLayer.values:
+                raise ValueError('Invalid abstraction layer')
+            if column and column not in CapabilityAbstraction.Column.values:
+                raise ValueError('Invalid capability abstraction column')
+            if status != CapabilityAbstraction.ReviewStatus.APPROVED:
+                raise ValueError('Only APPROVED capability abstractions are allowed for PULL.')
+            technique = MitreAttackTechnique.objects.filter(
+                technique_id=str(data.get('technique_id') or '').strip(),
+            ).first()
+            if technique is None:
+                raise ValueError('ATT&CK technique not found in the local catalog')
+            robustness = int(data.get('robustness_level') or 0)
+            if not 0 <= robustness <= 5:
+                raise ValueError('Robustness level must be between 0 and 5')
+            defaults = {
+                **{field: str(data.get(field) or '') for field in CAPABILITY_CONTENT_FIELDS},
+                'robustness_level': robustness,
+                'column': column,
+                'review_status': status,
+                'updated_by': actor,
+            }
+            with transaction.atomic():
+                candidates = CapabilityAbstraction.objects.filter(
+                    organization=organization,
+                    technique=technique,
+                    abstraction_layer=layer,
+                    is_baseline=False,
+                ).order_by('-updated_at', '-id')
+                existing = next((
+                    entry for entry in candidates
+                    if _normalized_name(entry.component_artifact) == _normalized_name(name)
+                ), None)
+                if existing is None:
+                    CapabilityAbstraction.objects.create(
+                        organization=organization,
+                        technique=technique,
+                        abstraction_layer=layer,
+                        component_artifact=name,
+                        created_by=actor,
+                        source_kind=CapabilityAbstraction.SourceKind.CUSTOM,
+                        is_baseline=False,
+                        allow_remote_pull=False,
+                        **defaults,
+                    )
+                    summary['capability_abstractions']['created'] += 1
+                else:
+                    for field, value in defaults.items():
+                        setattr(existing, field, value)
+                    existing.version += 1
+                    existing.save()
+                    summary['capability_abstractions']['updated'] += 1
+        except Exception as exc:
+            summary['capability_abstractions']['failed'] += 1
+            errors.append(f'Capability abstraction #{idx + 1}: {exc}')
+
+
 def import_payload_into_org(
     payload: dict[str, Any],
     organization,
@@ -772,6 +888,7 @@ def import_payload_into_org(
         'rules': {'created': 0, 'updated': 0, 'failed': 0},
         'ach': {'created': 0, 'updated': 0, 'failed': 0},
         'advops': {'created': 0, 'updated': 0, 'failed': 0},
+        'capability_abstractions': {'created': 0, 'updated': 0, 'failed': 0},
     }
     errors: list[str] = []
 
@@ -803,6 +920,15 @@ def import_payload_into_org(
     if 'ADVOPS' in include_scopes:
         _import_advops(
             payload.get('advops') or [],
+            organization=organization,
+            actor=actor,
+            summary=summary,
+            errors=errors,
+        )
+
+    if 'CAPABILITY' in include_scopes:
+        _import_capabilities(
+            payload.get('capability_abstractions') or [],
             organization=organization,
             actor=actor,
             summary=summary,

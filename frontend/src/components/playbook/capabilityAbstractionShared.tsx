@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { gql } from '@apollo/client';
-import { Form, Input, Modal, Select } from 'antd';
+import { Form, Input, Modal, Select, Switch } from 'antd';
 
 const { TextArea } = Input;
 
@@ -19,6 +19,7 @@ export const CAPABILITY_ABSTRACTIONS_QUERY = gql`
       column
       sourceKind
       reviewStatus
+      allowRemotePull
       version
       organizationName
       isEditable
@@ -56,6 +57,7 @@ export const CREATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
     $robustnessLevel: Int
     $column: String
     $reviewStatus: String
+    $allowRemotePull: Boolean
   ) {
     createCapabilityAbstraction(
       techniqueId: $techniqueId
@@ -69,6 +71,7 @@ export const CREATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
       robustnessLevel: $robustnessLevel
       column: $column
       reviewStatus: $reviewStatus
+      allowRemotePull: $allowRemotePull
     ) {
       capabilityAbstraction {
         id
@@ -91,6 +94,7 @@ export const UPDATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
     $robustnessLevel: Int
     $column: String
     $reviewStatus: String
+    $allowRemotePull: Boolean
   ) {
     updateCapabilityAbstraction(
       capabilityAbstractionId: $capabilityAbstractionId
@@ -104,6 +108,7 @@ export const UPDATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
       robustnessLevel: $robustnessLevel
       column: $column
       reviewStatus: $reviewStatus
+      allowRemotePull: $allowRemotePull
     ) {
       capabilityAbstraction {
         id
@@ -165,6 +170,7 @@ export type CapabilityAbstractionEntry = {
   column?: string;
   sourceKind?: string;
   reviewStatus?: string;
+  allowRemotePull?: boolean;
   version?: number;
   organizationName?: string;
   isEditable?: boolean;
@@ -195,6 +201,7 @@ export type CapabilityAbstractionFormValues = {
   robustnessLevel?: number;
   column?: string;
   reviewStatus?: string;
+  allowRemotePull?: boolean;
 };
 
 export function getLayerLabel(layer: string): string {
@@ -249,6 +256,7 @@ export const CapabilityAbstractionFormModal: React.FC<CapabilityAbstractionFormM
         robustnessLevel: editingEntry.robustnessLevel,
         column: editingEntry.column,
         reviewStatus: editingEntry.reviewStatus,
+        allowRemotePull: Boolean(editingEntry.allowRemotePull),
       });
       return;
     }
@@ -256,6 +264,7 @@ export const CapabilityAbstractionFormModal: React.FC<CapabilityAbstractionFormM
     form.resetFields();
     form.setFieldsValue({
       reviewStatus: 'DRAFT',
+      allowRemotePull: false,
       techniqueId: defaultTechniqueId,
     });
   }, [defaultTechniqueId, editingEntry, form, open]);
@@ -318,6 +327,14 @@ export const CapabilityAbstractionFormModal: React.FC<CapabilityAbstractionFormM
         </Form.Item>
         <Form.Item name="column" label="Column">
           <Select allowClear options={COLUMN_OPTIONS} />
+        </Form.Item>
+        <Form.Item
+          name="allowRemotePull"
+          label="Allow remote pull"
+          valuePropName="checked"
+          extra="Only approved entries with this setting enabled can be shared with remote HEFAISTOS instances."
+        >
+          <Switch />
         </Form.Item>
         <Form.Item name="reviewStatus" label="Review status">
           <Select options={REVIEW_STATUS_OPTIONS} />
