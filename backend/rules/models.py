@@ -239,8 +239,12 @@ class DetectionRule(models.Model):
         ('AQL', 'IBM QRadar AQL'),
         ('OPENTIDE', 'OpenTide Multi-Platform'),
         ('OTHER', 'Other'),
+        ('FREE', 'FREE Format'),
     )
     format = models.CharField(max_length=10, choices=FORMAT_CHOICES, default='KQL')
+    custom_format_label = models.CharField(max_length=80, blank=True, default='')
+    custom_file_extension = models.CharField(max_length=20, blank=True, default='txt')
+    editor_language = models.CharField(max_length=20, blank=True, default='plaintext')
     description = models.TextField(null=True, blank=True)
     author = models.CharField(max_length=255, null=True, blank=True)
     raw_content = models.TextField()

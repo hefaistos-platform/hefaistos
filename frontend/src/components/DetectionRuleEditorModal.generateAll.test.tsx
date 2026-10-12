@@ -4,6 +4,8 @@ import DetectionRuleEditorModal, {
   buildGenerateAllPlan,
   buildOpenTideState,
   DEFAULT_OVERWRITE_ALL_CONTENT,
+  savedFormatSnapshot,
+  formatHasChanges,
 } from './DetectionRuleEditorModal';
 import type { OpenTideRule } from '../types/opentide';
 import { useLazyQuery, useMutation, useQuery } from '@apollo/client/react';
@@ -162,3 +164,67 @@ describe('DetectionRuleEditorModal generate-all overwrite behavior', () => {
     });
   });
 });
+
+describe('FREE Format manual editing', () => {
+  beforeEach(() => {
+    (useMutation as jest.Mock).mockImplementation(() => [jest.fn(), { loading: false }]);
+    (useQuery as jest.Mock).mockReturnValue({ data: { me: { id: '1', username: 'tester', role: 'ADMIN' } } });
+    (useLazyQuery as jest.Mock).mockReturnValue([jest.fn()]);
+  });
+
+  test('FREE content is isolated and excluded from generate-all', () => {
+    const raw = '\n\trule example { condition: true }  \n';
+    const state = buildOpenTideState(BASE_RULE, raw, 'FREE');
+    expect(state.freeRule?.content).toBe(raw);
+    expect(state.platforms).toEqual(BASE_RULE.platforms);
+    expect(buildGenerateAllPlan(state, 'free', true).targetFormats).toEqual([]);
+    expect(buildGenerateAllPlan(state, 'kql', true).targetFormats).not.toContain('FREE');
+  });
+
+  test('FREE opens with manual controls and hides AI, RAG and templates', () => {
+    render(<DetectionRuleEditorModal visible onClose={jest.fn()} playbookId="1"
+      initialRule="rule test {}" initialFormat="FREE" initialMode="manual" onSave={jest.fn()} />);
+    expect(screen.getByLabelText('Custom format label')).toBeInTheDocument();
+    expect(screen.getByLabelText('Syntax highlighting')).toBeInTheDocument();
+    expect(screen.getByLabelText('Custom file extension')).toHaveValue('txt');
+    expect(screen.queryByText('Generate with AI')).not.toBeInTheDocument();
+    expect(screen.queryByText('RAG Reuse')).not.toBeInTheDocument();
+    expect(screen.queryByText('Quick Templates')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('data-source-picker')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'SAVE FREE FORMAT' })).toBeInTheDocument();
+  });
+
+  test('label changes trigger save and preserve raw content on SAVE ALL', async () => {
+    const raw = '\n\trule example {}  \n';
+    const saveAll = jest.fn().mockResolvedValue({ data: { saveAllDetectionRules: { success: true, results: [{ format: 'FREE', status: 'saved' }] } } });
+    (useMutation as jest.Mock).mockImplementation((document) => {
+      const name = document.definitions?.[0]?.name?.value;
+      return [name === 'SaveAllDetectionRules' ? saveAll : jest.fn(), { loading: false }];
+    });
+    const onSave = jest.fn().mockResolvedValue(undefined);
+    render(<DetectionRuleEditorModal visible onClose={jest.fn()} playbookId="1"
+      initialRule={raw} initialFormat="FREE" initialMode="manual" onSave={onSave} />);
+    fireEvent.change(screen.getByLabelText('Custom format label'), { target: { value: 'YARA' } });
+    fireEvent.change(screen.getByLabelText('Custom file extension'), { target: { value: '.YARA' } });
+    fireEvent.click(screen.getByRole('button', { name: 'SAVE ALL' }));
+    await waitFor(() => expect(saveAll).toHaveBeenCalled());
+    expect(saveAll.mock.calls[0][0].variables.rules).toEqual([{ format: 'FREE', content: raw, customFormatLabel: 'YARA', editorLanguage: 'plaintext', customFileExtension: 'yara' }]);
+    expect(onSave.mock.calls[0][4].freeRule).toEqual({ content: raw, label: 'YARA', language: 'plaintext', extension: 'yara' });
+  });
+});
+
+ test('FREE reopening retains preferences and whitespace-only edits are dirty', () => {
+   const freeRule = { content: 'rule example {}\n', label: 'YARA-L', language: 'xml', extension: 'xml' };
+   const initial = { ...BASE_RULE, freeRule };
+   const reopened = buildOpenTideState(initial, '', 'FREE');
+   expect(reopened.freeRule).toEqual(freeRule);
+   const saved = savedFormatSnapshot(initial, 'FREE');
+   expect(formatHasChanges(reopened, 'FREE', saved)).toBe(false);
+   expect(formatHasChanges({ ...reopened, freeRule: { ...freeRule, content: freeRule.content + '  ' } }, 'FREE', saved)).toBe(true);
+ });
+
+ test('extension-only edits are unsaved changes', () => {
+   const freeRule = { content: 'rule example {}', label: 'YARA', language: 'plaintext', extension: 'txt' };
+   const initial = { ...BASE_RULE, freeRule };
+   expect(formatHasChanges({ ...initial, freeRule: { ...freeRule, extension: 'yara' } }, 'FREE', savedFormatSnapshot(initial, 'FREE'))).toBe(true);
+ });

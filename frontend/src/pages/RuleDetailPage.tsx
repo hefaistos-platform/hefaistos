@@ -24,6 +24,9 @@ const GET_RULE_QUERY = gql`
       author
       rawContent
       format
+      customFormatLabel
+      editorLanguage
+      customFileExtension
     }
   }
 `;
@@ -50,6 +53,9 @@ const UPDATE_RULE_MUTATION = gql`
         author
         rawContent
         format
+      customFormatLabel
+      editorLanguage
+      customFileExtension
       }
     }
   }
@@ -74,6 +80,9 @@ interface RuleDetail {
   author: string | null;
   rawContent: string;
   format: string;
+  customFormatLabel?: string;
+  editorLanguage?: string;
+  customFileExtension?: string;
 }
 
 interface CurrentUser {
@@ -130,7 +139,7 @@ export const RuleDetailPage = () => {
   if (!data ||!data.rule) return <p>Rule not found.</p>;
 
   const { rule } = data;
-  const fileName = `${(rule.title || 'rule').replace(/[^a-z0-9-_]+/gi, '_')}.yml`;
+  const fileName = `${(rule.title || 'rule').replace(/[^a-z0-9-_]+/gi, '_')}.${rule.format === 'FREE' ? (rule.customFileExtension || 'txt') : 'yml'}`;
 
   const handleCopy = async () => {
     try {
@@ -224,6 +233,7 @@ export const RuleDetailPage = () => {
   return (
     <div style={{ padding: 24, color: 'var(--hef-text-primary)' }}>
       <h2>{rule.title}</h2>
+      <p><strong>Format:</strong> {rule.format === 'FREE' ? `FREE Format${rule.customFormatLabel ? ` (${rule.customFormatLabel})` : ''}` : rule.format}</p>
       <p><strong>Status:</strong> {rule.status || 'N/A'}</p>
       <p><strong>Author:</strong> {rule.author || 'N/A'}</p>
       <p style={{ color: 'var(--hef-text-secondary)' }}>{rule.description || 'No description available.'}</p>
@@ -265,7 +275,7 @@ export const RuleDetailPage = () => {
         </Space>
       </div>
       <SyntaxHighlighter
-        language="yaml"
+        language={rule.format === 'FREE' ? (rule.editorLanguage === 'plaintext' ? 'text' : rule.editorLanguage || 'text') : 'yaml'}
         style={isDark ? darkSyntaxStyle : solarizedlight}
         customStyle={{
           maxHeight: '600px',

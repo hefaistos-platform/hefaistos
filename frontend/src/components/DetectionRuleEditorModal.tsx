@@ -14,7 +14,7 @@ import { OpenTideRule } from '../types/opentide';
 import { compileMetadataFromWorkbench, getConfiguredPlatforms } from '../utils/openTideCompiler';
 import { isDirty, normalize } from '../utils/ruleDiff';
 import OpenTideMetadataPreview from './OpenTideMetadataPreview';
-import { DETECTION_FORMAT_REGISTRY, getFormatByTab, getFormatByName, buildSaveButtonLabel, PlatformTab } from './detectionFormatRegistry';
+import { DETECTION_FORMAT_REGISTRY, getFormatByTab, getFormatByName, buildSaveButtonLabel, FREE_HIGHLIGHT_LANGUAGES, PlatformTab } from './detectionFormatRegistry';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -130,6 +130,9 @@ const SAVE_DETECTION_RULE_MUTATION = gql`
     $playbookId: UUID!
     $rawYaml: String!
     $format: String
+    $customFormatLabel: String
+    $editorLanguage: String
+    $customFileExtension: String
     $title: String
     $description: String
     $author: String
@@ -141,6 +144,9 @@ const SAVE_DETECTION_RULE_MUTATION = gql`
       playbookId: $playbookId
       rawYaml: $rawYaml
       format: $format
+      customFormatLabel: $customFormatLabel
+      editorLanguage: $editorLanguage
+      customFileExtension: $customFileExtension
       title: $title
       description: $description
       author: $author
@@ -425,6 +431,15 @@ interface RagReuseResult {
 
 export const DEFAULT_OVERWRITE_ALL_CONTENT = false;
 
+export function savedFormatSnapshot(rule: OpenTideRule, format: string): string {
+  if (format === 'FREE') return JSON.stringify(rule.freeRule ?? { content: '', label: '', language: 'plaintext' });
+  return normalize(getFormatByName(format)?.getContent(rule) ?? '');
+}
+
+export function formatHasChanges(rule: OpenTideRule, format: string, saved: string): boolean {
+  return format === 'FREE' ? savedFormatSnapshot(rule, format) !== saved : isDirty(getFormatByName(format)?.getContent(rule) ?? '', saved);
+}
+
 /** Options passed to library save callbacks. */
 export interface SaveToLibraryOptions {
   autoCommit?: boolean;
@@ -444,7 +459,7 @@ interface DetectionRuleEditorModalProps {
   onClose: () => void;
   playbookId: string;
   initialRule: string;
-  initialFormat: 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'OTHER';
+  initialFormat: 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'FREE' | 'OTHER';
   initialMode: DetectionMode;
   onSave: (rule: string, format: string, mode: DetectionMode, dataSourceId?: string, openTideRule?: OpenTideRule) => void | Promise<void>;
   onGenerateAI?: (format: string) => Promise<string | null>;
@@ -457,7 +472,7 @@ interface DetectionRuleEditorModalProps {
   playbookData?: PlaybookDataForMetadata;
 }
 
-function platformToFormat(tab: MainPlatformTab): 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'OTHER' {
+function platformToFormat(tab: MainPlatformTab): 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'FREE' | 'OTHER' {
   if (tab === 'metadata' || tab === 'insights') return 'OTHER';
   return getFormatByTab(tab).format;
 }
@@ -477,7 +492,8 @@ export function buildGenerateAllPlan(
   source: PlatformTab,
   overwriteAllContent: boolean
 ): { targetFormats: string[]; statuses: Record<string, GenerateAllStatus> } {
-  const targets = DETECTION_FORMAT_REGISTRY.filter((f) => f.id !== source);
+  if (source === 'free') return { targetFormats: [], statuses: {} };
+  const targets = DETECTION_FORMAT_REGISTRY.filter((f) => f.id !== source && f.format !== 'FREE');
   const statuses = targets.reduce<Record<string, GenerateAllStatus>>((acc, entry) => {
     const isNonEmpty = Boolean(entry.getContent(snapshot).trim());
     acc[entry.format] = !overwriteAllContent && isNonEmpty ? 'skipped (non-empty)' : 'pending';
@@ -494,7 +510,7 @@ export function buildGenerateAllPlan(
 export function buildOpenTideState(
   initial: OpenTideRule | undefined,
   legacyRule: string,
-  legacyFormat: 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'OTHER',
+  legacyFormat: 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'FREE' | 'OTHER',
   playbook?: PlaybookDataForMetadata,
 ): OpenTideRule {
   const metadata = playbook ? compileMetadataFromWorkbench(playbook) : (initial?.metadata ?? {
@@ -512,12 +528,12 @@ export function buildOpenTideState(
   // when no platform content exists yet. This keeps tab content isolated and
   // prevents format-to-format copying on reopen.
   const platforms: OpenTideRule['platforms'] = initial ? { ...initial.platforms } : {};
-  const snapshot: OpenTideRule = { metadata, platforms };
+  const snapshot: OpenTideRule = { metadata, platforms, freeRule: initial?.freeRule };
   const hasExistingPlatformContent = DETECTION_FORMAT_REGISTRY.some((entry) =>
     Boolean(entry.getContent(snapshot).trim())
   );
 
-  if (legacyRule.trim() && !hasExistingPlatformContent) {
+  if (legacyFormat !== 'FREE' && legacyRule.trim() && !hasExistingPlatformContent) {
     if (legacyFormat === 'KQL' && !platforms.kql) platforms.kql = { query: legacyRule };
     else if (legacyFormat === 'EQL' && !platforms.elastic) platforms.elastic = { query: legacyRule };
     else if (legacyFormat === 'SPL' && !platforms.spl) platforms.spl = { query: legacyRule };
@@ -525,7 +541,10 @@ export function buildOpenTideState(
     else if (legacyFormat === 'AQL' && !platforms.qradar) platforms.qradar = { query: legacyRule };
   }
 
-  return { metadata, platforms };
+  if (legacyFormat === 'FREE' && !snapshot.freeRule) {
+    snapshot.freeRule = { content: legacyRule, label: '', language: 'plaintext' };
+  }
+  return snapshot;
 }
 
 export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> = ({
@@ -577,6 +596,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
 
   // Multi-platform (OpenTide) state
   const [activePlatformTab, setActivePlatformTab] = useState<MainPlatformTab>(() => {
+    if (initialFormat === 'FREE' || (initialOpenTideRule?.freeRule?.content && !Object.values(initialOpenTideRule.platforms).some(Boolean))) return 'free';
     if (initialOpenTideRule?.platforms?.kql) return 'kql';
     if (initialOpenTideRule?.platforms?.elastic) return 'eql';
     if (initialOpenTideRule?.platforms?.spl) return 'spl';
@@ -590,7 +610,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     return 'kql';
   });
   // Derive format from the active platform tab so it is always in sync with what the user sees
-  const format = useMemo<'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'OTHER'>(
+  const format = useMemo<'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'FREE' | 'OTHER'>(
     () => platformToFormat(activePlatformTab),
     [activePlatformTab]
   );
@@ -826,7 +846,8 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
       setMetadataTags('');
       // Derive active platform
       let tab: PlatformTab = 'kql';
-      if (initialOpenTideRule?.platforms?.kql) tab = 'kql';
+      if (initialFormat === 'FREE' || (freshOt.freeRule?.content && !Object.values(freshOt.platforms).some(Boolean))) tab = 'free';
+      else if (initialOpenTideRule?.platforms?.kql) tab = 'kql';
       else if (initialOpenTideRule?.platforms?.elastic) tab = 'eql';
       else if (initialOpenTideRule?.platforms?.spl) tab = 'spl';
       else if (initialOpenTideRule?.platforms?.wazuh) tab = 'wazuh';
@@ -847,7 +868,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     const freshOt = buildOpenTideState(initialOpenTideRule, initialRule, initialFormat, playbookData);
     const initialSnapshots: Record<string, string> = {};
     for (const entry of DETECTION_FORMAT_REGISTRY) {
-      initialSnapshots[entry.format] = normalize(entry.getContent(freshOt));
+      initialSnapshots[entry.format] = savedFormatSnapshot(freshOt, entry.format);
     }
     setSavedSnapshots(initialSnapshots);
     setSavedMetadataSnapshot(normalize(JSON.stringify(freshOt.metadata ?? {})));
@@ -872,6 +893,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   const handleRuleSelect = useCallback((rule: RuleOption | null) => {
     setSelectedRule(rule);
     if (rule) {
+      if (rule.format === 'FREE') setOpenTideRule(prev => ({ ...prev, freeRule: { content: rule.rawContent ?? '', label: rule.customFormatLabel ?? '', language: rule.editorLanguage ?? 'plaintext', extension: rule.customFileExtension || 'txt' } }));
       // Load the rule's content into the editor
       if (rule.rawContent) {
         setRuleContent(rule.rawContent);
@@ -1155,7 +1177,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   const dirtyByFormat = useMemo(() => {
     const next: Record<string, boolean> = {};
     for (const entry of DETECTION_FORMAT_REGISTRY) {
-      next[entry.format] = isDirty(entry.getContent(currentSnapshot), savedSnapshots[entry.format] ?? '');
+      next[entry.format] = formatHasChanges(currentSnapshot, entry.format, savedSnapshots[entry.format] ?? '');
     }
     return next;
   }, [currentSnapshot, savedSnapshots]);
@@ -1169,7 +1191,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   );
 
   const sourcePlatform = useMemo<PlatformTab | null>(() => {
-    const filled = DETECTION_FORMAT_REGISTRY.filter((f) => f.getContent(currentSnapshot).trim());
+    const filled = DETECTION_FORMAT_REGISTRY.filter((f) => f.format !== 'FREE' && f.getContent(currentSnapshot).trim());
     if (filled.length === 0) return null;
     if (filled.length === 1) return filled[0].id;
     if (activePlatformTab !== 'metadata' && activePlatformTab !== 'insights' && filled.some((f) => f.id === activePlatformTab)) {
@@ -1214,13 +1236,18 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   const handleSaveFormat = useCallback(async (tab: PlatformTab) => {
     const finalOpenTideRule = setPlatformContent(openTideRule, activePlatformTab, ruleContent);
     const entry = getFormatByTab(tab);
-    const content = entry.getContent(finalOpenTideRule).trim();
-    if (!content) {
+    const content = entry.format === 'FREE' ? entry.getContent(finalOpenTideRule) : entry.getContent(finalOpenTideRule).trim();
+    if (!content.trim()) {
       message.warning(`${entry.displayName} editor is empty.`);
       return;
     }
-    if (!isDirty(content, savedSnapshots[entry.format] ?? '')) {
+    if (!formatHasChanges(finalOpenTideRule, entry.format, savedSnapshots[entry.format] ?? '')) {
       message.info('No changes, nothing to save');
+      return;
+    }
+    const extension = finalOpenTideRule.freeRule?.extension ?? 'txt';
+    if (finalOpenTideRule.freeRule?.content.trim() && (!/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(extension) || extension.length > 20)) {
+      message.error('Enter a file extension of 1–20 characters, without a filename or path.');
       return;
     }
     const metadata = await ensureMetadata();
@@ -1233,6 +1260,9 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
           playbookId,
           rawYaml: content,
           format: entry.format,
+          customFormatLabel: entry.format === 'FREE' ? finalOpenTideRule.freeRule?.label : undefined,
+          editorLanguage: entry.format === 'FREE' ? finalOpenTideRule.freeRule?.language : undefined,
+          customFileExtension: entry.format === 'FREE' ? (finalOpenTideRule.freeRule?.extension || 'txt') : undefined,
           title: metadata.title || playbookData?.title || 'rule',
           description: metadata.skipped ? '' : metadata.description,
           author: metadata.skipped ? '' : metadata.author,
@@ -1243,7 +1273,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
       });
       const payload = res.data?.saveDetectionRule;
       if (payload?.success) {
-        setSavedSnapshots((prev) => ({ ...prev, [entry.format]: normalize(content) }));
+        setSavedSnapshots((prev) => ({ ...prev, [entry.format]: savedFormatSnapshot(finalOpenTideRule, entry.format) }));
         message.success(payload.filename ? `Saved ${payload.filename}` : `Saved ${entry.displayName}`);
       } else {
         message.error(payload?.message || `Failed to save ${entry.displayName}`);
@@ -1317,12 +1347,12 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
       finalOpenTideRule.metadata = compileMetadataFromWorkbench(playbookData);
     }
     const entries = DETECTION_FORMAT_REGISTRY
-      .map((entry) => ({ entry, content: entry.getContent(finalOpenTideRule).trim() }))
-      .filter((item) => item.content)
-      .filter((item) => isDirty(item.content, savedSnapshots[item.entry.format] ?? ''));
+      .map((entry) => ({ entry, content: entry.format === 'FREE' ? entry.getContent(finalOpenTideRule) : entry.getContent(finalOpenTideRule).trim() }))
+      .filter((item) => item.content.trim())
+      .filter((item) => formatHasChanges(finalOpenTideRule, item.entry.format, savedSnapshots[item.entry.format] ?? ''));
     const clearedEntries = DETECTION_FORMAT_REGISTRY.filter((entry) => {
       const current = normalize(entry.getContent(finalOpenTideRule));
-      const previous = savedSnapshots[entry.format] ?? '';
+      const previous = entry.format === 'FREE' ? (JSON.parse(savedSnapshots.FREE || '{}').content ?? '') : (savedSnapshots[entry.format] ?? '');
       return current.length === 0 && previous.length > 0;
     });
     const hasMetadataChanges = isDirty(
@@ -1331,6 +1361,11 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     );
     if (entries.length === 0 && clearedEntries.length === 0 && !hasMetadataChanges) {
       message.info('No changes, nothing to save');
+      return;
+    }
+    const extension = finalOpenTideRule.freeRule?.extension ?? 'txt';
+    if (finalOpenTideRule.freeRule?.content.trim() && (!/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(extension) || extension.length > 20)) {
+      message.error('Enter a file extension of 1–20 characters, without a filename or path.');
       return;
     }
     const metadata = await ensureMetadata();
@@ -1344,7 +1379,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
         setSavedSnapshots((prev) => {
           const next = { ...prev };
           for (const entry of clearedEntries) {
-            next[entry.format] = '';
+            next[entry.format] = entry.format === 'FREE' ? savedFormatSnapshot(finalOpenTideRule, entry.format) : '';
           }
           return next;
         });
@@ -1355,7 +1390,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
       const result = await saveAllDetectionRulesMutation({
         variables: {
           playbookId,
-          rules: entries.map((item) => ({ format: item.entry.format, content: item.content })),
+          rules: entries.map((item) => ({ format: item.entry.format, content: item.content, ...(item.entry.format === 'FREE' ? { customFormatLabel: finalOpenTideRule.freeRule?.label, editorLanguage: finalOpenTideRule.freeRule?.language, customFileExtension: finalOpenTideRule.freeRule?.extension || 'txt' } : {}) })),
           title: metadata.title || playbookData?.title || 'rule',
           description: metadata.skipped ? '' : metadata.description,
           author: metadata.skipped ? '' : metadata.author,
@@ -1375,11 +1410,11 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
         const next = { ...prev };
         for (const { entry, content } of entries) {
           if (savedFormats.has(entry.format)) {
-            next[entry.format] = normalize(content);
+            next[entry.format] = savedFormatSnapshot(finalOpenTideRule, entry.format);
           }
         }
         for (const entry of clearedEntries) {
-          next[entry.format] = '';
+          next[entry.format] = entry.format === 'FREE' ? savedFormatSnapshot(finalOpenTideRule, entry.format) : '';
         }
         return next;
       });
@@ -1398,6 +1433,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
 
   // Get syntax language for highlighter
   const getSyntaxLanguage = (): string => {
+    if (format === 'FREE') return openTideRule.freeRule?.language === 'plaintext' ? 'text' : (openTideRule.freeRule?.language || 'text');
     switch (format) {
       case 'KQL':
         return 'sql'; // KQL is similar to SQL
@@ -1579,6 +1615,34 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
               <PixelIcon name="zap" className="w-10 h-10 opacity-40" />
               <p className="text-sm font-medium text-gray-500">AI Insights</p>
               <p className="text-xs text-gray-400">View AI-generated correlation ideas, blind spots, and test guidance on the right.</p>
+            </div>
+          ) : activePlatformTab === 'free' ? (
+            <div className="space-y-4">
+              <Alert type="info" message="Manual rules in any format" description="Write YARA, Sigma, YARA-L, XML, YAML, or any other rule format. Highlighting is visual only. FREE rules have no AI, RAG, language validation, or platform deployment support." />
+              <label className="block text-sm">
+                Format label (optional)
+                <Input aria-label="Custom format label" maxLength={80} placeholder="e.g. YARA, Sigma, YARA-L"
+                  value={openTideRule.freeRule?.label ?? ''}
+                  onChange={(e) => setOpenTideRule(prev => ({ ...prev, freeRule: { content: '', language: 'plaintext', ...prev.freeRule, label: e.target.value } }))} />
+              </label>
+              <label className="block text-sm">
+                Syntax highlighting
+                <Select aria-label="Syntax highlighting" style={{ width: '100%' }} options={[...FREE_HIGHLIGHT_LANGUAGES]}
+                  value={openTideRule.freeRule?.language ?? 'plaintext'}
+                  onChange={(language) => setOpenTideRule(prev => ({ ...prev, freeRule: { content: '', label: '', ...prev.freeRule, language } }))} />
+              </label>
+              <label className="block text-sm">
+                File extension
+                <Input aria-label="Custom file extension" maxLength={21} placeholder="e.g. .yara, .yml, .xml"
+                  value={openTideRule.freeRule?.extension ?? 'txt'}
+                  onChange={(e) => setOpenTideRule(prev => ({ ...prev, freeRule: { content: '', label: '', language: 'plaintext', ...prev.freeRule, extension: e.target.value.replace(/^\./, '').toLowerCase() } }))} />
+                <span className="text-xs text-gray-500">Used for saved filenames and downloads. Default: .txt</span>
+              </label>
+              <RulePicker value={selectedRule} onChange={handleRuleSelect} formatFilter="FREE" placeholder="Load a saved FREE rule..." />
+              <Space wrap>
+                <Button onClick={async () => { try { await navigator.clipboard.writeText(ruleContent); message.success('Rule copied'); } catch { message.error('Could not copy rule'); } }} disabled={!ruleContent}>Copy</Button>
+                <Button onClick={handleClearContent}>Clear content</Button>
+              </Space>
             </div>
           ) : (
           <div className="space-y-6">
@@ -1778,7 +1842,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                           size="small"
                           style={{ width: '100%' }}
                         >
-                          {DETECTION_FORMAT_REGISTRY.map((entry) => (
+                          {DETECTION_FORMAT_REGISTRY.filter(entry => entry.format !== 'FREE').map((entry) => (
                             <Option key={entry.format} value={entry.format}>{entry.displayName.toUpperCase()}</Option>
                           ))}
                         </Select>
@@ -1901,7 +1965,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                     key: entry.id as MainPlatformTab,
                     label: (
                       <span className="inline-flex items-center gap-1">
-                        {entry.tabLabel}
+                        {entry.tabLabel}{entry.format === 'FREE' && openTideRule.freeRule?.label ? ` (${openTideRule.freeRule.label})` : ''}
                         {dirtyByFormat[entry.format] && <span title="Unsaved changes">●</span>}
                       </span>
                     ) as React.ReactNode,
@@ -2032,7 +2096,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
               <Tabs
                 activeKey={activeTab}
               onChange={(key) => setActiveTab(key as 'editor' | 'preview' | 'suggestions' | 'similar' | 'reuse')}
-                items={[
+                items={activePlatformTab === 'free' ? [{ key: 'editor', label: 'Editor' }, { key: 'preview', label: 'Preview' }] : [
                   { key: 'editor', label: 'Editor' },
                   { key: 'preview', label: 'Preview' },
                 { 
@@ -2084,8 +2148,11 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                   setLastEditedPlatform(activePlatformTab as PlatformTab);
                   if (mode !== 'manual') setMode('manual');
                 }}
-                format={format as 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'OTHER'}
+                format={format as 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'FREE' | 'OTHER'}
                 height="100%"
+                highlightLanguage={format === 'FREE' ? openTideRule.freeRule?.language : undefined}
+                enableLSP={format !== 'FREE'}
+                enableSemanticValidation={format !== 'FREE'}
                 dataSourceId={selectedDataSource?.id}
               />
             ) : activeTab === 'preview' ? (

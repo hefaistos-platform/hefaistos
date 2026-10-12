@@ -16,6 +16,7 @@ FORMAT_REGISTRY: Dict[str, RuleFormatSpec] = {
     'SPL': RuleFormatSpec(id='spl', display_name='SPL', file_extension='spl', comment_syntax='#'),
     'WAZUH': RuleFormatSpec(id='wazuh', display_name='WAZUH', file_extension='xml', comment_syntax='xml'),
     'AQL': RuleFormatSpec(id='qradar', display_name='QRadar', file_extension='aql', comment_syntax='--'),
+    'FREE': RuleFormatSpec(id='free', display_name='FREE Format', file_extension='txt', comment_syntax=''),
     'OTHER': RuleFormatSpec(id='other', display_name='OTHER', file_extension='txt', comment_syntax='#'),
 }
 

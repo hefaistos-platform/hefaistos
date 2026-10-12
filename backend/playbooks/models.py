@@ -418,6 +418,7 @@ class PlaybookGraph(models.Model):
     
     # The actual detection logic (Sigma/Pseudo-code)
     detection_rule = models.TextField(blank=True, help_text="Raw Sigma/Logic")
+    detection_rule_format = models.CharField(max_length=10, blank=True, default='')
 
     # --- PART 2: DEEP DIVE (Human Context) ---
     goal = models.TextField(blank=True)
@@ -812,7 +813,10 @@ class PlaybookGraph(models.Model):
         if self.opentide_yaml and isinstance(self.opentide_yaml, dict):
             existing_platforms = self.opentide_yaml.get('platforms', {})
 
+        free_rule = self.opentide_yaml.get('freeRule') if isinstance(self.opentide_yaml, dict) else None
         self.opentide_yaml = merge_metadata_with_platforms(self, existing_platforms)
+        if free_rule is not None:
+            self.opentide_yaml['freeRule'] = free_rule
 
         if existing_platforms:
             self.configured_platforms = list(existing_platforms.keys())

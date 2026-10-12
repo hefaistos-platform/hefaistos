@@ -38,6 +38,7 @@ import { compileMetadataFromWorkbench, getConfiguredPlatforms } from '../utils/o
 import { isDirty, normalize } from '../utils/ruleDiff';
 import OpenTideMetadataPreview from '../components/OpenTideMetadataPreview';
 import { OpenTidePreviewModal } from '../components/OpenTidePreviewModal';
+import { savedFormatSnapshot, formatHasChanges } from '../components/DetectionRuleEditorModal';
 import { DETECTION_FORMAT_REGISTRY } from '../components/detectionFormatRegistry';
 import { useTheme } from '../context/ThemeContext';
 import {
@@ -117,6 +118,7 @@ const GET_PLAYBOOK_GRAPH_QUERY = gql`
       detectionFocusLayer
       selectedStrategy
       detectionRule
+      detectionRuleFormat
       goal
       technicalContext
       blindSpots
@@ -236,6 +238,7 @@ const UPDATE_PLAYBOOK_DETAILS_MUTATION = gql`
     $mitreTechniqueId: String,
     $selectedStrategy: JSONString,
     $detectionRule: String,
+    $detectionRuleFormat: String,
     $goal: String,
     $technicalContext: String,
     $blindSpots: String,
@@ -269,6 +272,7 @@ const UPDATE_PLAYBOOK_DETAILS_MUTATION = gql`
       mitreTechniqueId: $mitreTechniqueId,
       selectedStrategy: $selectedStrategy,
       detectionRule: $detectionRule,
+      detectionRuleFormat: $detectionRuleFormat,
       goal: $goal,
       technicalContext: $technicalContext,
       blindSpots: $blindSpots,
@@ -302,6 +306,7 @@ const UPDATE_PLAYBOOK_DETAILS_MUTATION = gql`
         mitreTechnique { id techniqueId name }
         selectedStrategy
         detectionRule
+      detectionRuleFormat
         goal
         technicalContext
         blindSpots
@@ -694,6 +699,7 @@ interface PlaybookGraphData {
     detectionFocusLayer: string;
     selectedStrategy: string; // JSON string
     detectionRule: string;
+    detectionRuleFormat: string;
     goal: string;
     technicalContext: string;
     blindSpots: string;
@@ -814,9 +820,9 @@ interface RagReuseResult {
   referenceCount?: number;
 }
 
-type WorkbenchRuleFormat = 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL';
+type WorkbenchRuleFormat = 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'FREE';
 const isWorkbenchRuleFormat = (format: string): format is WorkbenchRuleFormat =>
-  format === 'KQL' || format === 'EQL' || format === 'WAZUH' || format === 'SPL' || format === 'AQL';
+  format === 'KQL' || format === 'EQL' || format === 'WAZUH' || format === 'SPL' || format === 'AQL' || format === 'FREE';
 const RAG_REUSE_SUPPORTED_FORMATS = new Set<WorkbenchRuleFormat>(['KQL', 'EQL', 'SPL']);
 
 export const PlaybookWorkbench = () => {
@@ -1232,7 +1238,7 @@ export const PlaybookWorkbench = () => {
   // Sync local state when data loads from server
   useEffect(() => {
       if (data?.playbookGraph?.detectionRule) {
-          const detectedFormat = (data.playbookGraph.tags || [])
+          const detectedFormat = data.playbookGraph.detectionRuleFormat || (data.playbookGraph.tags || [])
             .map((tag: string) => tag.toUpperCase())
             .find((tag: string) => isWorkbenchRuleFormat(tag)) || '';
           setLocalRule(data.playbookGraph.detectionRule);
@@ -1250,6 +1256,10 @@ export const PlaybookWorkbench = () => {
               ? JSON.parse(data.playbookGraph.opentideYaml)
               : data.playbookGraph.opentideYaml as unknown as OpenTideRule;
             setOpenTideRule({ ...parsed, metadata: freshMetadata });
+            if (parsed.freeRule?.content === data.playbookGraph.detectionRule && parsed.freeRule?.content) {
+              setAiFormat('FREE');
+              setDetectionMode('manual');
+            }
           } else {
             // No saved OpenTide YAML yet – initialise with compiled metadata and empty platforms
             setOpenTideRule({ metadata: freshMetadata, platforms: {} });
@@ -1453,6 +1463,7 @@ export const PlaybookWorkbench = () => {
     const variables: any = {
       graphId: playbookId,
       detectionRule: strategyData.detectionRule,
+      detectionRuleFormat: strategyData.detectionRuleFormat,
       // We store the strategy metadata (robustness, etc) in selectedStrategy JSON
       selectedStrategy: JSON.stringify({
           robustnessLevel: strategyData.robustnessLevel,
@@ -1758,6 +1769,7 @@ export const PlaybookWorkbench = () => {
       stopAiPolling();
       setAiTaskId(null);
       setGenerationInsights(null);
+      if (aiFormat === 'FREE') return;
       const res = await startGenerateRuleTask({ variables: { playbookId, outputFormat: aiFormat } });
       const result = res.data?.startGenerateRuleTask;
       if (result?.success && result.taskId) {
@@ -1814,19 +1826,21 @@ export const PlaybookWorkbench = () => {
 
   const handleSaveToLibrary = useCallback(async () => {
     if (!playbookId) return;
-    const extractedPlatformRules = openTideRule
+    const librarySnapshot = openTideRule && aiFormat === 'FREE' ? { ...openTideRule, freeRule: { label: '', language: 'plaintext', ...openTideRule.freeRule, content: localRule } } : openTideRule;
+    const extractedPlatformRules = librarySnapshot
       ? DETECTION_FORMAT_REGISTRY
         .map((entry) => ({
           format: entry.format,
-          content: entry.getContent(openTideRule).trim(),
+          content: entry.format === 'FREE' ? entry.getContent(librarySnapshot) : entry.getContent(librarySnapshot).trim(),
+          ...(entry.format === 'FREE' ? { customFormatLabel: librarySnapshot.freeRule?.label, editorLanguage: librarySnapshot.freeRule?.language, customFileExtension: librarySnapshot.freeRule?.extension || 'txt' } : {}),
         }))
-        .filter((item) => item.content.length > 0)
+        .filter((item) => item.content.trim().length > 0)
       : [];
 
     if (extractedPlatformRules.length > 0) {
       const changedPlatformRules = extractedPlatformRules.filter((item) => {
         const previous = savedPlatformLibrarySnapshots[item.format] ?? '';
-        return previous.length === 0 || isDirty(item.content, previous);
+        return previous.length === 0 || (librarySnapshot ? formatHasChanges(librarySnapshot, item.format, previous) : isDirty(item.content, previous));
       });
 
       if (changedPlatformRules.length === 0) {
@@ -1841,6 +1855,9 @@ export const PlaybookWorkbench = () => {
             rules: changedPlatformRules.map((item) => ({
               format: item.format,
               content: item.content,
+              customFormatLabel: item.customFormatLabel,
+              editorLanguage: item.editorLanguage,
+              customFileExtension: item.customFileExtension,
             })),
           },
         });
@@ -1849,13 +1866,13 @@ export const PlaybookWorkbench = () => {
         const failed = results.filter((r) => (r.status || '').toLowerCase() !== 'saved');
 
         if (saved.length > 0) {
-          const byFormat = new Map(changedPlatformRules.map((item) => [item.format, item.content]));
+          const byFormat = new Map<string, string>(changedPlatformRules.map((item) => [item.format, item.content]));
           setSavedPlatformLibrarySnapshots((prev) => {
             const next = { ...prev };
             for (const result of saved) {
               const content = byFormat.get(result.format);
               if (content !== undefined) {
-                next[result.format] = normalize(content);
+                next[result.format] = librarySnapshot ? savedFormatSnapshot(librarySnapshot, result.format) : normalize(content);
               }
             }
             return next;
@@ -1942,7 +1959,7 @@ export const PlaybookWorkbench = () => {
     }
     
     // Persist detection rule to backend
-    await handleStrategyChange({ detectionRule: rule });
+    await handleStrategyChange({ detectionRule: rule, detectionRuleFormat: format });
 
     // Save OpenTide rule if provided
     if (newOpenTideRule && playbookId) {
@@ -2542,7 +2559,7 @@ export const PlaybookWorkbench = () => {
                              selectedTechniqueId={data.playbookGraph.mitreTechnique?.techniqueId || null}
                              onTechniqueChange={handleTechniqueChange}
                              onStrategyChange={handleStrategyChange}
-                             ruleFormat={aiFormat}
+                             ruleFormat={aiFormat === 'FREE' || aiFormat === 'EQL' ? undefined : aiFormat}
                            />
 
                            {resolvedWorkbenchSections.sections.capabilityLibrary.visible && (
@@ -2627,7 +2644,7 @@ export const PlaybookWorkbench = () => {
                                variant="primary" 
                                className="flex-1 bg-purple-600 hover:bg-purple-700 border-purple-700 text-white justify-center"
                                onClick={handleAIGenerate}
-                               disabled={aiBusy}
+                               disabled={aiBusy || aiFormat === 'FREE'}
                              >
                                <span className="flex items-center justify-center">
                                  <PixelIcon name={aiBusy ? "loader" : "zap"} className={`w-4 h-4 mr-2 ${aiBusy ? 'animate-spin' : ''}`} />
@@ -2648,6 +2665,7 @@ export const PlaybookWorkbench = () => {
                                variant="secondary"
                                className="flex-1 bg-blue-500 hover:bg-blue-600 border-blue-600 text-white justify-center"
                                onClick={handleSanitizeRule}
+                               disabled={aiFormat === 'FREE'}
                              >
                                <span className="flex items-center justify-center">
                                  <PixelIcon name="wand" className="w-4 h-4 mr-2" />
@@ -2831,8 +2849,10 @@ export const PlaybookWorkbench = () => {
                                 setLocalRule(value);
                                 if (detectionMode !== 'manual') setDetectionMode('manual');
                               }}
-                              onBlur={() => handleStrategyChange({ detectionRule: localRule })}
+                              onBlur={() => aiFormat === 'FREE' && openTideRule ? handleEditorModalSave(localRule, 'FREE', 'manual', undefined, { ...openTideRule, freeRule: { label: '', language: 'plaintext', ...openTideRule.freeRule, content: localRule } }) : handleStrategyChange({ detectionRule: localRule })}
                               format={aiFormat}
+                              highlightLanguage={aiFormat === 'FREE' ? openTideRule?.freeRule?.language : undefined}
+                              enableSemanticValidation={aiFormat !== 'FREE'}
                               height="100%"
                               enableLSP={false}
                               visualStyle={isDarkTheme ? 'terminal' : 'default'}

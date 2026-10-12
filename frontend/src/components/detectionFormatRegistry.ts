@@ -1,7 +1,7 @@
 import { OpenTideRule } from '../types/opentide';
 
-export type PlatformTab = 'kql' | 'eql' | 'spl' | 'wazuh' | 'qradar';
-export type RuleFormat = 'KQL' | 'EQL' | 'SPL' | 'WAZUH' | 'AQL';
+export type PlatformTab = 'kql' | 'eql' | 'spl' | 'wazuh' | 'qradar' | 'free';
+export type RuleFormat = 'KQL' | 'EQL' | 'SPL' | 'WAZUH' | 'AQL' | 'FREE';
 
 export interface DetectionFormatDefinition {
   id: PlatformTab;
@@ -16,6 +16,14 @@ export interface DetectionFormatDefinition {
   getContent: (rule: OpenTideRule) => string;
   setContent: (rule: OpenTideRule, content: string) => OpenTideRule;
 }
+
+export const FREE_HIGHLIGHT_LANGUAGES = [
+  { value: 'plaintext', label: 'Plain text' },
+  { value: 'yaml', label: 'YAML / Sigma' },
+  { value: 'xml', label: 'XML' },
+  { value: 'json', label: 'JSON' },
+  { value: 'sql', label: 'SQL' },
+] as const;
 
 export const DETECTION_FORMAT_REGISTRY: DetectionFormatDefinition[] = [
   {
@@ -126,6 +134,17 @@ export const DETECTION_FORMAT_REGISTRY: DetectionFormatDefinition[] = [
         },
       };
     },
+  },
+  {
+    id: 'free', format: 'FREE', displayName: 'FREE Format', fileExtension: 'txt',
+    commentSyntax: 'line', tabLabel: '📝 FREE Format',
+    tabColor: 'bg-slate-100 text-slate-700 border border-slate-300',
+    tabActiveColor: 'bg-slate-700 text-white',
+    getContent: (rule) => rule.freeRule?.content ?? '',
+    setContent: (rule, content) => ({
+      ...rule,
+      freeRule: { label: '', language: 'plaintext', ...rule.freeRule, content },
+    }),
   },
 ];
 

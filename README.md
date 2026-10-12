@@ -89,6 +89,7 @@ The visual workbench provides a complete detection engineering environment:
 - **Activity Tracking** - Persistent markdown investigation notes (formatting toolbar included) and activity log per workbench; note clearing is restricted to workbench author/admin
 - **Adaptive Workspace Layout** - Right-side metadata/notes panel is collapsible and draggable (up to one-third of the page width), and the Multi-Platform Editor opens fullscreen for maximum editing space
 - **Detection Editor Multi-Format Actions** - `GENERATE ALL` supports all registry formats with skip-by-default for non-empty targets, plus an optional **Overwrite all content** toggle; per-format `SAVE {FORMAT}` and `SAVE ALL` are also available in the modal
+- **FREE Format Rules** - Manual rules in any format, custom labels, and syntax highlighting: [Docs/FREE_FORMAT.md](Docs/FREE_FORMAT.md)
 - **Query Editor Behavior Guide** - Language-specific autocomplete/validation behavior and troubleshooting: `Docs/WORKBENCH_QUERY_EDITOR.md`
 
 ### 🤖 AI-Powered Detection Engineering

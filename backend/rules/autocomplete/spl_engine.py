@@ -111,7 +111,10 @@ class SPLAutocompleteEngine(AutocompleteEngine):
             after_pipe = before_cursor[last_pipe_pos + 1:].lstrip()
             first_word = after_pipe.split()[0].lower() if after_pipe.split() else ''
 
-            if first_word in ('eval', 'where', 'search', 'rex'):
+            # A partially typed command is still command completion, not arguments.
+            if not after_pipe or not any(char.isspace() for char in after_pipe):
+                section = 'command'
+            elif first_word in ('eval', 'where', 'search', 'rex'):
                 section = 'expression'
             elif first_word == 'stats':
                 section = 'stats'

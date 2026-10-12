@@ -49,7 +49,12 @@ def _build_safe_name(playbook, rule_content=None):
     return safe_name or "rule"
 
 
-def _get_file_extension(rule_format):
+def _get_file_extension(rule_format, custom_file_extension=None):
+    if (rule_format or "").upper() == "FREE":
+        extension = (custom_file_extension or "txt").strip().removeprefix(".").lower()
+        if len(extension) > 20 or not re.fullmatch(r"[a-z0-9]+(?:[._-][a-z0-9]+)*", extension):
+            raise ValueError("Invalid custom file extension")
+        return extension
     if (rule_format or "").upper() == "KQL":
         return "kql"
     return "yml"
@@ -57,7 +62,7 @@ def _get_file_extension(rule_format):
 
 
 
-def push_to_git(repo_url, playbook, yaml_content, target_folder=None, rule_format=None):
+def push_to_git(repo_url, playbook, yaml_content, target_folder=None, rule_format=None, custom_file_extension=None):
     """
     Clones, branches, commits, and pushes a playbook as a YAML file.
     
@@ -70,7 +75,7 @@ def push_to_git(repo_url, playbook, yaml_content, target_folder=None, rule_forma
     # 1. Sanitize title for branch and file name
     # "My Playbook [Test]" -> "my-playbook-test"
     safe_name = _build_safe_name(playbook, yaml_content)
-    extension = _get_file_extension(rule_format)
+    extension = _get_file_extension(rule_format, custom_file_extension)
 
     branch_name = f"hefaistos/add-{safe_name}"
     file_name = f"{safe_name}.{extension}"
@@ -246,7 +251,7 @@ class GitPushConnector(BaseConnector):
                 target_folder = format_folders.get(rule_format, 'rules')
                 logger.info(f"Auto-selected target folder '{target_folder}' for format '{rule_format}'")
             
-            push_success = push_to_git(repo_url, playbook, yaml_content, target_folder, rule_format)
+            push_success = push_to_git(repo_url, playbook, yaml_content, target_folder, rule_format, rule_data.get('custom_file_extension'))
             
             if not push_success:
                 logger.error("Git push failed. Re-queueing message.")

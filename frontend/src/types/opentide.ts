@@ -58,4 +58,6 @@ export interface OpenTidePlatforms {
 export interface OpenTideRule {
   metadata: OpenTideMetadata;
   platforms: OpenTidePlatforms;
+  /** Manually authored content, separate from deployable platforms. */
+  freeRule?: { content: string; label: string; language: string; extension?: string };
 }

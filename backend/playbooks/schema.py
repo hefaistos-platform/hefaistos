@@ -917,7 +917,7 @@ class PlaybookGraphType(DjangoObjectType):
         fields = (
             "id", "title", "status", "is_shared", "allow_remote_pull", "author", "organization", "updated_at", "created_at",
             "nodes", "edges", "notes", "playbooks", "png_snapshot",
-            "mitre_technique", "selected_strategy", "detection_rule",
+            "mitre_technique", "selected_strategy", "detection_rule", "detection_rule_format",
              "goal", "technical_context", "blind_spots", "triage_guidance",
              "false_positives", "response_playbook",
              "test_scenario", "test_expected_output",
@@ -3393,6 +3393,7 @@ class UpdatePlaybookDetails(graphene.Mutation):
         mitre_technique_id = graphene.String()
         selected_strategy = graphene.JSONString()
         detection_rule = graphene.String()
+        detection_rule_format = graphene.String()
         
         # Context
         goal = graphene.String()
@@ -3457,6 +3458,12 @@ class UpdatePlaybookDetails(graphene.Mutation):
             graph = PlaybookGraph.objects.get(pk=graph_id, organization=user.organization)
         except PlaybookGraph.DoesNotExist:
             raise Exception("Graph not found")
+
+        if 'detection_rule_format' in kwargs:
+            rule_format = str(kwargs['detection_rule_format'] or '').upper()
+            if rule_format not in ('', 'KQL', 'EQL', 'SPL', 'WAZUH', 'AQL', 'OTHER', 'FREE'):
+                raise Exception('Invalid detection rule format')
+            graph.detection_rule_format = rule_format
 
         # 1. Handle Technique Change
         if 'mitre_technique_id' in kwargs:
@@ -3537,7 +3544,7 @@ class UpdatePlaybookDetails(graphene.Mutation):
         if 'selected_strategy' in kwargs: graph.selected_strategy = kwargs['selected_strategy']
         if 'detection_rule' in kwargs:
             raw_rule = kwargs['detection_rule']
-            graph.detection_rule = _sanitize_code_fences(raw_rule) if isinstance(raw_rule, str) else raw_rule
+            graph.detection_rule = _sanitize_code_fences(raw_rule) if isinstance(raw_rule, str) and graph.detection_rule_format != 'FREE' else raw_rule
         if 'goal' in kwargs: graph.goal = kwargs['goal']
         if 'technical_context' in kwargs: graph.technical_context = kwargs['technical_context']
         if 'blind_spots' in kwargs: graph.blind_spots = kwargs['blind_spots']
@@ -3580,7 +3587,8 @@ class UpdatePlaybookDetails(graphene.Mutation):
             graph.tags.set(tenant_tags)
             # Inject tags as comments into the detection rule
             current_rule = graph.detection_rule or ""
-            graph.detection_rule = _inject_tags_comment(current_rule, norm)
+            if graph.detection_rule_format != 'FREE':
+                graph.detection_rule = _inject_tags_comment(current_rule, norm)
 
         # SOAR Fields — capture old values first for activity log comparison
         soar_subsection_checks = [
@@ -3971,7 +3979,10 @@ def serialize_playbook_graph(graph: PlaybookGraph) -> dict:
             "mitre_technique_id": graph.mitre_technique.technique_id if graph.mitre_technique else None,
             "selected_strategy": graph.selected_strategy or {},
             "detection_rule": graph.detection_rule or "",
+            "free_rule": (graph.opentide_yaml or {}).get("freeRule") if isinstance(graph.opentide_yaml, dict) else None,
             
+            "detection_rule_format": graph.detection_rule_format,
+
             # Context / Deep Dive
             "goal": graph.goal or "",
             "technical_context": graph.technical_context or "",
@@ -4036,6 +4047,8 @@ def deserialize_playbook_graph(data: dict, organization, author) -> PlaybookGrap
         mitre_technique=mitre_technique,
         selected_strategy=playbook_data.get("selected_strategy", {}),
         detection_rule=playbook_data.get("detection_rule", ""),
+        detection_rule_format=playbook_data.get("detection_rule_format", ""),
+        opentide_yaml={"freeRule": playbook_data["free_rule"], "platforms": {}} if playbook_data.get("free_rule") else {},
         
         # Context
         goal=playbook_data.get("goal", ""),
@@ -4182,6 +4195,9 @@ def update_playbook_graph_from_v1(data: dict, graph: PlaybookGraph, author, new_
     graph.mitre_technique = mitre_technique
     graph.selected_strategy = playbook_data.get("selected_strategy", {})
     graph.detection_rule = playbook_data.get("detection_rule", "")
+    graph.detection_rule_format = playbook_data.get("detection_rule_format", "")
+    if playbook_data.get("free_rule"):
+        graph.opentide_yaml = {"freeRule": playbook_data["free_rule"], "platforms": {}}
 
     graph.goal = playbook_data.get("goal", "")
     graph.technical_context = playbook_data.get("technical_context", "")
@@ -4327,7 +4343,8 @@ def serialize_playbook_graph_hex_v2(graph: PlaybookGraph) -> dict:
         },
         "detection_logic": {
             "detection_rule": graph.detection_rule or "",
-            "rule_format": "kql",
+            "free_rule": (graph.opentide_yaml or {}).get("freeRule") if isinstance(graph.opentide_yaml, dict) else None,
+            "rule_format": graph.detection_rule_format.lower() or "kql",
             "data_sources": [],
             "blind_spots": [s.strip() for s in (graph.blind_spots or "").split('\n') if s.strip()]
         },
@@ -4421,6 +4438,8 @@ def deserialize_playbook_graph_hex_v2(data: dict, organization, author) -> Playb
         mitre_technique=mitre_technique,
         selected_strategy=json.dumps(selected_strategy),
         detection_rule=detection_logic.get("detection_rule", ""),
+        detection_rule_format=detection_logic.get("rule_format", "").upper(),
+        opentide_yaml={"freeRule": detection_logic["free_rule"], "platforms": {}} if detection_logic.get("free_rule") else {},
         
         # Operational Context
         goal=operational_context.get("goal", ""),
@@ -4599,6 +4618,9 @@ def update_playbook_graph_from_hex_v2(data: dict, graph: PlaybookGraph, author, 
     graph.mitre_technique = mitre_technique
     graph.selected_strategy = json.dumps(selected_strategy)
     graph.detection_rule = detection_logic.get("detection_rule", "")
+    graph.detection_rule_format = detection_logic.get("rule_format", "").upper()
+    if detection_logic.get("free_rule"):
+        graph.opentide_yaml = {"freeRule": detection_logic["free_rule"], "platforms": {}}
 
     graph.goal = operational_context.get("goal", "")
     graph.technical_context = operational_context.get("technical_context", "")

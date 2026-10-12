@@ -71,7 +71,8 @@ const VALIDATE_RULE_CONTENT = `
 interface DetectionRuleEditorProps {
   value: string;
   onChange: (value: string) => void;
-  format: 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'OTHER';
+  format: 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'FREE' | 'OTHER';
+  highlightLanguage?: string;
   height?: string;
   dataSourceId?: string;
   readOnly?: boolean;
@@ -153,7 +154,7 @@ function extractPrefix(text: string, position: number): string {
   let start = position - 1;
   while (start >= 0) {
     const char = text[start];
-    if (char.match(/\s/) || char.match(/[:{}[\](),"'=<>!|&-]/)) {
+    if (char.match(/\s/) || ':{}[](),"\'=<>!|&'.includes(char)) {
       break;
     }
     start--;
@@ -180,6 +181,7 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
   value,
   onChange,
   format,
+  highlightLanguage = 'plaintext',
   height = '100%',
   dataSourceId,
   readOnly = false,
@@ -190,7 +192,7 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
 }) => {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const blurDisposableRef = useRef<monaco.IDisposable | null>(null);
-  const lastRequestRef = useRef<number>(0);
+  const [monacoApi, setMonacoApi] = useState<typeof monaco | null>(null);
   const validationRequestRef = useRef<number>(0);
   const validationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lspClientRef = useRef<LSPClient | null>(null);
@@ -198,13 +200,8 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const themeName = visualStyle === 'terminal' ? 'hef-terminal' : (isDark ? 'vs-dark' : 'vs');
-  const supportsSemanticValidation = format !== 'OTHER';
+  const supportsSemanticValidation = format !== 'OTHER' && format !== 'FREE';
   const hasLspProvider = Boolean(FORMAT_TO_LSP_LANGUAGE[format]);
-
-  // Register custom Monaco language definitions once on mount
-  useEffect(() => {
-    registerCustomLanguages();
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -223,14 +220,13 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
   }, []);
 
   useEffect(() => {
-    if (visualStyle !== 'terminal') return;
-
-    defineTerminalTheme(monaco);
-  }, [visualStyle]);
+    if (visualStyle !== 'terminal' || !monacoApi) return;
+    defineTerminalTheme(monacoApi);
+  }, [visualStyle, monacoApi]);
 
   // LSP WebSocket connection via Django Channels proxy
   useEffect(() => {
-    if (!enableLSP) {
+    if (!enableLSP || !monacoApi) {
       setLspStatus('disabled');
       return;
     }
@@ -247,7 +243,7 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
       (diagnostics) => {
         const model = editorRef.current?.getModel();
         if (model) {
-          monaco.editor.setModelMarkers(model, 'lsp', diagnostics);
+          monacoApi?.editor.setModelMarkers(model, 'lsp', diagnostics);
         }
       },
       // Status change callback
@@ -280,16 +276,17 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
       // Clear markers and disconnect when format changes or component unmounts
       const model = editorRef.current?.getModel();
       if (model) {
-        monaco.editor.setModelMarkers(model, 'lsp', []);
+        monacoApi?.editor.setModelMarkers(model, 'lsp', []);
       }
       client.disconnect();
       lspClientRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [format, enableLSP]);
+  }, [format, enableLSP, monacoApi]);
 
   // Register autocomplete provider globally (once per format)
   useEffect(() => {
+    if (!monacoApi || format === 'FREE' || format === 'OTHER' || readOnly) return;
     const languageId = getMonacoLanguage(format);
 
     // Configure trigger characters based on format:
@@ -306,18 +303,15 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
         ? ['<']
         : ['.', ',', '(']; // AQL/EQL
 
-    const provider = monaco.languages.registerCompletionItemProvider(
+    const provider = monacoApi.languages.registerCompletionItemProvider(
       languageId,
       {
         triggerCharacters,
-        provideCompletionItems: async (model, position) => {
-          // Debounce autocomplete requests to avoid excessive API calls
-          const now = Date.now();
-          const timeSinceLastRequest = now - lastRequestRef.current;
-          if (timeSinceLastRequest < 200) {
+        provideCompletionItems: async (model, position, _context, cancellationToken) => {
+          // Providers are global per language; each editor handles only its own model.
+          if (model !== editorRef.current?.getModel() || cancellationToken.isCancellationRequested) {
             return { suggestions: [] };
           }
-          lastRequestRef.current = now;
           const text = model.getValue();
           const offset = model.getOffsetAt(position);
           const prefix = extractPrefix(text, offset);
@@ -347,7 +341,9 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
               }),
             });
 
+            if (!response.ok) throw new Error(`Autocomplete request failed (${response.status})`);
             const result = await response.json();
+            if (cancellationToken.isCancellationRequested) return { suggestions: [] };
 
             if (result.errors) {
               console.error('[Autocomplete] GraphQL errors:', result.errors);
@@ -361,6 +357,7 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
             }
 
             return {
+              incomplete: true, // Refresh server results as the user types a longer prefix.
               suggestions: suggestions.map((s: any) => ({
                 label: s.label,
                 kind: kindToMonacoKind(s.kind),
@@ -371,7 +368,7 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
                 filterText: s.filterText || s.label,
                 range: {
                   startLineNumber: position.lineNumber,
-                  startColumn: position.column - prefix.length,
+                  startColumn: Math.max(1, position.column - prefix.length),
                   endLineNumber: position.lineNumber,
                   endColumn: position.column,
                 },
@@ -392,13 +389,13 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
     return () => {
       provider.dispose();
     };
-  }, [format, dataSourceId]); // Re-register when format or dataSourceId changes
+  }, [format, dataSourceId, monacoApi, readOnly]); // Re-register when format or dataSourceId changes
 
   useEffect(() => {
-    if (!enableSemanticValidation || !supportsSemanticValidation) {
+    if (!monacoApi || !enableSemanticValidation || !supportsSemanticValidation) {
       const model = editorRef.current?.getModel();
       if (model) {
-        monaco.editor.setModelMarkers(model, 'rule-validation', []);
+        monacoApi?.editor.setModelMarkers(model, 'rule-validation', []);
       }
       return;
     }
@@ -413,7 +410,7 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
 
       const text = value || '';
       if (!text.trim()) {
-        monaco.editor.setModelMarkers(model, 'rule-validation', []);
+        monacoApi?.editor.setModelMarkers(model, 'rule-validation', []);
         return;
       }
 
@@ -446,7 +443,7 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
 
         if (result.errors) {
           console.error('[Validation] GraphQL errors:', result.errors);
-          monaco.editor.setModelMarkers(model, 'rule-validation', []);
+          monacoApi?.editor.setModelMarkers(model, 'rule-validation', []);
           return;
         }
 
@@ -464,7 +461,7 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
           } satisfies monaco.editor.IMarkerData;
         });
 
-        monaco.editor.setModelMarkers(model, 'rule-validation', markers);
+        monacoApi?.editor.setModelMarkers(model, 'rule-validation', markers);
       } catch (error) {
         console.error('[Validation] Request failed:', error);
       }
@@ -476,7 +473,7 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
         validationTimeoutRef.current = null;
       }
     };
-  }, [value, format, dataSourceId, enableSemanticValidation, supportsSemanticValidation]);
+  }, [value, format, dataSourceId, enableSemanticValidation, supportsSemanticValidation, monacoApi]);
 
   return (
     <div className="relative w-full h-full">
@@ -549,9 +546,10 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
       <Editor
         className={visualStyle === 'terminal' ? 'hef-terminal-editor' : undefined}
         height={height}
-        language={getMonacoLanguage(format)}
+        language={format === 'FREE' ? highlightLanguage : getMonacoLanguage(format)}
         value={value}
         beforeMount={(monacoApi) => {
+          registerCustomLanguages(monacoApi as typeof monaco);
           if (visualStyle === 'terminal') {
             defineTerminalTheme(monacoApi as typeof monaco);
           }
@@ -571,7 +569,10 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
           minimap: { enabled: true },
           fontSize: 14,
           fontFamily: 'Menlo, Monaco, Courier New, monospace',
-          formatOnPaste: true,
+          renderValidationDecorations: format === 'FREE' ? 'off' : 'on',
+          formatOnPaste: format !== 'FREE',
+          autoIndent: format === 'FREE' ? 'none' : 'full',
+          trimAutoWhitespace: format !== 'FREE',
           formatOnType: false,
           autoClosingBrackets: 'always',
           autoClosingQuotes: 'always',
@@ -583,7 +584,7 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
             showInlineDetails: true,
           },
           quickSuggestions: {
-            other: true,
+            other: format !== 'FREE' && format !== 'OTHER',
             comments: false,
             strings: false,
           },
@@ -593,10 +594,11 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
           scrollBeyondLastLine: false,
           readOnly: readOnly,
         }}
-        onMount={(editor) => {
+        onMount={(editor, runtime) => {
           editorRef.current = editor;
+          setMonacoApi(runtime as typeof monaco);
           if (visualStyle === 'terminal') {
-            monaco.editor.setTheme('hef-terminal');
+            runtime.editor.setTheme('hef-terminal');
           }
           if (onBlur) {
             blurDisposableRef.current?.dispose();

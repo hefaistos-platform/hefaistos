@@ -1,6 +1,7 @@
 import graphene
 import logging
 import os
+import re
 import yaml as pyyaml
 from datetime import timedelta
 from graphene_django import DjangoObjectType
@@ -1280,8 +1281,11 @@ class SyncRuleRepositoryRag(graphene.Mutation):
 class SaveDetectionRule(graphene.Mutation):
     class Arguments:
         playbook_id = graphene.UUID(required=True)
+        custom_format_label = graphene.String(required=False)
+        editor_language = graphene.String(required=False)
+        custom_file_extension = graphene.String(required=False)
         raw_yaml = graphene.String(required=True, description="Rule content (KQL, EQL, Wazuh XML, Splunk SPL, or AQL)")
-        format = graphene.String(required=False, description="KQL (default), EQL, WAZUH, SPL, AQL, or OTHER")
+        format = graphene.String(required=False, description="KQL (default), EQL, WAZUH, SPL, AQL, FREE, or OTHER")
         title = graphene.String(required=False, description="Optional rule title used for file naming and persistence")
         description = graphene.String(required=False, description="Optional rule description for metadata header")
         author = graphene.String(required=False, description="Optional rule author for metadata header")
@@ -1298,7 +1302,7 @@ class SaveDetectionRule(graphene.Mutation):
 
     @staticmethod
     @role_required([Roles.ADMIN, Roles.ANALYST])
-    def mutate(root, info, playbook_id, raw_yaml, format=None, title=None, description=None, author=None, tags=None, auto_commit=False, commit_message=None):
+    def mutate(root, info, playbook_id, raw_yaml, format=None, title=None, description=None, author=None, tags=None, auto_commit=False, commit_message=None, custom_format_label=None, editor_language=None, custom_file_extension=None):
         user = info.context.user
         if user.is_anonymous:
             raise Exception("Authentication required")
@@ -1312,11 +1316,11 @@ class SaveDetectionRule(graphene.Mutation):
         # 2) Parse into model fields based on format
         # Determine format: prefer explicit arg, but auto-correct if content suggests otherwise
         fmt_arg = normalize_rule_format(format)
-        detected = detect_rule_format(raw_yaml)
-        fmt = fmt_arg if fmt_arg in ('KQL', 'EQL', 'WAZUH', 'SPL', 'AQL', 'OTHER', 'OPENTIDE') else detected
+        detected = detect_rule_format(raw_yaml) if fmt_arg != 'FREE' else 'FREE'
+        fmt = fmt_arg if fmt_arg in ('KQL', 'EQL', 'WAZUH', 'SPL', 'AQL', 'OTHER', 'OPENTIDE', 'FREE') else detected
         # Auto-detect OpenTide format by checking YAML structure (must have both 'metadata' and
         # 'platforms' as top-level dict keys) rather than string matching, to avoid false positives.
-        if fmt != 'OPENTIDE':
+        if fmt not in ('OPENTIDE', 'FREE'):
             try:
                 _parsed = pyyaml.safe_load(raw_yaml)
                 if (isinstance(_parsed, dict)
@@ -1328,7 +1332,11 @@ class SaveDetectionRule(graphene.Mutation):
         validated_rule = None
         try:
             author_name = getattr(user, 'username', '')
-            if fmt == 'OPENTIDE':
+            if fmt == 'FREE':
+                if not raw_yaml.strip():
+                    raise ValueError('FREE rule content cannot be empty.')
+                extracted = {'title': graph.title, 'author': author_name, 'description': ''}
+            elif fmt == 'OPENTIDE':
                 try:
                     rule_data = pyyaml.safe_load(raw_yaml) or {}
                 except Exception:
@@ -1364,6 +1372,17 @@ class SaveDetectionRule(graphene.Mutation):
         except ValueError as e:
             return SaveDetectionRule(success=False, message=str(e), errors=[str(e)])
 
+        normalized_extension = None
+        if fmt == 'FREE':
+            if custom_file_extension is not None:
+                normalized_extension = custom_file_extension.strip().removeprefix('.').lower()
+                if not re.fullmatch(r'[a-z0-9]+(?:[._-][a-z0-9]+)*', normalized_extension) or len(normalized_extension) > 20:
+                    return SaveDetectionRule(success=False, message='Enter a file extension of 1–20 characters, such as .yara, .yml, or .xml, without a filename or path.', errors=[])
+            if custom_format_label is not None and len(custom_format_label) > 80:
+                return SaveDetectionRule(success=False, message='Custom format label must be at most 80 characters.', errors=[])
+            if editor_language is not None and editor_language not in ('plaintext', 'yaml', 'xml', 'json', 'sql'):
+                return SaveDetectionRule(success=False, message='Unsupported highlighting language.', errors=[])
+
         # 3) Determine repository: prefer org-scoped repo named "Rule Repo"
         repo = RuleRepository.objects.filter(
             organization=user.organization,
@@ -1378,7 +1397,7 @@ class SaveDetectionRule(graphene.Mutation):
             )
 
         # 4) Upsert rule linked to this graph
-        fmt_norm = fmt if fmt in ('KQL', 'EQL', 'WAZUH', 'SPL', 'AQL', 'OTHER', 'OPENTIDE') else 'OTHER'
+        fmt_norm = fmt if fmt in ('KQL', 'EQL', 'WAZUH', 'SPL', 'AQL', 'OTHER', 'OPENTIDE', 'FREE') else 'OTHER'
 
         # Rule title uses the format: "{playbook title}-{format}" (e.g. "mshta-spl")
         extracted_title = (title or '').strip()
@@ -1396,6 +1415,13 @@ class SaveDetectionRule(graphene.Mutation):
             'repository': repo,
             'format': fmt_norm,
         }
+        if fmt_norm == 'FREE':
+            if normalized_extension is not None:
+                defaults['custom_file_extension'] = normalized_extension
+            if custom_format_label is not None:
+                defaults['custom_format_label'] = custom_format_label.strip()
+            if editor_language is not None:
+                defaults['editor_language'] = editor_language
         rule, _created = DetectionRule.objects.update_or_create(
             organization=user.organization,
             playbook=graph,
@@ -1409,7 +1435,7 @@ class SaveDetectionRule(graphene.Mutation):
             rule.save(update_fields=['author'])
 
         # Now inject workbench metadata using the rule's actual sigma_id (no duplicate UUID)
-        raw_yaml_with_metadata = inject_metadata(
+        raw_yaml_with_metadata = raw_yaml if fmt_norm == 'FREE' else inject_metadata(
             rule_content=raw_yaml,
             rule_format=fmt_norm,
             author=(author or graph.author.username) if graph.author else (author or "Unknown"),
@@ -1423,16 +1449,21 @@ class SaveDetectionRule(graphene.Mutation):
         )
         rule.raw_content = raw_yaml_with_metadata
         rule.save(update_fields=['raw_content'])
+        if fmt_norm == 'FREE':
+            workbench_doc = dict(graph.opentide_yaml) if isinstance(graph.opentide_yaml, dict) else {'platforms': {}}
+            workbench_doc['freeRule'] = {'content': raw_yaml, 'label': rule.custom_format_label, 'language': rule.editor_language, 'extension': rule.custom_file_extension or 'txt'}
+            PlaybookGraph.objects.filter(pk=graph.pk).update(opentide_yaml=workbench_doc)
 
         # Also reflect latest saved content back on the workbench for display
         try:
-            PlaybookGraph.objects.filter(pk=graph.id).update(detection_rule=raw_yaml)
+            PlaybookGraph.objects.filter(pk=graph.id).update(detection_rule=raw_yaml, detection_rule_format=fmt_norm)
         except Exception:
             pass
 
         invalidate_mgmt_cave_stats_cache(getattr(user.organization, 'id', None))
 
-        filename = f"{slugify(extracted['title']) or 'rule'}.{get_format_spec(fmt_norm).file_extension}"
+        extension = (rule.custom_file_extension or 'txt') if fmt_norm == 'FREE' else get_format_spec(fmt_norm).file_extension
+        filename = f"{slugify(extracted['title']) or 'rule'}.{extension}"
         return SaveDetectionRule(
             success=True,
             message="Rule saved to Library",
@@ -1468,6 +1499,8 @@ class GenerateAllDetectionRules(graphene.Mutation):
         if user.is_anonymous:
             raise Exception("Authentication required")
 
+        if any(str(fmt or '').strip().upper() == 'FREE' for fmt in [source_format, *(target_formats or [])]):
+            return GenerateAllDetectionRules(success=False, results=[])
         src_fmt = normalize_rule_format(source_format)
         if not source_content or not source_content.strip():
             return GenerateAllDetectionRules(success=False, results=[])
@@ -1477,7 +1510,7 @@ class GenerateAllDetectionRules(graphene.Mutation):
             for f in (target_formats or [])
             if normalize_rule_format(f) != src_fmt
         ]
-        targets = explicit_targets or [fmt for fmt in FORMAT_REGISTRY.keys() if fmt not in ('OTHER', src_fmt)]
+        targets = explicit_targets or [fmt for fmt in FORMAT_REGISTRY.keys() if fmt not in ('OTHER', 'FREE', src_fmt)]
         logger.info(
             "Generate-all requested by user=%s org=%s playbook=%s source=%s targets=%s",
             getattr(user, 'username', 'unknown'),
@@ -1612,6 +1645,9 @@ class GenerateAllDetectionRules(graphene.Mutation):
 class SaveRuleInput(graphene.InputObjectType):
     format = graphene.String(required=True)
     content = graphene.String(required=True)
+    custom_format_label = graphene.String(required=False)
+    editor_language = graphene.String(required=False)
+    custom_file_extension = graphene.String(required=False)
 
 
 class SaveRuleResult(graphene.ObjectType):
@@ -1642,11 +1678,16 @@ class SaveAllDetectionRules(graphene.Mutation):
         if user.is_anonymous:
             raise Exception("Authentication required")
 
+        active_graph = None
+        if any(normalize_rule_format(entry.format) == 'FREE' for entry in rules or []):
+            active_graph = PlaybookGraph.objects.filter(pk=playbook_id, organization=user.organization).first()
         results = []
         for entry in rules or []:
-            raw_content = (entry.content or '').strip()
             fmt = normalize_rule_format(entry.format)
-            if not raw_content:
+            raw_content = entry.content or ''
+            if fmt != 'FREE':
+                raw_content = raw_content.strip()
+            if not raw_content.strip():
                 results.append(SaveRuleResult(format=fmt, status='skipped', filename=None, message='Empty content'))
                 continue
             saved = SaveDetectionRule.mutate(
@@ -1655,6 +1696,9 @@ class SaveAllDetectionRules(graphene.Mutation):
                 playbook_id=playbook_id,
                 raw_yaml=raw_content,
                 format=fmt,
+                custom_format_label=getattr(entry, 'custom_format_label', None),
+                editor_language=getattr(entry, 'editor_language', None),
+                custom_file_extension=getattr(entry, 'custom_file_extension', None),
                 title=title,
                 description=description,
                 author=author,
@@ -1669,6 +1713,9 @@ class SaveAllDetectionRules(graphene.Mutation):
                 message=saved.message,
             ))
 
+        if active_graph is not None:
+            PlaybookGraph.objects.filter(pk=active_graph.pk).update(
+                detection_rule=active_graph.detection_rule, detection_rule_format=active_graph.detection_rule_format)
         return SaveAllDetectionRules(
             success=all(r.status in ('saved', 'skipped') for r in results),
             results=results,
@@ -1845,6 +1892,7 @@ class PushPlaybookToGit(graphene.Mutation):
                     "rule_content": rule.raw_content,
                     "author_name": rule.author or (getattr(user, 'username', None) or 'unknown'),
                     "format": rule.format or 'OTHER',  # Include the rule format
+                    "custom_file_extension": rule.custom_file_extension,
                 },
                 "target_folder": targetFolder,  # Target folder path for organization
                 "triggered_by_user_id": str(user.id),
@@ -1890,6 +1938,14 @@ class UpdateDetectionRule(graphene.Mutation):
         is_admin_or_super = user.role == Roles.ADMIN or getattr(user, 'is_superuser', False) or getattr(user, 'is_staff', False)
         if not (is_owner or is_admin_or_super):
             raise Exception("Only the rule author, admin, or superadmin can edit this rule")
+
+        if rule.format == 'FREE':
+            if not raw_content.strip():
+                return UpdateDetectionRule(success=False, message='FREE rule content cannot be empty.', rule=rule)
+            rule.raw_content = raw_content
+            rule.save(update_fields=['raw_content', 'updated_at'])
+            invalidate_mgmt_cave_stats_cache(getattr(user.organization, 'id', None))
+            return UpdateDetectionRule(success=True, message='Rule updated successfully', rule=rule)
 
         # Re-detect format and re-parse metadata from updated content
         detected_fmt = detect_rule_format(raw_content)

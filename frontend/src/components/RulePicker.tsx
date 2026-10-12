@@ -10,6 +10,9 @@ const SEARCH_ALL_RULES = gql`
       id
       title
       format
+      customFormatLabel
+      editorLanguage
+      customFileExtension
       status
       description
       rawContent
@@ -26,6 +29,9 @@ export interface RuleOption {
   id: string;
   title: string;
   format?: string;
+  customFormatLabel?: string;
+  editorLanguage?: string;
+  customFileExtension?: string;
   status?: string;
   description?: string;
   rawContent?: string;
@@ -38,7 +44,7 @@ interface RulePickerProps {
   onRuleSelected?: (rule: RuleOption) => void;
   placeholder?: string;
   style?: React.CSSProperties;
-  formatFilter?: 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'OTHER';
+  formatFilter?: 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'FREE' | 'OTHER';
 }
 
 const formatColors: Record<string, string> = {
@@ -84,7 +90,7 @@ const RulePicker: React.FC<RulePickerProps> = ({
             <Typography.Text strong style={{ maxWidth: 300 }} ellipsis>
               {rule.title}
             </Typography.Text>
-            <Tag color={formatColors[rule.format || 'OTHER']}>{rule.format || 'OTHER'}</Tag>
+            <Tag color={formatColors[rule.format || 'OTHER']}>{rule.format === 'FREE' ? `FREE${rule.customFormatLabel ? ` (${rule.customFormatLabel})` : ''}` : (rule.format || 'OTHER')}</Tag>
             {rule.status && (
               <Tag color={statusColors[rule.status.toLowerCase()] || 'default'}>
                 {rule.status}

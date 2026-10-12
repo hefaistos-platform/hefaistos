@@ -152,6 +152,10 @@ def _serialize_capability_abstractions(playbook):
     ]
 
 
+def _supported_workbench_logic(playbook) -> str:
+    return '' if getattr(playbook, 'detection_rule_format', '') == 'FREE' else (playbook.detection_rule or '')
+
+
 def _build_playbook_generation_context(playbook) -> dict:
     raw_strategy = playbook.selected_strategy
     if isinstance(raw_strategy, str):
@@ -173,7 +177,7 @@ def _build_playbook_generation_context(playbook) -> dict:
         'blind_spots': playbook.blind_spots or '',
         'test_scenario': playbook.test_scenario or '',
         'test_expected_output': playbook.test_expected_output or '',
-        'existing_logic': playbook.detection_rule or '',
+        'existing_logic': _supported_workbench_logic(playbook),
         'detection_focus_layer': playbook.detection_focus_layer or '',
         'capability_abstractions': _serialize_capability_abstractions(playbook),
     }
@@ -1132,6 +1136,9 @@ class SuggestRuleImprovements(graphene.Mutation):
         user = info.context.user
         if user.is_anonymous:
             raise Exception("Authentication required")
+
+        if any(str(fmt or '').strip().upper() == 'FREE' for fmt in [rule_format]):
+            raise GraphQLError('FREE Format is manual-only and cannot be used with AI.')
         
         try:
             settings = UserAISettings.objects.get(user=user)
@@ -1215,6 +1222,9 @@ class GenerateSimilarRules(graphene.Mutation):
         user = info.context.user
         if user.is_anonymous:
             raise Exception("Authentication required")
+
+        if any(str(fmt or '').strip().upper() == 'FREE' for fmt in [rule_format, target_format]):
+            raise GraphQLError('FREE Format is manual-only and cannot be used with AI.')
         
         try:
             settings = UserAISettings.objects.get(user=user)
@@ -1570,14 +1580,14 @@ class GenerateResponsePlaybook(graphene.Mutation):
             'blind_spots': graph.blind_spots or '',
             'technique_id': getattr(graph.mitre_technique, 'technique_id', '') or '',
             'technique_name': getattr(graph.mitre_technique, 'name', '') or '',
-            'detection_rule': graph.detection_rule or '',
+            'detection_rule': _supported_workbench_logic(graph),
         }
 
         context, reference_context = _enrich_with_rag_reference_context(
             user,
             context,
-            rule_content=graph.detection_rule or '',
-            language=_resolve_rag_language(None, rule_content=graph.detection_rule or '') or 'KQL',
+            rule_content=_supported_workbench_logic(graph),
+            language=_resolve_rag_language(None, rule_content=_supported_workbench_logic(graph)) or 'KQL',
             limit=6,
         )
 
@@ -1657,12 +1667,12 @@ class RecommendReusableRuleFromRag(graphene.Mutation):
             )
 
         base_context = _build_playbook_generation_context(graph)
-        base_context['existing_logic'] = graph.detection_rule or base_context.get('existing_logic') or ''
+        base_context['existing_logic'] = _supported_workbench_logic(graph)
 
         rag_context, reference_context = _enrich_with_rag_reference_context(
             user,
             base_context,
-            rule_content=graph.detection_rule or '',
+            rule_content=_supported_workbench_logic(graph),
             language=rag_language,
             limit=8,
         )
@@ -2227,6 +2237,9 @@ class StartGenerateRuleTask(graphene.Mutation):
         if user.is_anonymous:
             raise GraphQLError("Authentication required")
 
+        if any(str(fmt or '').strip().upper() == 'FREE' for fmt in [output_format]):
+            raise GraphQLError('FREE Format is manual-only and cannot be used with AI.')
+
         try:
             playbook = PlaybookGraph.objects.prefetch_related('selected_capability_abstractions').get(
                 pk=playbook_id,
@@ -2272,6 +2285,9 @@ class StartSuggestImprovementsTask(graphene.Mutation):
         user = info.context.user
         if user.is_anonymous:
             raise GraphQLError("Authentication required")
+
+        if any(str(fmt or '').strip().upper() == 'FREE' for fmt in [rule_format]):
+            raise GraphQLError('FREE Format is manual-only and cannot be used with AI.')
 
         if not rule_content or not rule_content.strip():
             return StartSuggestImprovementsTask(
@@ -2329,6 +2345,9 @@ class StartGenerateSimilarRulesTask(graphene.Mutation):
         user = info.context.user
         if user.is_anonymous:
             raise GraphQLError("Authentication required")
+
+        if any(str(fmt or '').strip().upper() == 'FREE' for fmt in [rule_format, target_format]):
+            raise GraphQLError('FREE Format is manual-only and cannot be used with AI.')
 
         if not rule_content or not rule_content.strip():
             return StartGenerateSimilarRulesTask(

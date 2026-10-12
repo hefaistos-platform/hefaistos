@@ -16,17 +16,17 @@
 
 import * as monaco from 'monaco-editor';
 
-let registered = false;
+const registeredInstances = new WeakSet<typeof monaco>();
 
-export function registerCustomLanguages(): void {
-  if (registered) return;
-  registered = true;
+export function registerCustomLanguages(monacoApi: typeof monaco = monaco): void {
+  if (registeredInstances.has(monacoApi)) return;
+  registeredInstances.add(monacoApi);
 
   // ---------------------------------------------------------------------------
   // KQL – Kusto Query Language
   // ---------------------------------------------------------------------------
-  monaco.languages.register({ id: 'kql' });
-  monaco.languages.setMonarchTokensProvider('kql', {
+  monacoApi.languages.register({ id: 'kql' });
+  monacoApi.languages.setMonarchTokensProvider('kql', {
     keywords: [
       'let', 'summarize', 'where', 'project', 'extend', 'join', 'union',
       'render', 'sort', 'top', 'count', 'distinct', 'take', 'limit',
@@ -60,8 +60,8 @@ export function registerCustomLanguages(): void {
   // ---------------------------------------------------------------------------
   // EQL – Elastic Event Query Language
   // ---------------------------------------------------------------------------
-  monaco.languages.register({ id: 'eql' });
-  monaco.languages.setMonarchTokensProvider('eql', {
+  monacoApi.languages.register({ id: 'eql' });
+  monacoApi.languages.setMonarchTokensProvider('eql', {
     keywords: [
       'sequence', 'where', 'by', 'with', 'maxspan', 'any', 'until',
       'and', 'or', 'not', 'in', 'true', 'false',
@@ -90,8 +90,8 @@ export function registerCustomLanguages(): void {
   // ---------------------------------------------------------------------------
   // SPL – Splunk Processing Language
   // ---------------------------------------------------------------------------
-  monaco.languages.register({ id: 'spl' });
-  monaco.languages.setMonarchTokensProvider('spl', {
+  monacoApi.languages.register({ id: 'spl' });
+  monacoApi.languages.setMonarchTokensProvider('spl', {
     keywords: [
       'search', 'stats', 'eval', 'where', 'table', 'rename', 'dedup',
       'sort', 'head', 'tail', 'rex', 'fields', 'streamstats', 'transaction',
@@ -122,8 +122,8 @@ export function registerCustomLanguages(): void {
   // ---------------------------------------------------------------------------
   // AQL – QRadar Ariel Query Language
   // ---------------------------------------------------------------------------
-  monaco.languages.register({ id: 'aql' });
-  monaco.languages.setMonarchTokensProvider('aql', {
+  monacoApi.languages.register({ id: 'aql' });
+  monacoApi.languages.setMonarchTokensProvider('aql', {
     keywords: [
       'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'LIKE', 'IN',
       'BETWEEN', 'ORDER', 'BY', 'LIMIT', 'GROUP', 'HAVING', 'AS',
