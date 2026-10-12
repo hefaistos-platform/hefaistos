@@ -138,8 +138,8 @@ export const DETECTION_FORMAT_REGISTRY: DetectionFormatDefinition[] = [
   {
     id: 'free', format: 'FREE', displayName: 'FREE Format', fileExtension: 'txt',
     commentSyntax: 'line', tabLabel: '📝 FREE Format',
-    tabColor: 'bg-slate-100 text-slate-700 border border-slate-300',
-    tabActiveColor: 'bg-slate-700 text-white',
+    tabColor: 'free-format-tab border',
+    tabActiveColor: 'free-format-tab free-format-tab-active border',
     getContent: (rule) => rule.freeRule?.content ?? '',
     setContent: (rule, content) => ({
       ...rule,

@@ -1576,6 +1576,34 @@ code {
 }
 
 /* Detection editor modal (portal-rendered) */
+.detection-editor-modal .free-format-tab {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.detection-editor-modal .free-format-tab-active {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+  border-color: #2563eb !important;
+}
+
+:root[data-theme='dark'] .detection-editor-modal .free-format-tab {
+  background: #0b1220 !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+:root[data-theme='dark'] .detection-editor-modal .free-format-tab-active {
+  background: #11253f !important;
+  color: #60a5fa !important;
+  border-color: #60a5fa !important;
+}
+
+.detection-editor-modal .free-format-tab span {
+  color: inherit !important;
+}
+
 .detection-editor-modal .bg-white {
   background: var(--hef-bg-surface) !important;
 }
