@@ -14,6 +14,7 @@ interface SidebarProps {
     tags: string[];
     createdAt: string;
     notes?: string | null;
+    mitreTechnique?: { id: string; techniqueId: string; name: string } | null;
     nodes?: Array<{ id: string; mitreAttackMappings?: Array<{ id: string; techniqueId: string; name: string }> }>;
     telemetryRequirements?: string | null; // JSONString from backend
     telemetryRequirementsGeneratedAt?: string | null;
@@ -499,8 +500,19 @@ export const PlaybookSidebar: React.FC<SidebarProps> = ({
                             <label className="text-xs font-bold text-gray-700 block mb-1">
                                 Node ATT&CK Mappings
                             </label>
+                            {playbook.mitreTechnique && (
+                                <div className="mb-2">
+                                    <p className="text-[10px] text-gray-500 mb-1">Selected Workbench technique</p>
+                                    <span
+                                        className="inline-block px-2 py-1 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[11px]"
+                                        title={playbook.mitreTechnique.name}
+                                    >
+                                        {playbook.mitreTechnique.techniqueId}
+                                    </span>
+                                </div>
+                            )}
                             {!selectedNodeId ? (
-                                <p className="text-[11px] text-gray-400">Select a node on the map to assign ATT&CK techniques.</p>
+                                <p className="text-[11px] text-gray-400">Select a node on the map to assign additional ATT&CK techniques.</p>
                             ) : (
                                 <div className="space-y-2">
                                             {(() => {
@@ -515,7 +527,7 @@ export const PlaybookSidebar: React.FC<SidebarProps> = ({
                                                         ))}
                                                     </div>
                                                 ) : (
-                                                    <p className="text-[11px] text-gray-400">No mappings yet.</p>
+                                                    <p className="text-[11px] text-gray-400">No additional node mappings yet.</p>
                                                 );
                                             })()}
                                     <input
