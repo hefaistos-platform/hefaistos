@@ -339,6 +339,19 @@ const processPlaybooksForBoard = (
 };
 
 
+// Read shared-link filters before effects persist state or update the URL.
+const readFilter = (param: string, storageKey: string, fallback: string): string =>
+  new URLSearchParams(window.location.search).get(param) ?? localStorage.getItem(storageKey) ?? fallback;
+
+const readMultiFilter = (param: string, storageKey: string): string[] => {
+  const urlValue = new URLSearchParams(window.location.search).get(param);
+  if (urlValue !== null) return urlValue.split(',').filter(Boolean);
+  try {
+    const parsed = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+};
+
 export const KanbanBoardPage = () => {
     // UI state: collapsed lanes + density
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
@@ -391,19 +404,24 @@ export const KanbanBoardPage = () => {
     return Object.values(byValue);
   }, [meta.data?.playbookTypes]);
   const { data: legacyData, loading: loadingLegacy, error: errorLegacy } = useQuery<AllPlaybooksData>(GET_ALL_PLAYBOOKS_QUERY, {
-    fetchPolicy: 'cache-first',
+    fetchPolicy: 'network-only',
+    nextFetchPolicy: 'cache-first',
   });
   const { data: graphData, loading: loadingGraphs, error: errorGraphs } = useQuery<AllGraphsData>(GET_ALL_GRAPHS_QUERY, {
-    fetchPolicy: 'cache-first',
+    fetchPolicy: 'network-only',
+    nextFetchPolicy: 'cache-first',
   });
   const { data: achData, loading: loadingACH, error: errorACH } = useQuery<AllACHAnalysesData>(GET_ALL_ACH_ANALYSES_QUERY, {
-    fetchPolicy: 'cache-first',
+    fetchPolicy: 'network-only',
+    nextFetchPolicy: 'cache-first',
   });
   const { data: advopsData, loading: loadingADVOPS, error: errorADVOPS } = useQuery<AllAdvopsReportsData>(GET_ALL_ADVOPS_REPORTS_QUERY, {
-    fetchPolicy: 'cache-first',
+    fetchPolicy: 'network-only',
+    nextFetchPolicy: 'cache-first',
   });
   const { data: mveData, loading: loadingMVE, error: errorMVE } = useQuery<AllMveDraftsData>(GET_ALL_MVE_DRAFTS_QUERY, {
-    fetchPolicy: 'cache-first',
+    fetchPolicy: 'network-only',
+    nextFetchPolicy: 'cache-first',
   });
   const { data: meData } = useQuery<MeData>(GET_ME_QUERY, { fetchPolicy: 'network-only', nextFetchPolicy: 'cache-first' });
   const [updatePlaybookStatus] = useMutation(UPDATE_PLAYBOOK_STATUS_MUTATION);
@@ -415,27 +433,12 @@ export const KanbanBoardPage = () => {
   const [loadTags, tagsQuery] = useLazyQuery<AllTagsData>(ALL_TAGS_QUERY);
   useEffect(() => { loadTags(); }, [loadTags]);
 
-  // --- NEW FILTER STATE ---
-  const [typeFilter, setTypeFilter] = useState<string>(() => localStorage.getItem('kanban-type') || 'ALL');
-  const [authorFilter, setAuthorFilter] = useState<string>(() => localStorage.getItem('kanban-author') || 'ALL');
-  const [searchQuery, setSearchQuery] = useState<string>(() => localStorage.getItem('kanban-q') || '');
-  // Multiple selection; empty means all statuses
-  const [statusFilter, setStatusFilter] = useState<string[]>(() => {
-    try {
-      const raw = localStorage.getItem('kanban-statuses');
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch { return []; }
-  });
-  const [tagFilter, setTagFilter] = useState<string[]>(() => {
-    try {
-      const raw = localStorage.getItem('kanban-ptags');
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch { return []; }
-  });
+  const [typeFilter, setTypeFilter] = useState(() => readFilter('type', 'kanban-type', 'ALL'));
+  const [authorFilter, setAuthorFilter] = useState(() => readFilter('author', 'kanban-author', 'ALL'));
+  const [searchQuery, setSearchQuery] = useState(() => readFilter('q', 'kanban-q', ''));
+  // Multiple selection; empty means all statuses/tags.
+  const [statusFilter, setStatusFilter] = useState(() => readMultiFilter('status', 'kanban-statuses'));
+  const [tagFilter, setTagFilter] = useState(() => readMultiFilter('ptags', 'kanban-ptags'));
 
   // Persist filters to localStorage & URL query params
   useEffect(() => {
@@ -460,28 +463,6 @@ export const KanbanBoardPage = () => {
     const newRelativePathQuery = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
     window.history.replaceState(null, '', newRelativePathQuery);
   }, [typeFilter, authorFilter, statusFilter, tagFilter, searchQuery]);
-
-  // On first mount, read URL params (override localStorage if present)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const urlType = params.get('type');
-    const urlAuthor = params.get('author');
-    const urlStatuses = params.get('status');
-    const urlPTags = params.get('ptags');
-    const urlQ = params.get('q');
-    if (urlType) setTypeFilter(urlType);
-    if (urlAuthor) setAuthorFilter(urlAuthor);
-    if (urlStatuses) {
-      const parts = urlStatuses.split(',').filter(Boolean);
-      setStatusFilter(parts);
-    }
-    if (urlPTags) {
-      const parts = urlPTags.split(',').filter(Boolean);
-      setTagFilter(parts);
-    }
-    if (urlQ) setSearchQuery(urlQ);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const onDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
@@ -695,7 +676,7 @@ export const KanbanBoardPage = () => {
     return Array.from(new Set(allAuthors));
   }, [legacyData, graphData, achData, advopsData, mveData]);
 
-  const filteredPlaybooks = useMemo(() => {
+  const allPlaybooks = useMemo(() => {
     // Helper to trim text to max 8 words
     const trimToWords = (text: string, maxWords: number = 8): string => {
       if (!text) return text;
@@ -750,11 +731,15 @@ export const KanbanBoardPage = () => {
       tasks: [],
       kind: 'mve' as const,
     }));
-    const combined = [...legacy, ...graphs, ...ach, ...advops, ...mve];
-    const typeAuthorFiltered = combined.filter(playbook => {
+    return [...legacy, ...graphs, ...ach, ...advops, ...mve];
+  }, [legacyData, graphData, achData, advopsData, mveData]);
+
+  const filteredPlaybooks = useMemo(() => {
+    const typeAuthorFiltered = allPlaybooks.filter(playbook => {
       const typeMatch = typeFilter === 'ALL' || playbook.playbookType === typeFilter;
       const authorMatch = authorFilter === 'ALL' || playbook.author?.username === authorFilter;
-      return typeMatch && authorMatch;
+      const statusMatch = !statusFilter.length || statusFilter.includes(playbook.status);
+      return typeMatch && authorMatch && statusMatch;
     });
     const tagFiltered = !tagFilter.length ? typeAuthorFiltered : typeAuthorFiltered.filter(pb => {
       if (!pb.tags || !pb.tags.length) return false;
@@ -769,7 +754,7 @@ export const KanbanBoardPage = () => {
       const inTags = (p.tags || []).some(t => t.name.toLowerCase().includes(q));
       return inTitle || inAuthor || inTags;
     });
-  }, [legacyData, graphData, achData, advopsData, mveData, typeFilter, authorFilter, tagFilter, searchQuery]);
+  }, [allPlaybooks, typeFilter, authorFilter, statusFilter, tagFilter, searchQuery]);
 
   if (loadingLegacy || loadingGraphs || loadingACH || loadingADVOPS || loadingMVE) return <p>Loading playbook board...</p>;
   if (errorLegacy || errorGraphs || errorACH || errorADVOPS || errorMVE) {
@@ -882,7 +867,7 @@ export const KanbanBoardPage = () => {
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
             <Typography.Text type="secondary">
-              Showing {filteredPlaybooks.length} of {(legacyData?.allPlaybooks?.length ?? 0) + (graphData?.allPlaybookGraphs?.length ?? 0) + (achData?.achAnalyses?.length ?? 0) + (advopsData?.allAdvopsReports?.length ?? 0) + (mveData?.allMveDrafts?.length ?? 0)} playbooks
+              Showing {filteredPlaybooks.length} of {allPlaybooks.length} playbooks
             </Typography.Text>
           </div>
         </Space>
