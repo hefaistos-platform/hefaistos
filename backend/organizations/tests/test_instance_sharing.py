@@ -21,6 +21,8 @@ from organizations.sharing import (
     import_payload_into_org,
     key_allows_scope,
     normalize_auto_pull_schedule,
+    pull_from_remote_peer,
+    export_org_payload,
 )
 from platform_data.models import MitreAttackTechnique
 from playbooks.models import CapabilityAbstraction, PlaybookGraph
@@ -404,7 +406,8 @@ class SharingApiEndpointTests(TestCase):
             status='DEPLOYED',
             allow_remote_pull=True,
         )
-        allowed_graph.tags.add('PULL')
+        from tags.models import TenantTag
+        allowed_graph.tags.add(TenantTag.objects.create(name='PULL', organization=self.org))
 
         blocked_graph = PlaybookGraph.objects.create(
             title='WB Untagged',
@@ -413,7 +416,7 @@ class SharingApiEndpointTests(TestCase):
             status='DEPLOYED',
             allow_remote_pull=True,
         )
-        blocked_graph.tags.add('INTERNAL')
+        blocked_graph.tags.add(TenantTag.objects.create(name='INTERNAL', organization=self.org))
 
         repository = RuleRepository.objects.create(
             organization=self.org,
@@ -666,7 +669,7 @@ class SharingImportRulesTests(TestCase):
 
         self.assertEqual(errors, [])
         self.assertEqual(
-            PlaybookGraph.objects.filter(organization=self.org, title__iexact='duplicate wb').count(),
+            PlaybookGraph.objects.filter(organization=self.org, title__iendswith='duplicate wb').count(),
             1,
         )
         self.assertEqual(
@@ -792,3 +795,109 @@ class SharingScheduledAutoPullCommandTests(TestCase):
         self.assertIsNotNone(self.peer.next_auto_pull_at)
         self.assertGreaterEqual(self.peer.next_auto_pull_at, before + timedelta(days=6, hours=23))
         self.assertLessEqual(self.peer.next_auto_pull_at, before + timedelta(days=7, minutes=10))
+
+
+class SharingPullDiagnosticsTests(SharingImportRulesTests):
+    def payload(self, **collections):
+        return {
+            'schema_version': '1.0', 'instance_id': str(self.peer.remote_instance_id),
+            'scope': 'ALL', 'workbenches': [], 'rules': [], 'ach': [],
+            'advops': [], 'capability_abstractions': [], **collections,
+        }
+
+    def pull(self, payload):
+        from unittest.mock import Mock
+        self.peer.api_key = 'hefshare_test_secret'
+        responses = [Mock(status_code=200), Mock(status_code=200)]
+        responses[0].json.return_value = {'instance_id': str(self.peer.remote_instance_id)}
+        responses[1].json.return_value = payload
+        with patch('organizations.sharing.requests.get', side_effect=responses):
+            return pull_from_remote_peer(self.peer, self.admin)
+
+    def test_empty_export_explains_no_import_and_records_stages(self):
+        with self.assertLogs('organizations.sharing', level='INFO') as logs:
+            job = self.pull(self.payload())
+        self.assertEqual(job.status, 'COMPLETED')
+        self.assertIn('0 received, 0 created', job.message)
+        self.assertIn('No eligible items', job.message)
+        self.assertEqual(job.summary['workbenches']['received'], 0)
+        self.assertEqual(job.summary['diagnostics']['events'][-1]['stage'], 'finished')
+        self.assertNotIn('hefshare_test_secret', '\n'.join(logs.output))
+
+    def test_every_import_failed_is_failed_and_preserves_errors(self):
+        job = self.pull(self.payload(workbenches=[{}]))
+        self.assertEqual(job.status, 'FAILED')
+        self.assertEqual(job.summary['workbenches']['failed'], 1)
+        self.assertIn('Invalid HEX payload', job.summary['errors'][0])
+        self.peer.refresh_from_db()
+        self.assertEqual(self.peer.last_sync_status, 'FAILED')
+
+    def test_invalid_export_is_rejected_without_import(self):
+        for payload in ({}, self.payload(instance_id=str(uuid.uuid4())), self.payload(workbenches={})):
+            with self.assertRaises(ValueError):
+                self.pull(payload)
+        self.assertFalse(PlaybookGraph.objects.filter(organization=self.org).exists())
+
+    def test_repeat_pull_uses_local_workbench_id_and_links_rules(self):
+        local = PlaybookGraph.objects.create(
+            organization=self.org, author=self.admin, title='Existing local', status='DEPLOYED',
+        )
+        local.title = PlaybookGraph.compose_title_with_custom_id('Duplicate WB', local.custom_id)
+        local.save()
+        remote_title = f'[{local.custom_id}]Duplicate WB'
+        document = self._minimal_hex_payload(remote_title, 'DEPLOYED')
+        document['source_id'] = str(uuid.uuid4())
+        payload = self.payload(workbenches=[document], rules=[{
+            'source_id': str(uuid.uuid4()), 'title': 'Remote rule', 'format': 'KQL',
+            'raw_content': 'query', 'playbook_status': 'DEPLOYED',
+            'playbook_title': remote_title, 'playbook_source_id': document['source_id'],
+        }])
+        job = self.pull(payload)
+        self.assertEqual(job.summary['workbenches']['created'], 1)
+        graph = PlaybookGraph.objects.exclude(pk=local.pk).get(organization=self.org)
+        self.assertNotEqual(graph.custom_id, local.custom_id)
+        self.assertEqual(graph.title, f'[{graph.custom_id}]Duplicate WB')
+        self.assertEqual(DetectionRule.objects.get(title='Remote rule').playbook_id, graph.pk)
+        graph_id, custom_id = graph.pk, graph.custom_id
+        document['metadata']['name'] = '[DE999999]Renamed remote'
+        job = self.pull(payload)
+        self.assertEqual(job.summary['workbenches']['updated'], 1)
+        graph.refresh_from_db()
+        local.refresh_from_db()
+        self.assertEqual(graph.pk, graph_id)
+        self.assertEqual(graph.custom_id, custom_id)
+        self.assertEqual(graph.title, f'[{custom_id}]Renamed remote')
+        self.assertEqual(local.title, remote_title)
+
+    def test_advops_allocates_local_hunt_id_and_repeat_pull_updates(self):
+        from advops.schema import generate_next_hunt_id
+        local = ADVOPSReport.objects.create(
+            organization=self.org, author=self.admin,
+            hunt_id=generate_next_hunt_id(self.org), hypothesis='Local content',
+        )
+        payload = self.payload(advops=[{
+            'source_id': str(uuid.uuid4()), 'hunt_id': local.hunt_id,
+            'status': 'DEPLOYED', 'hypothesis': 'Remote content',
+        }])
+        job = self.pull(payload)
+        self.assertEqual(job.summary['advops']['created'], 1)
+        imported = ADVOPSReport.objects.exclude(pk=local.pk).get()
+        self.assertNotEqual(imported.hunt_id, local.hunt_id)
+        job = self.pull(payload)
+        self.assertEqual(job.summary['advops']['updated'], 1)
+        self.assertEqual(ADVOPSReport.objects.count(), 2)
+        local.refresh_from_db()
+        self.assertEqual(local.hypothesis, 'Local content')
+
+    def test_origin_diagnostics_explain_filtering(self):
+        PlaybookGraph.objects.create(organization=self.org, title='Draft', status='DEVELOPMENT')
+        PlaybookGraph.objects.create(organization=self.org, title='Disabled', status='DEPLOYED')
+        graph = PlaybookGraph.objects.create(
+            organization=self.org, title='Eligible', status='DEPLOYED', allow_remote_pull=True,
+        )
+        payload = export_org_payload(self.org, 'WORKBENCH')
+        self.assertEqual(payload['workbenches'][0]['source_id'], str(graph.pk))
+        self.assertEqual(payload['diagnostics']['workbenches'], {
+            'total': 3, 'excluded_by_status': 1, 'excluded_by_remote_pull_disabled': 1,
+            'excluded_by_tags': 0, 'deduplicated': 0, 'exported': 1,
+        })

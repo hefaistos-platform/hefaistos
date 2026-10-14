@@ -362,6 +362,11 @@ LOGGING = {
             'level': 'WARNING',
             'propagate': False,
         },
+        'organizations.sharing': {
+            'handlers': ['console'],
+            'level': os.environ.get('HEFAISTOS_SHARING_LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
         'rules.deployers': {
             'handlers': ['console'],
             'level': os.environ.get('HEFAISTOS_DEPLOYER_LOG_LEVEL', 'INFO'),

@@ -3639,7 +3639,7 @@ class PullFromRemoteHefaistos(graphene.Mutation):
                 normalize_scope(scope)
             job = pull_from_remote_peer(peer, actor=user, requested_scope=scope or peer.default_scope)
             return PullFromRemoteHefaistos(
-                success=True,
+                success=job.status == HefaistosPullJob.Status.COMPLETED,
                 message=job.message or 'Pull completed',
                 job=job,
             )

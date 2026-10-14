@@ -1425,6 +1425,22 @@ class HefaistosInboundShareKey(models.Model):
             raise ValidationError({'required_tags': 'At least one required tag is needed when tag filtering is enabled.'})
 
 
+class HefaistosSharedObject(models.Model):
+    """Map an origin object to its independently allocated local UUID."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE)
+    remote_instance_id = models.UUIDField()
+    kind = models.CharField(max_length=32)
+    remote_key = models.CharField(max_length=64)
+    local_id = models.UUIDField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=['organization', 'remote_instance_id', 'kind', 'remote_key'],
+            name='unique_hefaistos_shared_object',
+        )]
+
+
 class HefaistosPullJob(models.Model):
     """Audit trail and status history for remote PULL synchronization jobs."""
 

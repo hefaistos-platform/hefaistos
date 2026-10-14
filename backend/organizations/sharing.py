@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import timedelta
 import hashlib
+import logging
+from copy import deepcopy
+from time import monotonic
 import os
 import secrets
 import socket
@@ -22,8 +25,34 @@ from organizations.models import (
     HefaistosInstanceIdentity,
     HefaistosPullJob,
     HefaistosRemotePeer,
+    HefaistosSharedObject,
     SHARING_SCOPE_VALUES,
 )
+
+logger = logging.getLogger(__name__)
+
+SCOPE_COLLECTIONS = {
+    'WORKBENCH': 'workbenches', 'RULES': 'rules', 'ACH': 'ach',
+    'ADVOPS': 'advops', 'CAPABILITY': 'capability_abstractions',
+}
+
+
+def _shared_lookup(model, organization, peer, kind, source_id):
+    remote_key = hashlib.sha256(str(source_id).casefold().encode()).hexdigest()
+    mapping = HefaistosSharedObject.objects.filter(
+        organization=organization, remote_instance_id=peer.remote_instance_id,
+        kind=kind, remote_key=remote_key,
+    ).first()
+    existing = model.objects.filter(pk=mapping.local_id).first() if mapping else None
+    return existing, remote_key
+
+
+def _remember_shared(organization, peer, kind, remote_key, obj):
+    HefaistosSharedObject.objects.update_or_create(
+        organization=organization, remote_instance_id=peer.remote_instance_id,
+        kind=kind, remote_key=remote_key, defaults={'local_id': obj.pk},
+    )
+
 
 ATOMIC_SCOPES = ('WORKBENCH', 'RULES', 'ACH', 'ADVOPS', 'CAPABILITY')
 WORKBENCH_REQUIRED_STATUS = 'DEPLOYED'
@@ -247,7 +276,9 @@ def _workbench_payload_for_org(
         if not key or key in seen_names:
             continue
         seen_names.add(key)
-        payload.append(serialize_playbook_graph_hex_v2(graph))
+        document = serialize_playbook_graph_hex_v2(graph)
+        document['source_id'] = str(graph.pk)
+        payload.append(document)
     return payload
 
 
@@ -279,6 +310,7 @@ def _rules_payload_for_org(
             continue
         seen_names.add(key)
         payload.append({
+            'source_id': str(rule.pk),
             'title': rule.title,
             'sigma_id': str(rule.sigma_id) if rule.sigma_id else '',
             'format': rule.format,
@@ -288,6 +320,7 @@ def _rules_payload_for_org(
             'raw_content': rule.raw_content or '',
             'repository_name': getattr(rule.repository, 'name', '') or '',
             'repository_url': getattr(rule.repository, 'git_url', '') or '',
+            'playbook_source_id': str(rule.playbook.pk),
             'playbook_title': getattr(rule.playbook, 'title', '') or '',
             'playbook_status': getattr(rule.playbook, 'status', '') or '',
             'playbook_tags': playbook_tags,
@@ -339,6 +372,7 @@ def _ach_payload_for_org(organization) -> list[dict[str, Any]]:
             })
 
         payload.append({
+            'source_id': str(analysis.pk),
             'title': analysis.title,
             'description': analysis.description or '',
             'status': analysis.status,
@@ -379,6 +413,7 @@ def _advops_payload_for_org(organization) -> list[dict[str, Any]]:
             continue
         seen_ids.add(normalized_hunt_id)
         payload.append({
+            'source_id': str(report.pk),
             'hunt_id': hunt_id,
             'hypothesis': report.hypothesis or '',
             'status': report.status or '',
@@ -420,6 +455,7 @@ def _capability_payload_for_org(organization) -> list[dict[str, Any]]:
             continue
         seen.add(identity)
         payload.append({
+            'source_id': str(entry.pk),
             'technique_id': entry.technique.technique_id,
             'abstraction_layer': entry.abstraction_layer,
             'component_artifact': entry.component_artifact,
@@ -468,6 +504,41 @@ def export_org_payload(
     if 'CAPABILITY' in include_scopes:
         payload['capability_abstractions'] = _capability_payload_for_org(organization)
 
+    from playbooks.models import PlaybookGraph, CapabilityAbstraction
+    from rules.models import DetectionRule
+    from ach.models import ACHAnalysis
+    from advops.models import ADVOPSReport
+
+    candidates = {
+        'WORKBENCH': (PlaybookGraph.objects.filter(organization=organization), {'status__iexact': WORKBENCH_REQUIRED_STATUS}, {'allow_remote_pull': True}),
+        'RULES': (DetectionRule.objects.filter(organization=organization), {'playbook__status__iexact': WORKBENCH_REQUIRED_STATUS}, {'playbook__allow_remote_pull': True}),
+        'ACH': (ACHAnalysis.objects.filter(owner__organization=organization), {'status__iexact': ACH_REQUIRED_STATUS}, {'allow_remote_pull': True}),
+        'ADVOPS': (ADVOPSReport.objects.filter(organization=organization), {'status__iexact': ADVOPS_REQUIRED_STATUS}, {'allow_remote_pull': True}),
+        'CAPABILITY': (CapabilityAbstraction.objects.filter(organization=organization, is_baseline=False), {'review_status': 'APPROVED'}, {'allow_remote_pull': True}),
+    }
+    diagnostics = {}
+    for scope_name in sorted(include_scopes):
+        collection = SCOPE_COLLECTIONS[scope_name]
+        queryset, status_filter, opt_in_filter = candidates[scope_name]
+        eligible_status = queryset.filter(**status_filter)
+        opted_in = eligible_status.filter(**opt_in_filter)
+        before_tags = opted_in.count()
+        if scope_name in ('WORKBENCH', 'RULES'):
+            after_tags = sum(item_matches_required_tags(
+                list((item if scope_name == 'WORKBENCH' else item.playbook).tags.names()), share_key,
+            ) for item in opted_in)
+        else:
+            after_tags = before_tags
+        diagnostics[collection] = {
+            'total': queryset.count(),
+            'excluded_by_status': queryset.count() - eligible_status.count(),
+            'excluded_by_remote_pull_disabled': eligible_status.count() - before_tags,
+            'excluded_by_tags': before_tags - after_tags,
+            'deduplicated': after_tags - len(payload[collection]),
+            'exported': len(payload[collection]),
+        }
+    payload['diagnostics'] = diagnostics
+    logger.info('Sharing export organization=%s scope=%s counts=%s', organization.pk, scope, diagnostics)
     return payload
 
 
@@ -495,23 +566,32 @@ def _import_workbenches(
                 raise ValueError('Only DEPLOYED workbenches are allowed for PULL.')
 
             with transaction.atomic():
-                existing = PlaybookGraph.objects.filter(
-                    organization=organization,
-                    title__iexact=title,
-                ).order_by('-updated_at', '-created_at', '-id').first()
+                existing, remote_key = _shared_lookup(
+                    PlaybookGraph, organization, peer, 'workbenches',
+                    hex_doc.get('source_id') or title,
+                )
+                if existing is None:
+                    # Recognize imports created before source mappings existed.
+                    existing = PlaybookGraph.objects.filter(
+                        organization=organization, imported_from_repo=peer.remote_url,
+                        imported_from_path=f'remote://{peer.remote_instance_id}/{title}',
+                    ).first()
+                hex_doc = deepcopy(hex_doc)
+                hex_doc['metadata']['name'] = PlaybookGraph.strip_custom_id_prefix(title)
                 if existing is not None:
-                    graph = update_playbook_graph_from_hex_v2(hex_doc, existing, actor, title)
-                    summary['workbenches']['updated'] += 1
+                    graph = update_playbook_graph_from_hex_v2(hex_doc, existing, actor, hex_doc['metadata']['name'])
                 else:
                     graph = deserialize_playbook_graph_hex_v2(hex_doc, organization, actor)
-                    summary['workbenches']['created'] += 1
 
+                _remember_shared(organization, peer, 'workbenches', remote_key, graph)
+                graph.allow_remote_pull = False
                 graph.imported_from_repo = peer.remote_url
                 graph.imported_from_commit_sha = ''
                 graph.imported_from_path = f"remote://{peer.remote_instance_id}/{title}"
                 graph.imported_at = timezone.now()
                 graph.imported_by = actor
                 graph.save(update_fields=[
+                    'allow_remote_pull',
                     'imported_from_repo',
                     'imported_from_commit_sha',
                     'imported_from_path',
@@ -519,9 +599,11 @@ def _import_workbenches(
                     'imported_by',
                     'updated_at',
                 ])
+            summary['workbenches']['updated' if existing else 'created'] += 1
         except Exception as exc:
             summary['workbenches']['failed'] += 1
             errors.append(f'Workbench #{idx + 1}: {exc}')
+            logger.exception('Sharing import failed: Workbench index=%s', idx + 1)
 
 
 def _import_rules(
@@ -533,7 +615,10 @@ def _import_rules(
     errors: list[str],
 ) -> None:
     from rules.models import DetectionRule, RuleRepository
+    from playbooks.models import PlaybookGraph
 
+    if not rules_payload:
+        return
     repository_name = f"Remote Pull - {peer.name}"
     repository, _ = RuleRepository.objects.get_or_create(
         organization=organization,
@@ -571,40 +656,59 @@ def _import_rules(
                 'author': str(rule_data.get('author') or '').strip() or None,
                 'raw_content': str(rule_data.get('raw_content') or ''),
             }
-            existing = DetectionRule.objects.filter(
-                organization=organization,
-                repository=repository,
-                title__iexact=title,
-            ).order_by('-updated_at', '-created_at', '-id').first()
-
-            if existing:
-                existing.format = format_value
-                existing.status = defaults['status']
-                existing.description = defaults['description']
-                existing.author = defaults['author']
-                existing.raw_content = defaults['raw_content']
-                existing.save(update_fields=['format', 'status', 'description', 'author', 'raw_content', 'updated_at'])
-                summary['rules']['updated'] += 1
-            else:
-                DetectionRule.objects.create(
-                    organization=organization,
-                    repository=repository,
-                    title=title,
-                    format=format_value,
-                    status=defaults['status'],
-                    description=defaults['description'],
-                    author=defaults['author'],
-                    raw_content=defaults['raw_content'],
+            with transaction.atomic():
+                existing, remote_key = _shared_lookup(
+                    DetectionRule, organization, peer, 'rules', rule_data.get('source_id') or title,
                 )
-                summary['rules']['created'] += 1
+                if existing is None:
+                    existing = DetectionRule.objects.filter(
+                        organization=organization, repository=repository, title__iexact=title,
+                    ).first()
+                playbook_title = str(rule_data.get('playbook_title') or '').strip()
+                playbook, _ = _shared_lookup(
+                    PlaybookGraph, organization, peer, 'workbenches',
+                    rule_data.get('playbook_source_id') or playbook_title,
+                )
+                if playbook is None:
+                    playbook = PlaybookGraph.objects.filter(
+                        organization=organization,
+                        imported_from_path=f'remote://{peer.remote_instance_id}/{playbook_title}',
+                    ).first()
+
+                created = existing is None
+                if existing:
+                    existing.playbook = playbook
+                    existing.format = format_value
+                    existing.status = defaults['status']
+                    existing.description = defaults['description']
+                    existing.author = defaults['author']
+                    existing.raw_content = defaults['raw_content']
+                    existing.save(update_fields=['playbook', 'format', 'status', 'description', 'author', 'raw_content', 'updated_at'])
+                else:
+                    existing = DetectionRule.objects.create(
+                        organization=organization,
+                        repository=repository,
+                        playbook=playbook,
+                        title=title,
+                        format=format_value,
+                        status=defaults['status'],
+                        description=defaults['description'],
+                        author=defaults['author'],
+                        raw_content=defaults['raw_content'],
+                    )
+                _remember_shared(organization, peer, 'rules', remote_key, existing)
+            summary['rules']['created' if created else 'updated'] += 1
         except Exception as exc:
             summary['rules']['failed'] += 1
             errors.append(f'Rule #{idx + 1}: {exc}')
+            logger.exception('Sharing import failed: Rule index=%s', idx + 1)
 
 
 def _import_ach(
     ach_payload: list[dict[str, Any]],
     actor,
+    organization,
+    peer,
     summary: dict[str, dict[str, int]],
     errors: list[str],
 ) -> None:
@@ -628,10 +732,9 @@ def _import_ach(
                 raise ValueError('Only FINISHED ACH analyses are allowed for PULL.')
 
             with transaction.atomic():
-                analysis = ACHAnalysis.objects.filter(
-                    owner=actor,
-                    title__iexact=title,
-                ).order_by('-updated_at', '-created_at', '-id').first()
+                analysis, remote_key = _shared_lookup(
+                    ACHAnalysis, organization, peer, 'ach', analysis_data.get('source_id') or title,
+                )
                 created = analysis is None
                 if analysis is None:
                     analysis = ACHAnalysis.objects.create(
@@ -700,20 +803,20 @@ def _import_ach(
                         },
                     )
 
-                if created:
-                    summary['ach']['created'] += 1
-                else:
-                    summary['ach']['updated'] += 1
+                _remember_shared(organization, peer, 'ach', remote_key, analysis)
+            summary['ach']['created' if created else 'updated'] += 1
 
         except Exception as exc:
             summary['ach']['failed'] += 1
             errors.append(f'ACH #{idx + 1}: {exc}')
+            logger.exception('Sharing import failed: ACH index=%s', idx + 1)
 
 
 def _import_advops(
     advops_payload: list[dict[str, Any]],
     organization,
     actor,
+    peer,
     summary: dict[str, dict[str, int]],
     errors: list[str],
 ) -> None:
@@ -753,21 +856,20 @@ def _import_advops(
             }
 
             with transaction.atomic():
-                existing = ADVOPSReport.objects.filter(
-                    organization=organization,
-                    hunt_id__iexact=hunt_id,
-                ).order_by('-updated_at', '-created_at', '-id').first()
+                existing, remote_key = _shared_lookup(
+                    ADVOPSReport, organization, peer, 'advops', report_data.get('source_id') or hunt_id,
+                )
+                created = existing is None
                 if existing is None:
-                    ADVOPSReport.objects.create(
+                    from advops.schema import generate_next_hunt_id
+                    existing = ADVOPSReport.objects.create(
                         organization=organization,
                         author=actor,
-                        hunt_id=hunt_id,
+                        hunt_id=generate_next_hunt_id(organization),
                         **defaults,
                     )
-                    summary['advops']['created'] += 1
                 else:
                     existing.author = existing.author or actor
-                    existing.hunt_id = hunt_id
                     existing.hypothesis = defaults['hypothesis']
                     existing.status = defaults['status']
                     existing.priority = defaults['priority']
@@ -791,16 +893,19 @@ def _import_advops(
                         'detection_logic_summary',
                         'updated_at',
                     ])
-                    summary['advops']['updated'] += 1
+                _remember_shared(organization, peer, 'advops', remote_key, existing)
+            summary['advops']['created' if created else 'updated'] += 1
         except Exception as exc:
             summary['advops']['failed'] += 1
             errors.append(f'ADVOPS #{idx + 1}: {exc}')
+            logger.exception('Sharing import failed: ADVOPS index=%s', idx + 1)
 
 
 def _import_capabilities(
     capability_payload: list[dict[str, Any]],
     organization,
     actor,
+    peer,
     summary: dict[str, dict[str, int]],
     errors: list[str],
 ) -> None:
@@ -839,18 +944,14 @@ def _import_capabilities(
                 'updated_by': actor,
             }
             with transaction.atomic():
-                candidates = CapabilityAbstraction.objects.filter(
-                    organization=organization,
-                    technique=technique,
-                    abstraction_layer=layer,
-                    is_baseline=False,
-                ).order_by('-updated_at', '-id')
-                existing = next((
-                    entry for entry in candidates
-                    if _normalized_name(entry.component_artifact) == _normalized_name(name)
-                ), None)
+                fallback_key = f'{technique.technique_id}:{layer}:{_normalized_name(name)}'
+                existing, remote_key = _shared_lookup(
+                    CapabilityAbstraction, organization, peer, 'capability_abstractions',
+                    data.get('source_id') or fallback_key,
+                )
+                created = existing is None
                 if existing is None:
-                    CapabilityAbstraction.objects.create(
+                    existing = CapabilityAbstraction.objects.create(
                         organization=organization,
                         technique=technique,
                         abstraction_layer=layer,
@@ -861,16 +962,17 @@ def _import_capabilities(
                         allow_remote_pull=False,
                         **defaults,
                     )
-                    summary['capability_abstractions']['created'] += 1
                 else:
                     for field, value in defaults.items():
                         setattr(existing, field, value)
                     existing.version += 1
                     existing.save()
-                    summary['capability_abstractions']['updated'] += 1
+                _remember_shared(organization, peer, 'capability_abstractions', remote_key, existing)
+            summary['capability_abstractions']['created' if created else 'updated'] += 1
         except Exception as exc:
             summary['capability_abstractions']['failed'] += 1
             errors.append(f'Capability abstraction #{idx + 1}: {exc}')
+            logger.exception('Sharing import failed: Capability abstraction index=%s', idx + 1)
 
 
 def import_payload_into_org(
@@ -891,6 +993,13 @@ def import_payload_into_org(
         'capability_abstractions': {'created': 0, 'updated': 0, 'failed': 0},
     }
     errors: list[str] = []
+    if not isinstance(payload, dict):
+        raise ValueError('Remote export must be a JSON object.')
+    for scope_name in include_scopes:
+        collection = SCOPE_COLLECTIONS[scope_name]
+        if not isinstance(payload.get(collection, []), list):
+            raise ValueError(f'Remote export must contain a list for {collection}.')
+        summary[collection]['received'] = len(payload.get(collection, []))
 
     if 'WORKBENCH' in include_scopes:
         _import_workbenches(
@@ -914,6 +1023,8 @@ def import_payload_into_org(
         _import_ach(
             payload.get('ach') or [],
             actor=actor,
+            organization=organization,
+            peer=peer,
             summary=summary,
             errors=errors,
         )
@@ -922,6 +1033,7 @@ def import_payload_into_org(
             payload.get('advops') or [],
             organization=organization,
             actor=actor,
+            peer=peer,
             summary=summary,
             errors=errors,
         )
@@ -931,6 +1043,7 @@ def import_payload_into_org(
             payload.get('capability_abstractions') or [],
             organization=organization,
             actor=actor,
+            peer=peer,
             summary=summary,
             errors=errors,
         )
@@ -972,6 +1085,8 @@ def pull_from_remote_peer(
     scope = normalize_scope(requested_scope or peer.default_scope)
     identity = get_or_create_instance_identity(organization=peer.organization)
     now = timezone.now()
+    started = monotonic()
+    diagnostics = {'events': []}
     job = HefaistosPullJob.objects.create(
         organization=peer.organization,
         peer=peer,
@@ -981,7 +1096,13 @@ def pull_from_remote_peer(
         started_at=now,
     )
 
+    def record(stage, **details):
+        event = {'stage': stage, 'elapsed_seconds': round(monotonic() - started, 3), **details}
+        diagnostics['events'].append(event)
+        logger.info('Sharing pull job=%s peer=%s scope=%s event=%s', job.pk, peer.pk, scope, event)
+
     try:
+        record('started', remote_instance_id=str(peer.remote_instance_id), verify_ssl=_requests_verify_value(peer))
         api_key = peer.api_key
         if not api_key:
             raise ValueError('Remote API key is not configured for this peer.')
@@ -1003,9 +1124,13 @@ def pull_from_remote_peer(
             verify=verify,
             stream=check_fp,
         )
+        record('info_response', http_status=info_response.status_code)
         verify_tls_fingerprint(info_response, peer.tls_cert_fingerprint)
         info_response.raise_for_status()
         info_payload = info_response.json()
+        if not isinstance(info_payload, dict):
+            raise ValueError('Remote instance info must be a JSON object.')
+        diagnostics['permissions'] = {key: info_payload.get(key) for key in ('allowed_scopes', 'enforce_tag_filter', 'required_tags')}
         remote_instance_id = str(info_payload.get('instance_id') or '').strip()
         if not remote_instance_id:
             raise ValueError('Remote instance did not return an instance_id.')
@@ -1014,6 +1139,7 @@ def pull_from_remote_peer(
                 'Remote instance_id mismatch: configured peer does not match responding server.'
             )
 
+        record('info_validated', remote_instance_id=remote_instance_id, permissions=diagnostics['permissions'])
         export_response = requests.get(
             f'{base_url}/api/sharing/export',
             params={'scope': scope},
@@ -1022,9 +1148,22 @@ def pull_from_remote_peer(
             verify=verify,
             stream=check_fp,
         )
+        record('export_response', http_status=export_response.status_code)
         verify_tls_fingerprint(export_response, peer.tls_cert_fingerprint)
         export_response.raise_for_status()
         payload = export_response.json()
+        if not isinstance(payload, dict) or payload.get('schema_version') != '1.0':
+            raise ValueError('Remote export has an unsupported or missing schema_version.')
+        if str(payload.get('instance_id')) != str(peer.remote_instance_id):
+            raise ValueError('Remote export instance_id does not match the configured peer.')
+        if normalize_scope(payload.get('scope')) != scope:
+            raise ValueError('Remote export scope does not match the requested scope.')
+        for scope_name in expand_scope(scope):
+            collection = SCOPE_COLLECTIONS[scope_name]
+            if not isinstance(payload.get(collection), list):
+                raise ValueError(f'Remote export must contain a list for {collection}.')
+        diagnostics['export'] = payload.get('diagnostics', {})
+        record('export_validated', received={name: len(payload.get(name, [])) for name in SCOPE_COLLECTIONS.values()})
         summary, import_errors = import_payload_into_org(
             payload=payload,
             organization=peer.organization,
@@ -1033,11 +1172,18 @@ def pull_from_remote_peer(
             requested_scope=scope,
         )
 
+        record('import_finished', counts=deepcopy(summary))
+        totals = {key: sum(counts.get(key, 0) for counts in summary.values()) for key in ('received', 'created', 'updated', 'failed')}
         status = HefaistosPullJob.Status.COMPLETED
-        message = 'Pull completed successfully.'
+        message = f"Pull finished: {totals['received']} received, {totals['created']} created, {totals['updated']} updated, {totals['failed']} failed."
+        if not totals['received']:
+            message += ' No eligible items were exported. Check origin item status, remote-pull enablement, and API key tag filters.'
+        elif import_errors and not (totals['created'] + totals['updated']):
+            status = HefaistosPullJob.Status.FAILED
         if import_errors:
-            message = f'Pull completed with {len(import_errors)} warning(s).'
             summary['errors'] = import_errors
+        record('finished', status=status, **totals)
+        summary['diagnostics'] = diagnostics
 
         job.status = status
         job.summary = summary
@@ -1052,9 +1198,11 @@ def pull_from_remote_peer(
         return job
 
     except Exception as exc:
+        logger.exception('Sharing pull failed job=%s peer=%s scope=%s', job.pk, peer.pk, scope)
+        record('failed', error=str(exc))
         job.status = HefaistosPullJob.Status.FAILED
         job.message = str(exc)
-        job.summary = {'errors': [str(exc)]}
+        job.summary = {'errors': [str(exc)], 'diagnostics': diagnostics}
         job.completed_at = timezone.now()
         job.save(update_fields=['status', 'message', 'summary', 'completed_at'])
 

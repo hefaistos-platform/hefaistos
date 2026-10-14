@@ -28,9 +28,8 @@ def generate_next_hunt_id(organization):
     month = f'{now.month:02d}'
     prefix = f"ADV-{year}-{month}-"
     
-    # Find all hunt IDs matching this month's prefix for this organization
+    # hunt_id is globally unique, so allocate across all organizations.
     existing_hunts = ADVOPSReport.objects.filter(
-        organization=organization,
         hunt_id__startswith=prefix
     ).values_list('hunt_id', flat=True)
     

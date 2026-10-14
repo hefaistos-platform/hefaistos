@@ -166,7 +166,7 @@ const PULL_FROM_REMOTE = gql`
     pullFromRemoteHefaistos(peerId: $peerId, scope: $scope) {
       success
       message
-      job { id status completedAt }
+      job { id status summary completedAt }
     }
   }
 `;
@@ -205,6 +205,7 @@ interface InboundShareKey {
 interface PullJob {
   id: string;
   peerName?: string | null;
+  summary?: string | Record<string, unknown> | null;
   requestedScope: string;
   status: string;
   message?: string | null;
@@ -235,6 +236,35 @@ const statusColor = (status?: string | null): string => {
 };
 
 const fmtDate = (value?: string | null): string => (value ? new Date(value).toLocaleString() : '—');
+
+const parseSummary = (value: PullJob['summary']): Record<string, unknown> => {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(value); } catch { return { detail: value }; }
+};
+
+const renderJobDetails = (job: PullJob) => {
+  const summary = parseSummary(job.summary);
+  const rows = Object.entries(summary).filter(([key]) =>
+    ['workbenches', 'rules', 'ach', 'advops', 'capability_abstractions'].includes(key),
+  ).map(([kind, counts]) => ({ kind, ...(counts as Record<string, number>) }));
+  return <Space direction="vertical" style={{ width: '100%' }}>
+    <Text copyable>{`Job ID: ${job.id}`}</Text>
+    <Table size="small" rowKey="kind" pagination={false} dataSource={rows} columns={[
+      { title: 'Item type', dataIndex: 'kind' },
+      ...['received', 'created', 'updated', 'failed'].map(key => ({
+        title: key[0].toUpperCase() + key.slice(1), dataIndex: key,
+        render: (value?: number) => value ?? 0,
+      })),
+    ]} />
+    {Array.isArray(summary.errors) && summary.errors.map((error, index) =>
+      <Alert key={index} type="error" showIcon message={String(error)} />)}
+    <Text type="secondary">Origin filters and request stages</Text>
+    <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: 0 }}>
+      {JSON.stringify(summary.diagnostics || {}, null, 2)}
+    </pre>
+  </Space>;
+};
 
 const InstanceSharing: React.FC = () => {
   const { message } = App.useApp();
@@ -340,15 +370,25 @@ const InstanceSharing: React.FC = () => {
   };
 
   const onPullPeer = async (peer: RemotePeer) => {
-    const result = await pullFromRemote({ variables: { peerId: peer.id, scope: peer.defaultScope } });
-    const payload = result.data?.pullFromRemoteHefaistos;
-    if (!payload?.success) {
-      message.error(payload?.message || 'Pull failed');
-      refetch();
-      return;
+    try {
+      const result = await pullFromRemote({ variables: { peerId: peer.id, scope: peer.defaultScope } });
+      const payload = result.data?.pullFromRemoteHefaistos;
+      if (!payload?.success) {
+        message.error(payload?.message || 'Pull failed');
+        return;
+      }
+      const summary = parseSummary(payload.job?.summary);
+      const counts = Object.values(summary).filter((value): value is Record<string, number> => !!value && typeof value === 'object' && 'received' in value);
+      if (counts.some(value => value.failed > 0) || !counts.some(value => value.received > 0)) {
+        message.warning(payload.message || 'Pull finished without importing items');
+      } else {
+        message.success(payload.message || 'Pull completed');
+      }
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Pull request failed');
+    } finally {
+      await refetch();
     }
-    message.success(payload.message || 'Pull completed');
-    refetch();
   };
 
   const onCreateInboundKey = async () => {
@@ -527,7 +567,7 @@ const InstanceSharing: React.FC = () => {
         type="info"
         showIcon
         message="PULL-only design"
-        description="Remote sharing endpoints are read-only. Pull operations never modify the remote HEFAISTOS instance. Export eligibility is default-deny and now requires explicit per-item remote-pull enablement; optional key-level tag filtering further restricts Workbench/Rules export."
+        description="Remote sharing endpoints are read-only. Pull operations never modify the remote HEFAISTOS instance. Export eligibility is default-deny and now requires explicit per-item remote-pull enablement; Workbench and ADVOPS items must be DEPLOYED, ACH analyses FINISHED, and capabilities APPROVED. Optional key-level tag filtering further restricts Workbench/Rules export. Expand a Pull Job History row for counts, origin filters, and errors."
       />
 
       <Card loading={loading}>
@@ -586,6 +626,7 @@ const InstanceSharing: React.FC = () => {
           rowKey="id"
           dataSource={pullJobs}
           columns={jobColumns}
+          expandable={{ expandedRowRender: renderJobDetails }}
           pagination={{ pageSize: 10 }}
           locale={{ emptyText: 'No pull jobs yet.' }}
         />
