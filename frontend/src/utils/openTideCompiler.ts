@@ -79,7 +79,7 @@ export function compileMetadataFromWorkbench(playbook: PlaybookGraphSnapshot): O
 export function buildInitialOpenTideRule(
   playbookData: PlaybookGraphSnapshot,
   legacyRule: string,
-  legacyFormat: 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'OTHER' | 'OPENTIDE',
+  legacyFormat: 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'FREE' | 'OTHER' | 'OPENTIDE',
 ): OpenTideRule {
   const metadata = compileMetadataFromWorkbench(playbookData);
 
@@ -99,9 +99,45 @@ export function buildInitialOpenTideRule(
     platforms.spl = { query: legacyRule };
   } else if (legacyFormat === 'WAZUH' && legacyRule.trim()) {
     platforms.wazuh = { rule: legacyRule };
+  } else if (legacyFormat === 'AQL' && legacyRule.trim()) {
+    platforms.qradar = { query: legacyRule };
+  }
+
+  if (legacyFormat === 'FREE' && legacyRule.trim()) {
+    return { metadata, platforms, freeRule: { content: legacyRule, label: '', language: 'plaintext' } };
   }
 
   return { metadata, platforms };
+}
+
+/** Restore saved queries while ensuring imported/legacy records have platforms. */
+export function restoreOpenTideRule(
+  playbookData: PlaybookGraphSnapshot,
+  savedRule: unknown,
+  legacyRule: string,
+  legacyFormat: Parameters<typeof buildInitialOpenTideRule>[2],
+): OpenTideRule {
+  const initial = buildInitialOpenTideRule(playbookData, legacyRule, legacyFormat);
+  let parsed: unknown = savedRule;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return initial;
+    }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return initial;
+
+  const saved = parsed as Partial<OpenTideRule>;
+  const platforms = saved.platforms;
+  return {
+    ...initial,
+    ...saved,
+    metadata: initial.metadata,
+    platforms: platforms && typeof platforms === 'object' && !Array.isArray(platforms)
+      ? platforms
+      : initial.platforms,
+  };
 }
 
 /**
@@ -109,11 +145,11 @@ export function buildInitialOpenTideRule(
  */
 export function getConfiguredPlatforms(rule: OpenTideRule): string[] {
   const configured: string[] = [];
-  if (rule.platforms.kql?.query?.trim()) configured.push('kql');
-  if (rule.platforms.elastic?.query?.trim()) configured.push('elastic');
-  if (rule.platforms.spl?.query?.trim()) configured.push('spl');
-  if (rule.platforms.wazuh?.rule?.trim()) configured.push('wazuh');
-  if (rule.platforms.qradar?.query?.trim()) configured.push('qradar');
+  if (rule.platforms?.kql?.query?.trim()) configured.push('kql');
+  if (rule.platforms?.elastic?.query?.trim()) configured.push('elastic');
+  if (rule.platforms?.spl?.query?.trim()) configured.push('spl');
+  if (rule.platforms?.wazuh?.rule?.trim()) configured.push('wazuh');
+  if (rule.platforms?.qradar?.query?.trim()) configured.push('qradar');
   return configured;
 }
 

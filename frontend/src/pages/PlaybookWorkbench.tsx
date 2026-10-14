@@ -34,7 +34,7 @@ import { ThreatReportPopulateModal } from '../components/playbook/ThreatReportPo
 import { MaieuticOutput, MaieuticImportSelections } from '../types/maieutic';
 import { applyMaieuticToWorkbench } from '../utils/maieuticMapping';
 import { OpenTideRule } from '../types/opentide';
-import { compileMetadataFromWorkbench, getConfiguredPlatforms } from '../utils/openTideCompiler';
+import { compileMetadataFromWorkbench, getConfiguredPlatforms, restoreOpenTideRule } from '../utils/openTideCompiler';
 import { isDirty, normalize } from '../utils/ruleDiff';
 import OpenTideMetadataPreview from '../components/OpenTideMetadataPreview';
 import { OpenTidePreviewModal } from '../components/OpenTidePreviewModal';
@@ -1237,10 +1237,10 @@ export const PlaybookWorkbench = () => {
 
   // Sync local state when data loads from server
   useEffect(() => {
+      const detectedFormat = data?.playbookGraph?.detectionRuleFormat || (data?.playbookGraph?.tags || [])
+        .map((tag: string) => tag.toUpperCase())
+        .find((tag: string) => isWorkbenchRuleFormat(tag)) || '';
       if (data?.playbookGraph?.detectionRule) {
-          const detectedFormat = data.playbookGraph.detectionRuleFormat || (data.playbookGraph.tags || [])
-            .map((tag: string) => tag.toUpperCase())
-            .find((tag: string) => isWorkbenchRuleFormat(tag)) || '';
           setLocalRule(data.playbookGraph.detectionRule);
           if (isWorkbenchRuleFormat(detectedFormat)) {
             setAiFormat(detectedFormat);
@@ -1248,24 +1248,16 @@ export const PlaybookWorkbench = () => {
       }
       // Always compile fresh metadata from current workbench field values
       if (data?.playbookGraph) {
-        try {
-          const freshMetadata = compileMetadataFromWorkbench(data.playbookGraph);
-          if (data.playbookGraph.opentideYaml) {
-            // Merge saved platform queries with recompiled metadata
-            const parsed: OpenTideRule = typeof data.playbookGraph.opentideYaml === 'string'
-              ? JSON.parse(data.playbookGraph.opentideYaml)
-              : data.playbookGraph.opentideYaml as unknown as OpenTideRule;
-            setOpenTideRule({ ...parsed, metadata: freshMetadata });
-            if (parsed.freeRule?.content === data.playbookGraph.detectionRule && parsed.freeRule?.content) {
-              setAiFormat('FREE');
-              setDetectionMode('manual');
-            }
-          } else {
-            // No saved OpenTide YAML yet – initialise with compiled metadata and empty platforms
-            setOpenTideRule({ metadata: freshMetadata, platforms: {} });
-          }
-        } catch {
-          // ignore parse errors
+        const restored = restoreOpenTideRule(
+          data.playbookGraph,
+          data.playbookGraph.opentideYaml,
+          data.playbookGraph.detectionRule || '',
+          isWorkbenchRuleFormat(detectedFormat) ? detectedFormat : 'OTHER',
+        );
+        setOpenTideRule(restored);
+        if (restored.freeRule?.content === data.playbookGraph.detectionRule && restored.freeRule?.content) {
+          setAiFormat('FREE');
+          setDetectionMode('manual');
         }
       }
   }, [data]);
