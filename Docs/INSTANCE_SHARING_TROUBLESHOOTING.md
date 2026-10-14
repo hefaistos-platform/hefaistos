@@ -29,7 +29,7 @@ exportable. An empty export explains that no eligible items were returned:
 
 - Workbenches must be DEPLOYED and have remote PULL enabled.
 - Rules must belong to a DEPLOYED Workbench with remote PULL enabled.
-- ACH analyses must be FINISHED and have remote PULL enabled.
+- ACH analyses must be FINISHED or APPROVED and have remote PULL enabled.
 - ADVOPS hunts must be DEPLOYED and have remote PULL enabled.
 - Capability abstractions must be APPROVED, belong to the origin organization,
   be non-baseline entries, and have remote PULL enabled.

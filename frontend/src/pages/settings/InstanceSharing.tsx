@@ -567,7 +567,7 @@ const InstanceSharing: React.FC = () => {
         type="info"
         showIcon
         message="PULL-only design"
-        description="Remote sharing endpoints are read-only. Pull operations never modify the remote HEFAISTOS instance. Export eligibility is default-deny and now requires explicit per-item remote-pull enablement; Workbench and ADVOPS items must be DEPLOYED, ACH analyses FINISHED, and capabilities APPROVED. Optional key-level tag filtering further restricts Workbench/Rules export. Expand a Pull Job History row for counts, origin filters, and errors."
+        description="Remote sharing endpoints are read-only. Pull operations never modify the remote HEFAISTOS instance. Export eligibility is default-deny and now requires explicit per-item remote-pull enablement; Workbench and ADVOPS items must be DEPLOYED, ACH analyses FINISHED or APPROVED, and capabilities APPROVED. Optional key-level tag filtering further restricts Workbench/Rules export. Expand a Pull Job History row for counts, origin filters, and errors."
       />
 
       <Card loading={loading}>

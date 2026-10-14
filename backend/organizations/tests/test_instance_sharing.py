@@ -901,3 +901,104 @@ class SharingPullDiagnosticsTests(SharingImportRulesTests):
             'total': 3, 'excluded_by_status': 1, 'excluded_by_remote_pull_disabled': 1,
             'excluded_by_tags': 0, 'deduplicated': 0, 'exported': 1,
         })
+
+
+class ACHSharingRoundTripTests(TestCase):
+    def setUp(self):
+        self.source_org = Organization.objects.create(name='ACH origin')
+        self.target_org = Organization.objects.create(name='ACH receiver')
+        self.source_owner = get_user_model().objects.create_user(
+            username='ach_origin', organization=self.source_org, role='ADMIN',
+        )
+        self.actor = get_user_model().objects.create_user(
+            username='ach_receiver', organization=self.target_org, role='ADMIN',
+        )
+        self.peer = HefaistosRemotePeer.objects.create(
+            organization=self.target_org, name='ACH origin', remote_url='https://ach.example.com',
+            remote_instance_id=uuid.uuid4(), default_scope='ACH',
+        )
+        self.raw_key = 'hefshare_ach_round_trip'
+        HefaistosInboundShareKey.objects.create(
+            organization=self.source_org, name='ACH exports', key_hash=hash_api_key(self.raw_key),
+            allowed_scopes=['ACH'],
+        )
+
+    def export(self):
+        response = self.client.get('/api/sharing/export?scope=ACH',
+                                   HTTP_X_HEFAISTOS_SHARE_KEY=self.raw_key)
+        self.assertEqual(response.status_code, 200)
+        return response.json()
+
+    def test_export_finished_and_approved_preserves_opt_in_and_tenant_filters(self):
+        for status in ('FINISHED', 'APPROVED', 'RESEARCH'):
+            ACHAnalysis.objects.create(
+                title=status, owner=self.source_owner, status=status, allow_remote_pull=True,
+            )
+        ACHAnalysis.objects.create(title='Disabled', owner=self.source_owner, status='APPROVED')
+        ACHAnalysis.objects.create(
+            title='Other tenant', owner=self.actor, status='APPROVED', allow_remote_pull=True,
+        )
+        payload = self.export()
+        self.assertEqual({entry['title'] for entry in payload['ach']}, {'FINISHED', 'APPROVED'})
+        self.assertEqual(payload['diagnostics']['ach'], {
+            'total': 4, 'excluded_by_status': 1, 'excluded_by_remote_pull_disabled': 1,
+            'excluded_by_tags': 0, 'deduplicated': 0, 'exported': 2,
+        })
+
+    def test_full_approved_analysis_round_trip_and_repeat_import(self):
+        from ach.models import Hypothesis, Evidence, MatrixCell
+        from ach.schema import ApproveACHAnalysis
+        from types import SimpleNamespace
+        origin = ACHAnalysis.objects.create(
+            title='Shared analysis', description='Origin description', owner=self.source_owner,
+            status='FINISHED', allow_remote_pull=True,
+        )
+        # Exercise the actual approval transition that previously removed export eligibility.
+        info = SimpleNamespace(context=SimpleNamespace(user=self.source_owner))
+        ApproveACHAnalysis().mutate(info, analysis_id=origin.pk)
+        origin.refresh_from_db()
+        self.assertEqual(origin.status, 'APPROVED')
+        technique = MitreAttackTechnique.objects.create(
+            technique_id='T1059', stix_id='attack-pattern--ach-sharing', name='Command execution',
+        )
+        hypothesis = Hypothesis.objects.create(
+            analysis=origin, content='Command execution', sequence=2, is_proven=True,
+            mitre_technique=technique,
+        )
+        evidence = Evidence.objects.create(
+            analysis=origin, content='Process log', credibility='HIGH', relevance='Relevant',
+            sequence=3, log_reference='process-query',
+        )
+        MatrixCell.objects.create(hypothesis=hypothesis, evidence=evidence, score='CC', notes='Strong support')
+        local = ACHAnalysis.objects.create(title=origin.title, owner=self.actor, description='Local content')
+        summary, errors = import_payload_into_org(self.export(), self.target_org, self.actor, self.peer, 'ACH')
+        self.assertEqual(errors, [])
+        self.assertEqual(summary['ach']['created'], 1)
+        imported = ACHAnalysis.objects.filter(owner=self.actor).exclude(pk=local.pk).get()
+        self.assertNotEqual(imported.pk, origin.pk)
+        self.assertEqual(imported.status, 'APPROVED')
+        self.assertFalse(imported.allow_remote_pull)
+        self.assertIsNone(imported.approved_by_id)
+        self.assertEqual(imported.hypotheses.get().mitre_technique_id, technique.pk)
+        self.assertTrue(imported.hypotheses.get().is_proven)
+        self.assertEqual(imported.evidence_items.get().log_reference, 'process-query')
+        cell = MatrixCell.objects.get(hypothesis__analysis=imported)
+        self.assertEqual((cell.score, cell.notes), ('CC', 'Strong support'))
+        self.assertNotEqual(cell.hypothesis_id, hypothesis.pk)
+        self.assertNotEqual(cell.evidence_id, evidence.pk)
+        imported_id = imported.pk
+        origin.title = 'Renamed origin analysis'
+        origin.description = 'Updated description'
+        origin.save()
+        summary, errors = import_payload_into_org(self.export(), self.target_org, self.actor, self.peer, 'ACH')
+        self.assertEqual(errors, [])
+        self.assertEqual(summary['ach']['updated'], 1)
+        imported.refresh_from_db()
+        local.refresh_from_db()
+        self.assertEqual(imported.pk, imported_id)
+        self.assertEqual(imported.title, 'Shared analysis')
+        self.assertEqual(imported.description, 'Updated description')
+        self.assertEqual(imported.hypotheses.count(), 1)
+        self.assertEqual(imported.evidence_items.count(), 1)
+        self.assertEqual(MatrixCell.objects.filter(hypothesis__analysis=imported).count(), 1)
+        self.assertEqual(local.description, 'Local content')

@@ -56,7 +56,7 @@ def _remember_shared(organization, peer, kind, remote_key, obj):
 
 ATOMIC_SCOPES = ('WORKBENCH', 'RULES', 'ACH', 'ADVOPS', 'CAPABILITY')
 WORKBENCH_REQUIRED_STATUS = 'DEPLOYED'
-ACH_REQUIRED_STATUS = 'FINISHED'
+ACH_EXPORT_STATUSES = ('FINISHED', 'APPROVED')
 ADVOPS_REQUIRED_STATUS = 'DEPLOYED'
 DEFAULT_REQUIRED_EXPORT_TAGS = ('PULL',)
 
@@ -335,7 +335,7 @@ def _ach_payload_for_org(organization) -> list[dict[str, Any]]:
 
     analyses = ACHAnalysis.objects.filter(
         owner__organization=organization,
-        status__iexact=ACH_REQUIRED_STATUS,
+        status__in=ACH_EXPORT_STATUSES,
         allow_remote_pull=True,
     ).select_related('owner').prefetch_related(
         'hypotheses__mitre_technique',
@@ -512,7 +512,7 @@ def export_org_payload(
     candidates = {
         'WORKBENCH': (PlaybookGraph.objects.filter(organization=organization), {'status__iexact': WORKBENCH_REQUIRED_STATUS}, {'allow_remote_pull': True}),
         'RULES': (DetectionRule.objects.filter(organization=organization), {'playbook__status__iexact': WORKBENCH_REQUIRED_STATUS}, {'playbook__allow_remote_pull': True}),
-        'ACH': (ACHAnalysis.objects.filter(owner__organization=organization), {'status__iexact': ACH_REQUIRED_STATUS}, {'allow_remote_pull': True}),
+        'ACH': (ACHAnalysis.objects.filter(owner__organization=organization), {'status__in': ACH_EXPORT_STATUSES}, {'allow_remote_pull': True}),
         'ADVOPS': (ADVOPSReport.objects.filter(organization=organization), {'status__iexact': ADVOPS_REQUIRED_STATUS}, {'allow_remote_pull': True}),
         'CAPABILITY': (CapabilityAbstraction.objects.filter(organization=organization, is_baseline=False), {'review_status': 'APPROVED'}, {'allow_remote_pull': True}),
     }
@@ -728,8 +728,8 @@ def _import_ach(
 
             description = str(analysis_data.get('description') or '').strip()
             status = str(analysis_data.get('status') or '').upper().strip()
-            if status != ACH_REQUIRED_STATUS:
-                raise ValueError('Only FINISHED ACH analyses are allowed for PULL.')
+            if status not in ACH_EXPORT_STATUSES:
+                raise ValueError('Only FINISHED or APPROVED ACH analyses are allowed for PULL.')
 
             with transaction.atomic():
                 analysis, remote_key = _shared_lookup(

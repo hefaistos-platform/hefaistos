@@ -7,13 +7,13 @@ import { markdownToPlainText } from '../components/MarkdownRenderer';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
-const FILTER_OPTIONS = ['RESEARCH', 'FINISHED'];
+const FILTER_OPTIONS = ['RESEARCH', 'FINISHED', 'APPROVED'];
 
 interface ACHAnalysisListItem {
   id: string;
   title: string;
   description: string;
-  status: 'RESEARCH' | 'FINISHED';
+  status: 'RESEARCH' | 'FINISHED' | 'APPROVED';
   updatedAt: string;
   owner: { id: string; username: string };
 }
@@ -143,7 +143,7 @@ export const ACHPage: React.FC<ACHPageProps> = ({ embedded = false }) => {
   const statusOptions = useMemo(() => [
     { label: 'All Statuses', value: null },
     ...FILTER_OPTIONS.map(s => ({ 
-      label: s === 'FINISHED' ? 'Finished' : 'Research', 
+      label: s === 'APPROVED' ? 'Approved' : s === 'FINISHED' ? 'Finished' : 'Research',
       value: s 
     }))
   ], []);
@@ -160,8 +160,8 @@ export const ACHPage: React.FC<ACHPageProps> = ({ embedded = false }) => {
   }, [data?.achAnalyses]);
 
   const statusTag = (status: ACHAnalysisListItem['status']) => {
-    const color = status === 'FINISHED' ? 'green' : 'blue';
-    const label = status === 'FINISHED' ? 'Finished' : 'Research';
+    const color = status === 'APPROVED' ? 'purple' : status === 'FINISHED' ? 'green' : 'blue';
+    const label = status === 'APPROVED' ? 'Approved' : status === 'FINISHED' ? 'Finished' : 'Research';
     return <Tag color={color}>{label}</Tag>;
   };
 
