@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { gql, useMutation, useQuery } from '@apollo/client';
-import { Button, Card, Form, Input, Select, Tag, Table, Collapse, Typography, Space, Alert, message } from 'antd';
+import { Button, Card, Form, Input, Select, Tag, Table, Collapse, Typography, Space, Alert, Popconfirm, message } from 'antd';
 import { SyncOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { Navigate, useNavigate } from 'react-router-dom';
 
@@ -21,6 +21,18 @@ const LOADED_ATTACK_VERSIONS_QUERY = gql`
       version
       importedAt
     }
+  }
+`;
+
+const LOCAL_ATTACK_VERSIONS_QUERY = gql`
+  query LocalAttackVersions {
+    localAttackVersions { version domains removable }
+  }
+`;
+
+const REMOVE_LOCAL_ATTACK_VERSION_MUTATION = gql`
+  mutation RemoveLocalAttackVersion($version: String!) {
+    removeLocalAttackVersion(version: $version) { success }
   }
 `;
 
@@ -462,6 +474,23 @@ export const FrameworkUpdatesPage: React.FC = () => {
   });
   const [runImport, { loading: importing }] = useMutation(RUN_MITRE_IMPORT_MUTATION);
 
+  const { data: localVersionsData, loading: loadingLocalVersions, error: localVersionsError, refetch: refetchLocalVersions } = useQuery(
+    LOCAL_ATTACK_VERSIONS_QUERY,
+    { skip: !canManage, fetchPolicy: 'cache-and-network' }
+  );
+  const [removeLocalVersion, { loading: removingLocalVersion }] = useMutation(REMOVE_LOCAL_ATTACK_VERSION_MUTATION);
+  const localVersions: { version: string; domains: string[]; removable: boolean }[] =
+    localVersionsData?.localAttackVersions ?? [];
+  const handleRemoveLocalVersion = async (version: string) => {
+    try {
+      await removeLocalVersion({ variables: { version } });
+      await refetchLocalVersions();
+      messageApi.success(`Removed local ATT&CK v${version} bundles.`);
+    } catch (err: any) {
+      messageApi.error(err?.message ?? 'Failed to remove local ATT&CK version');
+    }
+  };
+
   // Chokepoints
   const { data: latestChokepointData, refetch: refetchLatestChokepoint } = useQuery(
     LATEST_CHOKEPOINT_REVISION_QUERY,
@@ -559,12 +588,13 @@ export const FrameworkUpdatesPage: React.FC = () => {
     setPollingJobId(null);
     refetchJobs();
     refetchVersions();
+    refetchLocalVersions();
     if (job.status === 'SUCCESS') {
       messageApi.success(`ATT&CK v${job.version} import succeeded!`);
     } else {
       messageApi.error(`ATT&CK v${job.version} import failed.`);
     }
-  }, [refetchJobs, refetchVersions, messageApi]);
+  }, [refetchJobs, refetchVersions, refetchLocalVersions, messageApi]);
 
   const handleChokepointSubmit = useCallback(async (values: { sourceRepo: string; ref: string; mode: string }) => {
     try {
@@ -887,6 +917,43 @@ export const FrameworkUpdatesPage: React.FC = () => {
             </Button>
           </div>
         )}
+      </Card>
+
+      <Card title="Local ATT&CK Versions" style={{ marginBottom: 24 }}>
+        <p>
+          Remove older downloaded versions to free disk space. Loaded frameworks and versions
+          used by the local Coverage Map are protected. Detection mappings and import history
+          are preserved. MITRE’s hosted Navigator manages its own versions.
+        </p>
+        {localVersionsError && <Alert type="error" showIcon message={localVersionsError.message} />}
+        <Table
+          dataSource={localVersions}
+          rowKey="version"
+          size="small"
+          loading={loadingLocalVersions}
+          pagination={false}
+          locale={{ emptyText: 'No local ATT&CK versions downloaded.' }}
+          columns={[
+            { title: 'Version', dataIndex: 'version', render: (version: string) => `v${version}` },
+            { title: 'Domains', dataIndex: 'domains', render: (domains: string[]) => domains.join(', ') },
+            {
+              title: 'Action',
+              render: (_, record) => record.removable ? (
+                <Popconfirm
+                  title={`Remove local ATT&CK v${record.version}?`}
+                  description="Downloaded bundles will be deleted. You can download them again with an import."
+                  onConfirm={() => handleRemoveLocalVersion(record.version)}
+                  okText="Remove"
+                  okButtonProps={{ danger: true }}
+                >
+                  <Button danger size="small" disabled={removingLocalVersion || importing || !!pollingJobId || jobs.some(j => j.status === 'PENDING' || j.status === 'RUNNING')}>
+                    Remove
+                  </Button>
+                </Popconfirm>
+              ) : <Tag>In use</Tag>,
+            },
+          ]}
+        />
       </Card>
 
       {/* ATT&CK Job history */}

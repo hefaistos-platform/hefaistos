@@ -77,6 +77,24 @@ class PlatformDataVersionType(graphene.ObjectType):
     imported_at = graphene.String()
 
 
+class LocalAttackVersionType(graphene.ObjectType):
+    version = graphene.String(required=True)
+    domains = graphene.List(graphene.String, required=True)
+    removable = graphene.Boolean(required=True)
+
+
+def _protected_local_attack_versions():
+    from .navigator_sync import DOMAIN_FILENAMES, resolve_navigator_attack_version
+
+    loaded = dict(PlatformDataVersion.objects.filter(
+        framework__in=DOMAIN_FILENAMES
+    ).values_list("framework", "version"))
+    protected = {str(v).lstrip("v").strip() for v in loaded.values()}
+    for domain in DOMAIN_FILENAMES:
+        protected.add(resolve_navigator_attack_version(loaded.get(domain), domain=domain))
+    return protected
+
+
 class MitreImportJobType(DjangoObjectType):
     """An async MITRE ATT&CK import job."""
     duration_seconds = graphene.Float(description="Wall-clock duration in seconds, or null if not finished.")
@@ -287,6 +305,8 @@ class Query(graphene.ObjectType):
         description="Returns the ATT&CK / D3FEND versions currently loaded in the database",
     )
 
+    local_attack_versions = graphene.List(LocalAttackVersionType)
+
     latest_available_attack_version = graphene.String(
         description=(
             "Fetches the latest published ATT&CK version tag from GitHub "
@@ -417,6 +437,14 @@ class Query(graphene.ObjectType):
             )
             for r in rows
         ]
+
+    def resolve_local_attack_versions(self, info):
+        _require_superuser(info)
+        from .navigator_sync import list_local_attack_versions
+
+        protected = _protected_local_attack_versions()
+        return [LocalAttackVersionType(**entry, removable=entry["version"] not in protected)
+                for entry in list_local_attack_versions()]
 
     def resolve_latest_available_attack_version(self, info):
         cache_key = "mitre:latest_attack_version"
@@ -813,6 +841,28 @@ class RunMitreImport(graphene.Mutation):
         return RunMitreImport(job=job)
 
 
+class RemoveLocalAttackVersion(graphene.Mutation):
+    class Arguments:
+        version = graphene.String(required=True)
+
+    success = graphene.Boolean(required=True)
+
+    @staticmethod
+    def mutate(root, info, version):
+        _require_superuser(info)
+        from .navigator_sync import remove_local_attack_version
+
+        if MitreImportJob.objects.filter(status__in=[
+            MitreImportJob.Status.PENDING, MitreImportJob.Status.RUNNING
+        ]).exists():
+            raise GraphQLError("Wait for the ATT&CK import to finish before removing versions.")
+        try:
+            remove_local_attack_version(version, _protected_local_attack_versions())
+        except ValueError as exc:
+            raise GraphQLError(str(exc)) from exc
+        return RemoveLocalAttackVersion(success=True)
+
+
 class RunChokepointImport(graphene.Mutation):
     """
     Admin-only mutation to trigger an async detection-chokepoints import job.
@@ -915,6 +965,7 @@ class RollbackChokepointSnapshot(graphene.Mutation):
 
 
 class Mutation(graphene.ObjectType):
+    remove_local_attack_version = RemoveLocalAttackVersion.Field()
     run_mitre_import = RunMitreImport.Field(
         description="Trigger an async MITRE ATT&CK import (admin only)."
     )

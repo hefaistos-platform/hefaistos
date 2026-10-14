@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Callable
@@ -209,6 +210,59 @@ def _resolve_latest_local_version(data_dir: Path) -> str | None:
         if _version_has_any_bundles(ver, data_dir):
             return ver
     return None
+
+
+def list_local_attack_versions(data_root: Path = NAVIGATOR_DATA_ROOT) -> list[dict]:
+    data_dir = Path(data_root) / "data"
+    return [
+        {
+            "version": version,
+            "domains": [domain for domain, filename in DOMAIN_FILENAMES.items()
+                        if (data_dir / f"v{version}" / f"{filename}.json").is_file()],
+        }
+        for version in _scan_existing_versions(data_dir)
+    ]
+
+
+def remove_local_attack_version(
+    version: str,
+    protected_versions: set[str],
+    data_root: Path = NAVIGATOR_DATA_ROOT,
+) -> None:
+    """Remove an unused local bundle and refresh Navigator metadata."""
+    version = _normalize_version(version)
+    if not re.fullmatch(r"\d+\.\d+", version):
+        raise ValueError("Invalid ATT&CK version. Expected a version like 20.0.")
+    if version in {_normalize_version(v) for v in protected_versions}:
+        raise ValueError("Cannot remove a version used by a loaded framework or the Coverage Map.")
+    root = Path(data_root)
+    data_dir = root / "data"
+    version_dir = data_dir / f"v{version}"
+    if version_dir.is_symlink() or not version_dir.is_dir():
+        raise ValueError("Local ATT&CK version not found.")
+    remaining = [v for v in _scan_existing_versions(data_dir)
+                 if v != version and _version_has_any_bundles(v, data_dir)]
+    if not remaining:
+        raise ValueError("Cannot remove the last local ATT&CK bundle version.")
+
+    # Move it out of the version scan first; restore files and metadata if rebuilding fails.
+    staging = Path(tempfile.mkdtemp(prefix=".removed-attack-", dir=root))
+    old_metadata = {path: path.read_bytes() if path.exists() else None
+                    for path in (root / "config.json", data_dir / "index.json")}
+    try:
+        version_dir.rename(staging / version_dir.name)
+        try:
+            rebuild_navigator_config_only(data_root=root)
+        except Exception:
+            (staging / version_dir.name).rename(version_dir)
+            for path, content in old_metadata.items():
+                if content is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    _atomic_write_bytes(path, content)
+            raise
+    finally:
+        shutil.rmtree(staging)
 
 
 def _build_collection_index(version: str, data_dir: Path) -> dict:

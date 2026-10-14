@@ -70,4 +70,4 @@ The token endpoint accepts session-authenticated users and Bearer JWT credential
 
 ## ATT&CK Navigator setup
 
-The app now embeds the hosted Navigator at `https://mitre-attack.github.io/attack-navigator/enterprise/`. If you need a local instance in the future, see Docs/ATTACK_NAVIGATOR_SETUP.md (kept for fallback) for Angular and Docker run instructions.
+The app now embeds the hosted Navigator at `https://mitre-attack.github.io/attack-navigator/`. If you need a local instance in the future, see Docs/ATTACK_NAVIGATOR_SETUP.md (kept for fallback) for Angular and Docker run instructions.

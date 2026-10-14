@@ -9,6 +9,8 @@ from django.test import SimpleTestCase
 
 from platform_data.navigator_sync import (
     sync_navigator_data,
+    list_local_attack_versions,
+    remove_local_attack_version,
     _build_collection_index,
     _build_config,
     rebuild_navigator_config_only,
@@ -265,3 +267,43 @@ class ResolveNavigatorAttackVersionTests(SimpleTestCase):
             self._seed_bundle(root, "19.1")
             # Imported 17.1 has no bundle -> use the newest version that can render.
             self.assertEqual(resolve_navigator_attack_version("17.1", data_root=root), "19.1")
+
+
+class RemoveLocalAttackVersionTests(SimpleTestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        for version in ("19.2", "20.0"):
+            sync_navigator_data(version, data_root=self.root,
+                                fetcher=lambda _: b'{"type":"bundle","objects":[]}')
+
+    def test_remove_old_version_updates_config_and_index(self):
+        remove_local_attack_version("19.2", {"20.0"}, data_root=self.root)
+        self.assertFalse((self.root / "data/v19.2").exists())
+        self.assertTrue((self.root / "data/v20.0/enterprise-attack.json").exists())
+        self.assertEqual([v["version"] for v in list_local_attack_versions(self.root)], ["20.0"])
+        config = json.loads((self.root / "config.json").read_text())
+        self.assertEqual([v["version"] for v in config["versions"]["entries"]], ["20.0"])
+        index = json.loads((self.root / "data/index.json").read_text())
+        for collection in index["collections"]:
+            self.assertEqual([v["version"] for v in collection["versions"]], ["20.0"])
+
+    def test_protected_version_and_invalid_paths_are_rejected(self):
+        for version in ("20.0", "v20.0", "../../outside", "19.1"):
+            with self.subTest(version=version), self.assertRaises(ValueError):
+                remove_local_attack_version(version, {"20.0"}, data_root=self.root)
+        self.assertTrue((self.root / "data/v20.0").exists())
+
+    def test_last_version_is_protected(self):
+        remove_local_attack_version("19.2", set(), data_root=self.root)
+        with self.assertRaises(ValueError):
+            remove_local_attack_version("20.0", set(), data_root=self.root)
+
+    def test_metadata_failure_restores_bundle_and_config(self):
+        original = (self.root / "config.json").read_bytes()
+        with patch("platform_data.navigator_sync.rebuild_navigator_config_only", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                remove_local_attack_version("19.2", {"20.0"}, data_root=self.root)
+        self.assertTrue((self.root / "data/v19.2/enterprise-attack.json").exists())
+        self.assertEqual((self.root / "config.json").read_bytes(), original)

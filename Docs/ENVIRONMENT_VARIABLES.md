@@ -110,3 +110,9 @@ This document lists environment variables used by HEFAISTOS runtime configuratio
 | `DJANGO_SETTINGS_MODULE` | `hefaistos.settings` | Django settings module override. |
 | `GUNICORN_WORKERS` | image/runtime default | Gunicorn worker count override. |
 | `LOG_LEVEL` | `INFO` | Application log level. |
+
+## ATT&CK Coverage Map
+
+Set `REACT_APP_NAVIGATOR_URL=https://mitre-attack.github.io/attack-navigator/` to use MITRE’s current hosted Navigator. `VITE_NAVIGATOR_URL` is also supported and takes precedence. Rebuild the frontend after changing either variable. Leave both unset to use the bundled local `/navigator/` instance.
+
+Superusers can remove older local ATT&CK bundles in **Framework Updates → Local ATT&CK Versions**. Versions used by a loaded framework or the local Coverage Map are protected, and removal is blocked while an ATT&CK import is pending or running. Removing a local bundle frees disk space; imported techniques, detection mappings, and import history remain available. The hosted Navigator manages its own versions.

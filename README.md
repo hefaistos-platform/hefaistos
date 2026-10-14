@@ -379,6 +379,7 @@ For the complete, up-to-date variable catalog (including advanced/optional keys)
 | `PUBLIC_BASE_URL` | Canonical external base URL for shareable links (for multi-proxy deployments) | No (default: unset; backend tries external FRONTEND_URL, then request host) |
 | `WEBAUTHN_RP_ID` | WebAuthn relying party ID (public host) | Yes for security-key MFA/passwordless |
 | `WEBAUTHN_ORIGIN` | WebAuthn origin (must be HTTPS in production) | Yes for security-key MFA/passwordless |
+| `REACT_APP_NAVIGATOR_URL` | ATT&CK Coverage Map Navigator URL (recommended: `https://mitre-attack.github.io/attack-navigator/`). | No (unset uses local `/navigator/`) |
 | `CORS_ALLOWED_ORIGINS` | Additional allowed CORS origins (comma-separated). `mitre-attack.github.io` is always included automatically. | No |
 | `CSRF_TRUSTED_ORIGINS` | Trusted CSRF origins (comma-separated, must include your public URL) | No (default: https://localhost,http://localhost) |
 | `ADMIN_ALLOWED_IP_RANGES` | IP ranges allowed to access /admin/ (comma-separated CIDR) | No (default: localhost + Docker networks) |
