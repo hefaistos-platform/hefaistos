@@ -422,7 +422,19 @@ class RulesConnection(graphene.ObjectType):
 # --- STATISTICS TYPES ---
 class TechniqueStat(graphene.ObjectType):
     technique_id = graphene.String()
+    name = graphene.String()
     count = graphene.Int()
+
+class NamedRuleStat(graphene.ObjectType):
+    name = graphene.String()
+    count = graphene.Int()
+
+class DeploymentFormatStat(graphene.ObjectType):
+    name = graphene.String()
+    deployed = graphene.Int()
+    testing = graphene.Int()
+    development = graphene.Int()
+    unlinked = graphene.Int()
 
 class TimeBucket(graphene.ObjectType):
     date = graphene.String()
@@ -457,6 +469,13 @@ class ChangeItem(graphene.ObjectType):
     updated_at = graphene.DateTime()
     change_type = graphene.String()
 class RuleStatistics(graphene.ObjectType):
+    generated_at = graphene.DateTime()
+    by_status = graphene.List(NamedRuleStat)
+    by_format = graphene.List(NamedRuleStat)
+    deployment_by_format = graphene.List(DeploymentFormatStat)
+    validation = graphene.List(NamedRuleStat)
+    linked_workbench_count = graphene.Int()
+    rules_with_techniques = graphene.Int()
     total = graphene.Int()
     created_last_24h = graphene.Int()
     created_last_7d = graphene.Int()
@@ -783,9 +802,12 @@ class Query(graphene.ObjectType):
         with_playbooks_count = qs.filter(playbook__isnull=False).count()
         standalone_count = qs.filter(playbook__isnull=True).count()
 
+        from .statistics import summarize_readiness
+        readiness = summarize_readiness(qs.select_related('playbook'))
+
         # Technique extraction via regex on raw_content/title/description
         import re
-        tech_regex = re.compile(r"T\d{4}(?:\.\d{3})?")
+        tech_regex = re.compile(r"\bT\d{4}(?:\.\d{3})?\b", re.IGNORECASE)
         tech_counts = {}
         subtech_counts = {}
         total_techniques = 0
@@ -794,7 +816,7 @@ class Query(graphene.ObjectType):
             text = (rule.title or '') + '\n' + (rule.description or '') + '\n' + (rule.raw_content or '')
             rule_top_techniques = set()
             rule_subtechniques = set()
-            for match in tech_regex.findall(text):
+            for match in (value.upper() for value in tech_regex.findall(text)):
                 if '.' in match:
                     rule_subtechniques.add(match)
                     # Derive parent technique ID (e.g. T1218 from T1218.005)
@@ -815,9 +837,14 @@ class Query(graphene.ObjectType):
         avg_techniques = round(total_techniques / total, 2) if total > 0 else 0.0
 
         # Top-N lists
+        from platform_data.models import MitreAttackTechnique
+        technique_names = dict(MitreAttackTechnique.objects.filter(
+            technique_id__in=set(tech_counts) | set(subtech_counts)
+        ).order_by('-domain').values_list('technique_id', 'name'))
+
         def top_list(counts):
             items = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:max(1, top_n)]
-            return [TechniqueStat(technique_id=k, count=v) for k, v in items]
+            return [TechniqueStat(technique_id=k, name=technique_names.get(k, k), count=v) for k, v in items]
 
         # Build created/updated series buckets (last N days)
         created_series = []
@@ -875,7 +902,8 @@ class Query(graphene.ObjectType):
         for rule in qs.only('author', 'created_at', 'updated_at'):
             name = (rule.author or '').strip() or 'Unknown'
             author_counts[name] = author_counts.get(name, 0) + 1
-            last = max(rule.updated_at or rule.created_at, rule.created_at)
+            timestamps = [value for value in (rule.updated_at, rule.created_at) if value]
+            last = max(timestamps) if timestamps else None
             prev = author_last.get(name)
             author_last[name] = last if (prev is None or (last and prev and last > prev)) else prev
         top_authors = sorted(author_counts.items(), key=lambda kv: kv[1], reverse=True)[:10]
@@ -901,6 +929,9 @@ class Query(graphene.ObjectType):
             changes.append(ChangeItem(id=str(r.id), title=r.title, status=r.status or '', created_at=r.created_at, updated_at=r.updated_at, change_type=change_type))
 
         return RuleStatistics(
+            generated_at=now,
+            rules_with_techniques=rules_with_techniques,
+            **readiness,
             total=total,
             created_last_24h=created_24h,
             created_last_7d=created_7d,
