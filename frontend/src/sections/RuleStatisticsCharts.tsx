@@ -92,10 +92,12 @@ export function Doughnut({ data, unit = 'rules', onSelect }: {
   </div>;
 }
 
-export function HorizontalBars({ data, onSelect }: { data: ChartDatum[]; onSelect?: (datum: ChartDatum) => void }) {
+export function HorizontalBars({ data, onSelect, unit = 'Rules', minHeight = 230 }: {
+  data: ChartDatum[]; onSelect?: (datum: ChartDatum) => void; unit?: string; minHeight?: number;
+}) {
   const c = useChartColors();
   if (!data.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No data available" />;
-  const height = Math.max(230, data.length * 36 + 40);
+  const height = Math.max(minHeight, data.length * 36 + 40);
   return <div role="img" aria-label={data.map(d => `${d.name}: ${d.count}`).join(', ')}>
     <StableChart height={height}>{width => <BarChart width={width} height={height} data={data} layout="vertical"
       margin={{ top: 5, right: 40, bottom: 5, left: 0 }} accessibilityLayer>
@@ -104,7 +106,7 @@ export function HorizontalBars({ data, onSelect }: { data: ChartDatum[]; onSelec
       <YAxis {...yAxisDefaults} type="category" dataKey="name" width={Math.min(160, width * .4)} tick={{ fill: c.text, fontSize: 12 }}
         tickFormatter={value => String(value).length > 22 ? `${String(value).slice(0, 21)}…` : String(value)} stroke={c.grid} />
       <Tooltip content={<ChartTooltip />} cursor={{ fill: c.grid, fillOpacity: .2 }} />
-      <Bar xAxisId={0} yAxisId={0} dataKey="count" name="Rules" radius={[0, 4, 4, 0]} isAnimationActive={false}
+      <Bar xAxisId={0} yAxisId={0} dataKey="count" name={unit} radius={[0, 4, 4, 0]} isAnimationActive={false}
         onClick={(_, index) => onSelect?.(data[index])}>
         {data.map(d => <Cell key={d.name} fill={d.color || c.blue} cursor={onSelect ? 'pointer' : undefined} />)}
         <LabelList dataKey="count" position="right" fill={c.text} />
