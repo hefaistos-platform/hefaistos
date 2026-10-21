@@ -43,12 +43,12 @@ type SubmitForReviewData = { submitForReview: { success: boolean; reviewRequest?
 type FinalizeReviewData = { finalizeReview: { success: boolean } };
 type AdminApproveDeploymentData = { adminApproveDeployment: { playbookGraph: { id: string; status: string } } };
 
-export const ReviewWorkflow: React.FC<any> = ({ playbookId, status, activeReview, userRole, isAuthor = false, refetch }) => {
+export const ReviewWorkflow: React.FC<any> = ({ playbookId, status, activeReview, reviewHistory = [], userRole, isAuthor = false, refetch }) => {
     const [submitReview, { loading: creatingReview }] = useMutation<SubmitForReviewData>(SUBMIT_MUTATION);
     const [finalizeReview, { loading: finalizingReview }] = useMutation<FinalizeReviewData>(FINALIZE_MUTATION);
     const [adminDeploy, { loading: deploying }] = useMutation<AdminApproveDeploymentData>(ADMIN_DEPLOY_MUTATION);
     const navigate = useNavigate();
-  
+
   const [comment, setComment] = useState("");
 
     const handleSubmit = async () => {
@@ -125,6 +125,8 @@ export const ReviewWorkflow: React.FC<any> = ({ playbookId, status, activeReview
             await refetch();
     };
 
+        const reviews = reviewHistory.length > 0 ? reviewHistory : activeReview ? [activeReview] : [];
+
         const roleCode = (userRole || '').toString().toUpperCase();
         const isReviewer = roleCode === 'ADMIN' || roleCode === 'REVIEWER';
         const isOpenReview = !!activeReview && (activeReview.status || '').toString().toUpperCase() === 'OPEN' && (status || '').toString().toUpperCase() === 'REVIEW';
@@ -136,13 +138,48 @@ export const ReviewWorkflow: React.FC<any> = ({ playbookId, status, activeReview
          Part 6: Review Workflow
       </h2>
 
+      {reviews.length > 0 && (
+          <section aria-label="Review history" className="mb-4">
+              <h3 className="font-bold text-gray-800 mb-3">Review History</h3>
+              <div className="space-y-4">
+                  {reviews.map((review: any, index: number) => (
+                      <div key={review.id} className="bg-gray-50 p-4 rounded border">
+                          <div className="flex flex-wrap justify-between gap-2 mb-3">
+                              <h4 className="font-bold text-gray-700">Review {index + 1}</h4>
+                              <span className="text-sm font-semibold">
+                                  {({ OPEN: 'Pending', APPROVED: 'Approved', CHANGES_REQUESTED: 'Changes requested (Rejected)', CLOSED: 'Closed' } as Record<string, string>)[review.status] || review.status}
+                              </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mb-3">
+                              Requested on {new Date(review.createdAt).toLocaleString()}
+                          </p>
+                          <div className="space-y-3 bg-white p-3 rounded border">
+                              {(review.comments || []).length === 0 && (
+                                  <p className="text-sm text-gray-400 italic">No comments yet.</p>
+                              )}
+                              {(review.comments || []).map((c: ReviewComment) => (
+                                  <div key={c.id} className="text-sm">
+                                      <div className="flex flex-wrap gap-x-2 items-baseline">
+                                          <span className="font-bold text-gray-700">{c.user?.username || 'Unknown user'}</span>
+                                          <time dateTime={c.createdAt} className="text-xs text-gray-500">{new Date(c.createdAt).toLocaleString()}</time>
+                                      </div>
+                                      <p className="whitespace-pre-wrap break-words text-gray-700">{c.text}</p>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </section>
+      )}
+
       {/* CASE A: Draft/No Open Review → Submit */}
       {!isOpenReview && status !== 'DEPLOYED' && (
           <div className="bg-gray-50 p-4 rounded border text-center">
               <p className="text-sm text-gray-600 mb-3">Playbook is currently in <strong>{status}</strong>.</p>
-              <textarea 
-                  className="w-full p-2 border rounded text-sm mb-2" 
-                  placeholder="Notes for the reviewer..." 
+              <textarea
+                  className="w-full p-2 border rounded text-sm mb-2"
+                  placeholder="Notes for the reviewer..."
                   value={comment} onChange={e => setComment(e.target.value)}
               />
               <Button type="button" variant="primary" onClick={handleSubmit} disabled={!isAuthor || creatingReview}>
@@ -165,24 +202,12 @@ export const ReviewWorkflow: React.FC<any> = ({ playbookId, status, activeReview
                   <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded font-bold">PENDING</span>
               </div>
 
-              {/* Thread History */}
-              <div className="space-y-3 mb-4 max-h-40 overflow-y-auto bg-white p-3 rounded border">
-                  {(activeReview.comments || []).length === 0 && (
-                      <p className="text-sm text-gray-400 italic">No comments yet.</p>
-                  )}
-                  {(activeReview.comments || []).map((c: any) => (
-                      <div key={c.id} className="text-sm">
-                          <span className="font-bold text-gray-700">{c.user?.username || 'Unknown'}:</span> {c.text}
-                      </div>
-                  ))}
-              </div>
-
               {/* Reviewer Actions */}
                             {isReviewer ? (
                   <div>
-                      <textarea 
-                          className="w-full p-2 border rounded text-sm mb-2" 
-                          placeholder="Formal feedback (Required for decision)..." 
+                      <textarea
+                          className="w-full p-2 border rounded text-sm mb-2"
+                          placeholder="Formal feedback (Required for decision)..."
                           value={comment} onChange={e => setComment(e.target.value)}
                       />
                       <div className="flex gap-2 justify-end">

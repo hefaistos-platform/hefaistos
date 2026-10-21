@@ -853,6 +853,7 @@ class PlaybookGraphType(DjangoObjectType):
     activities = graphene.List(ActivityLogType)
     comments = graphene.List(PlaybookCommentType)
     active_review = graphene.Field(ReviewRequestType)
+    review_history = graphene.List(ReviewRequestType)
 
     # --- NEW STRATEGY FIELDS ---
     mitre_technique = graphene.Field(MitreAttackTechniqueType)
@@ -946,6 +947,13 @@ class PlaybookGraphType(DjangoObjectType):
 
     def resolve_comments(self, info):
         return self.comments.all()
+
+    def resolve_review_history(self, info):
+        # Keep every review round available after decisions and resubmissions.
+        return CanonReviewRequest.objects.filter(
+            playbook__graphs=self,
+            organization_id=self.organization_id,
+        ).select_related('author').prefetch_related('comments__author').order_by('created_at', 'id')
 
     def resolve_active_review(self, info):
         # Resolve the latest OPEN canonical review request for any attached playbook

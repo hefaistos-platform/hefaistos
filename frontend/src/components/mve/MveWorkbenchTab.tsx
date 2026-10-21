@@ -479,6 +479,17 @@ const GET_TARGET_WORKBENCH_REVIEW_QUERY = gql`
           user { username }
         }
       }
+      reviewHistory {
+        id
+        status
+        createdAt
+        comments {
+          id
+          text
+          createdAt
+          user { username }
+        }
+      }
       author { id username role }
       opentideYaml
       configuredPlatforms
@@ -641,6 +652,7 @@ type TargetWorkbenchReviewData = {
       createdAt: string;
       comments: Array<{ id: string; text: string; createdAt: string; user?: { username?: string } }>;
     } | null;
+    reviewHistory?: NonNullable<NonNullable<TargetWorkbenchReviewData['playbookGraph']>['activeReview']>[];
     author?: { id: string; username: string; role?: string } | null;
     opentideYaml?: string | null;
     configuredPlatforms?: string[];
@@ -2034,6 +2046,7 @@ const MveWorkbenchTab: React.FC = () => {
                     playbookId={targetWorkbenchId}
                     status={(targetWorkbenchReviewData?.playbookGraph?.status || 'RESEARCH') as any}
                     activeReview={targetWorkbenchReviewData?.playbookGraph?.activeReview || null}
+                    reviewHistory={targetWorkbenchReviewData?.playbookGraph?.reviewHistory || []}
                     userRole={targetWorkbenchReviewData?.me?.role}
                     isAuthor={targetWorkbenchReviewData?.playbookGraph?.author?.id === targetWorkbenchReviewData?.me?.id}
                     refetch={async () => {

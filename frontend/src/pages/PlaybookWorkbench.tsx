@@ -184,6 +184,17 @@ const GET_PLAYBOOK_GRAPH_QUERY = gql`
             user { id username }
         }
       }
+      reviewHistory {
+        id
+        status
+        createdAt
+        comments {
+          id
+          text
+          createdAt
+            user { id username }
+        }
+      }
 
       nodes {
         id
@@ -758,6 +769,8 @@ interface PlaybookGraphData {
         user: { id: string; username: string };
       }>;
     } | null;
+
+    reviewHistory: NonNullable<PlaybookGraphData['playbookGraph']['activeReview']>[];
 
     nodes: Array<{
       id: string;
@@ -2895,6 +2908,7 @@ export const PlaybookWorkbench = () => {
                         playbookId={data.playbookGraph.id}
                         status={data.playbookGraph.status}
                         activeReview={data.playbookGraph.activeReview}
+                        reviewHistory={data.playbookGraph.reviewHistory}
                         userRole={data.me?.role || 'VIEWER'}
                         isAuthor={isAuthor}
                         refetch={refetch}
