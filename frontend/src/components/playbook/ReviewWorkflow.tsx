@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { message, notification, Button as AntButton } from 'antd';
 import { gql } from '@apollo/client';
 import { useMutation } from '@apollo/client/react';
@@ -50,6 +50,8 @@ export const ReviewWorkflow: React.FC<any> = ({ playbookId, status, activeReview
     const navigate = useNavigate();
 
   const [comment, setComment] = useState("");
+  const [isOpen, setIsOpen] = useState(true);
+  const contentId = useId();
 
     const handleSubmit = async () => {
             console.log('[ReviewWorkflow] handleSubmit called with playbookId:', playbookId, 'note:', comment);
@@ -133,10 +135,23 @@ export const ReviewWorkflow: React.FC<any> = ({ playbookId, status, activeReview
 
   return (
     <div className="p-6 bg-white border-2 border-hefaistos-border rounded-lg shadow-sm mt-6">
-       <h2 className="text-xl font-bold mb-4 text-hefaistos-primary flex items-center">
-         <PixelIcon name="check-circle" className="w-6 h-6 mr-2" />
-         Part 6: Review Workflow
+      <h2>
+          <button
+              type="button"
+              onClick={() => setIsOpen(open => !open)}
+              className="w-full text-xl font-bold text-hefaistos-primary flex items-center justify-between cursor-pointer"
+              aria-expanded={isOpen}
+              aria-controls={contentId}
+          >
+              <span className="flex items-center">
+                  <PixelIcon name="check-circle" className="w-6 h-6 mr-2" />
+                  Part 6: Review Workflow
+              </span>
+              <span aria-hidden="true" className="text-gray-400 text-sm">{isOpen ? '▲' : '▼'}</span>
+          </button>
       </h2>
+
+      <div id={contentId} hidden={!isOpen} className="mt-4">
 
       {reviews.length > 0 && (
           <section aria-label="Review history" className="mb-4">
@@ -238,6 +253,7 @@ export const ReviewWorkflow: React.FC<any> = ({ playbookId, status, activeReview
                     </Button>
                 </div>
             )}
+      </div>
     </div>
   );
 };
