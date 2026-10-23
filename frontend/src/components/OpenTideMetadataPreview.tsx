@@ -8,6 +8,7 @@ import { useTheme } from '../context/ThemeContext';
 
 interface Props {
   openTideRule: OpenTideRule;
+  standalone?: boolean;
   /** Called when the user clicks "View Full Preview" */
   onOpenFullPreview?: () => void;
 }
@@ -18,10 +19,11 @@ interface Props {
  *
  * Users can copy the YAML or open the full AI-enriched OpenTidePreviewModal.
  */
-const OpenTideMetadataPreview: React.FC<Props> = ({ openTideRule, onOpenFullPreview }) => {
+const OpenTideMetadataPreview: React.FC<Props> = ({ openTideRule, onOpenFullPreview, standalone }) => {
   const { resolvedTheme } = useTheme();
   const yamlText = useMemo(() => {
     try {
+      if (standalone) return yaml.dump(openTideRule, { lineWidth: 120, noRefs: true });
       // Build the MDR-style structure: metadata + configurations derived from platforms
       const configurations = Object.entries(openTideRule.platforms || {})
         .filter(([, v]) => v != null && typeof v === 'object')
@@ -42,7 +44,7 @@ const OpenTideMetadataPreview: React.FC<Props> = ({ openTideRule, onOpenFullPrev
       console.warn('[OpenTideMetadataPreview] Failed to serialize OpenTide rule to YAML:', err);
       return '# Error serializing OpenTide rule to YAML';
     }
-  }, [openTideRule]);
+  }, [openTideRule, standalone]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(yamlText).then(

@@ -62,3 +62,7 @@ as `| st` → `stats`; accepting it preserves the existing pipe.
 2. Confirm language tab maps to one of the supported formats above.
 3. Check browser console for `Validation` GraphQL/network errors.
 4. If backend validation endpoint is unreachable, syntax markers will not be shown until connectivity is restored.
+
+## Standalone authoring in Rule Hub
+
+The full editor is also available through Rule Hub → New Rule and rule detail → Open full editor. Language tooling is shared with Workbench. Standalone drafts, editable metadata, Git publishing, and additional Workbench links are documented in [Rule Hub authoring](RULE_HUB_AUTHORING.md). Workbench-owned rules continue to use the existing Workbench editor.

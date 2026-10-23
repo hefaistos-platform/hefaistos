@@ -4,6 +4,11 @@ export interface OpenTideMetadata {
   author: string;
   created: string;
   modified: string;
+  uuid?: string;
+  tags?: string[];
+  status?: string;
+  severity?: string;
+  mitre_technique?: string;
   mitre: {
     technique_id?: string;
     technique_name?: string;

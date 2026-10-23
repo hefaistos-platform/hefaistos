@@ -7,8 +7,8 @@ import { useQuery, useMutation, gql } from '@apollo/client';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { solarizedlight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Button, Space, message, Modal, Input } from 'antd';
-import { DeleteOutlined, EditOutlined, SaveOutlined, DeploymentUnitOutlined } from '@ant-design/icons';
+import { Button, Space, message, Modal } from 'antd';
+import { DeleteOutlined, EditOutlined, DeploymentUnitOutlined } from '@ant-design/icons';
 import { RuleConversionModal } from '../components/RuleConversionModal';
 import { RuleDeploymentModal } from '../components/RuleDeploymentModal';
 import { useTheme } from '../context/ThemeContext';
@@ -18,6 +18,10 @@ const GET_RULE_QUERY = gql`
   query GetRule($id: ID!) {
     rule(id: $id) {
       id
+      canEdit
+      workbenchOwned
+      workbenchId
+      workbenchTitle
       title
       description
       status
@@ -40,27 +44,6 @@ const DELETE_RULE_MUTATION = gql`
   }
 `;
 
-const UPDATE_RULE_MUTATION = gql`
-  mutation UpdateDetectionRule($ruleId: ID!, $rawContent: String!) {
-    updateDetectionRule(ruleId: $ruleId, rawContent: $rawContent) {
-      success
-      message
-      rule {
-        id
-        title
-        description
-        status
-        author
-        rawContent
-        format
-      customFormatLabel
-      editorLanguage
-      customFileExtension
-      }
-    }
-  }
-`;
-
 const CURRENT_USER_QUERY = gql`
   query CurrentUser {
     me {
@@ -74,6 +57,10 @@ const CURRENT_USER_QUERY = gql`
 // Define the TypeScript types
 interface RuleDetail {
   id: string;
+  canEdit?: boolean;
+  workbenchOwned?: boolean;
+  workbenchId?: string;
+  workbenchTitle?: string;
   title: string;
   description: string | null;
   status: string | null;
@@ -117,10 +104,8 @@ export const RuleDetailPage = () => {
   };
   const { ruleId } = useParams<{ ruleId: string }>();
   const navigate = useNavigate();
-  const [editModalVisible, setEditModalVisible] = useState(false);
   const [conversionModalVisible, setConversionModalVisible] = useState(false);
   const [deploymentModalVisible, setDeploymentModalVisible] = useState(false);
-  const [editedContent, setEditedContent] = useState('');
   const [deleting, setDeleting] = useState(false);
 
   const { data, loading, error } = useQuery<GetRuleData, GetRuleVars>(
@@ -132,7 +117,6 @@ export const RuleDetailPage = () => {
 
   const { data: currentUserData } = useQuery<{ me: CurrentUser }>(CURRENT_USER_QUERY);
   const [deleteRule] = useMutation(DELETE_RULE_MUTATION);
-  const [updateRule, { loading: saving }] = useMutation(UPDATE_RULE_MUTATION);
 
   if (loading) return <p>Loading rule details...</p>;
   if (error) return <p style={{ color: 'var(--hef-danger-text)' }}>Error fetching rule: {error.message}</p>;
@@ -175,27 +159,7 @@ export const RuleDetailPage = () => {
     }
   };
 
-  const handleEdit = () => {
-    setEditedContent(rule.rawContent);
-    setEditModalVisible(true);
-  };
-
-  const handleEditSave = async () => {
-    try {
-      const { data: result } = await updateRule({
-        variables: { ruleId: rule.id, rawContent: editedContent },
-        refetchQueries: [{ query: GET_RULE_QUERY, variables: { id: ruleId! } }],
-      });
-      if (result?.updateDetectionRule?.success) {
-        message.success(result.updateDetectionRule.message || 'Rule saved successfully');
-        setEditModalVisible(false);
-      } else {
-        message.error(result?.updateDetectionRule?.message || 'Failed to save rule');
-      }
-    } catch (err: any) {
-      message.error(err.message || 'Error saving rule');
-    }
-  };
+  const handleEdit = () => { navigate(`/rules/${rule.id}/edit`); };
 
   const canDeleteRule = () => {
     const currentUser = currentUserData?.me;
@@ -233,6 +197,10 @@ export const RuleDetailPage = () => {
   return (
     <div style={{ padding: 24, color: 'var(--hef-text-primary)' }}>
       <h2>{rule.title}</h2>
+      <Space style={{ marginBottom: 16 }}>
+        <Button type="primary" onClick={() => navigate(`/rules/${rule.id}/edit`)}>Open full editor</Button>
+        {rule.workbenchId && <Button onClick={() => navigate(`/playbooks/${rule.workbenchId}`)}>Workbench: {rule.workbenchTitle}</Button>}
+      </Space>
       <p><strong>Format:</strong> {rule.format === 'FREE' ? `FREE Format${rule.customFormatLabel ? ` (${rule.customFormatLabel})` : ''}` : rule.format}</p>
       <p><strong>Status:</strong> {rule.status || 'N/A'}</p>
       <p><strong>Author:</strong> {rule.author || 'N/A'}</p>
@@ -289,22 +257,7 @@ export const RuleDetailPage = () => {
       </SyntaxHighlighter>
 
       {/* Edit Modal */}
-      <Modal
-        title="Edit Rule"
-        open={editModalVisible}
-        onCancel={() => setEditModalVisible(false)}
-        onOk={handleEditSave}
-        okText="Save"
-        okButtonProps={{ icon: <SaveOutlined />, loading: saving }}
-        width={800}
-      >
-        <Input.TextArea
-          value={editedContent}
-          onChange={(e) => setEditedContent(e.target.value)}
-          rows={15}
-          style={{ fontFamily: 'monospace', fontSize: 12 }}
-        />
-      </Modal>
+
 
       {/* Conversion Modal */}
       <RuleConversionModal

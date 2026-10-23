@@ -30,6 +30,7 @@ HEFAISTOS is a comprehensive **Detection Engineering Platform** designed for sec
 - 🤖 **AI-Powered Rule Generation** - Multi-provider AI support (OpenAI, Gemini, Claude)
 - 📊 **MITRE ATT&CK Integration** - Full coverage mapping and technique tracking
 - 🕵️ **Threat Intelligence** - MISP integration for automated workbench creation
+- ✍️ **Standalone Rule Authoring** - Full Rule Hub editor, independent drafts, OpenTIDE Git publishing, and optional Workbench links ([guide](Docs/RULE_HUB_AUTHORING.md))
 - 🔄 **Git Repository Sync** - Bidirectional KQL/SPL/WAZUH rule synchronization
 - 📋 **ACH Analysis** - Structured Analysis of Competing Hypotheses
 - 👥 **Collaborative Workflow** - Peer review and approval process
@@ -138,6 +139,9 @@ Bidirectional synchronization with Git repositories:
 - RAG template sync into Qdrant (`JSONL`/`KQL`/`EQL`/`SPL`)
 
 **Outbound (HEFAISTOS → Git):**
+
+- Publish independent rules from Rule Hub as a single OpenTIDE YAML document to configured GitHub/GitLab/Gitea repositories
+- Preview destination changes before publishing; preserve drafts on Git errors
 
 - Push workbenches as detection rules (KQL/SPL/WAZUH)
 - GitHub Pull Request integration

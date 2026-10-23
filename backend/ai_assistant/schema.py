@@ -1600,7 +1600,10 @@ class RecommendReusableRuleFromRag(graphene.Mutation):
     """Assess whether an existing retrieved template should be reused/adapted for this workbench."""
 
     class Arguments:
-        playbook_id = graphene.UUID(required=True)
+        playbook_id = graphene.UUID(required=False)
+        description = graphene.String()
+        telemetry_context = graphene.String()
+        rule_content = graphene.String()
         output_format = graphene.String(required=False)
 
     success = graphene.Boolean()
@@ -1613,7 +1616,7 @@ class RecommendReusableRuleFromRag(graphene.Mutation):
     adapted_rule = graphene.String()
     reference_count = graphene.Int()
 
-    def mutate(self, info, playbook_id, output_format=None):
+    def mutate(self, info, playbook_id=None, output_format=None, description=None, telemetry_context=None, rule_content=None):
         user = info.context.user
         if user.is_anonymous:
             raise GraphQLError("Authentication required")
@@ -1648,31 +1651,43 @@ class RecommendReusableRuleFromRag(graphene.Mutation):
                 reference_count=0,
             )
 
-        try:
-            graph = PlaybookGraph.objects.prefetch_related('selected_capability_abstractions').get(
-                pk=playbook_id,
-                organization=user.organization,
-            )
-        except PlaybookGraph.DoesNotExist:
-            return RecommendReusableRuleFromRag(
-                success=False,
-                message="Playbook not found.",
-                provider_used="NONE",
-                workbench_summary='',
-                decision='CREATE_NEW',
-                rationale='Playbook does not exist or is not accessible.',
-                candidate_source='NONE',
-                adapted_rule='',
-                reference_count=0,
-            )
+        if playbook_id:
+            try:
+                graph = PlaybookGraph.objects.prefetch_related('selected_capability_abstractions').get(
+                    pk=playbook_id,
+                    organization=user.organization,
+                )
+            except PlaybookGraph.DoesNotExist:
+                return RecommendReusableRuleFromRag(
+                    success=False,
+                    message="Playbook not found.",
+                    provider_used="NONE",
+                    workbench_summary='',
+                    decision='CREATE_NEW',
+                    rationale='Playbook does not exist or is not accessible.',
+                    candidate_source='NONE',
+                    adapted_rule='',
+                    reference_count=0,
+                )
 
-        base_context = _build_playbook_generation_context(graph)
-        base_context['existing_logic'] = _supported_workbench_logic(graph)
+            base_context = _build_playbook_generation_context(graph)
+            base_context['existing_logic'] = _supported_workbench_logic(graph)
+
+            existing_logic = _supported_workbench_logic(graph)
+        else:
+            if user.role not in ('ADMIN', 'ANALYST') and not (user.is_staff or user.is_superuser):
+                raise GraphQLError('Only analysts and administrators can assess standalone rules.')
+            if not description or not description.strip():
+                raise GraphQLError('Enter a detection description before checking template reuse.')
+            existing_logic = rule_content or ''
+            base_context = {'title': description[:200], 'goal': description,
+                            'technical_context': telemetry_context or '', 'data_sources': telemetry_context or '',
+                            'existing_logic': existing_logic}
 
         rag_context, reference_context = _enrich_with_rag_reference_context(
             user,
             base_context,
-            rule_content=_supported_workbench_logic(graph),
+            rule_content=existing_logic,
             language=rag_language,
             limit=8,
         )
@@ -2225,14 +2240,16 @@ class StartGenerateRuleTask(graphene.Mutation):
     """Start an async AI rule-generation task and return a task ID to poll."""
 
     class Arguments:
-        playbook_id = graphene.UUID(required=True)
+        playbook_id = graphene.UUID(required=False)
+        description = graphene.String(required=False)
+        telemetry_context = graphene.String(required=False)
         output_format = graphene.String(required=False)
 
     task_id = graphene.UUID(description="Task ID – poll with aiGenerationTaskStatus")
     success = graphene.Boolean()
     message = graphene.String()
 
-    def mutate(self, info, playbook_id, output_format=None):
+    def mutate(self, info, playbook_id=None, output_format=None, description=None, telemetry_context=None):
         user = info.context.user
         if user.is_anonymous:
             raise GraphQLError("Authentication required")
@@ -2240,13 +2257,22 @@ class StartGenerateRuleTask(graphene.Mutation):
         if any(str(fmt or '').strip().upper() == 'FREE' for fmt in [output_format]):
             raise GraphQLError('FREE Format is manual-only and cannot be used with AI.')
 
-        try:
-            playbook = PlaybookGraph.objects.prefetch_related('selected_capability_abstractions').get(
-                pk=playbook_id,
-                organization=user.organization,
-            )
-        except PlaybookGraph.DoesNotExist:
-            return StartGenerateRuleTask(task_id=None, success=False, message="Playbook not found.")
+        if playbook_id:
+            try:
+                playbook = PlaybookGraph.objects.prefetch_related('selected_capability_abstractions').get(
+                    pk=playbook_id, organization=user.organization,
+                )
+            except PlaybookGraph.DoesNotExist:
+                return StartGenerateRuleTask(task_id=None, success=False, message="Playbook not found.")
+            context = _build_playbook_generation_context(playbook)
+        else:
+            if user.role not in ('ADMIN', 'ANALYST') and not (user.is_staff or user.is_superuser):
+                raise GraphQLError('Only analysts and administrators can generate standalone rules.')
+            if not description or not description.strip():
+                return StartGenerateRuleTask(success=False, message='Enter a detection description before generating a rule.')
+            context = {'title': description[:200], 'goal': description,
+                       'technical_context': telemetry_context or '', 'data_sources': telemetry_context or '',
+                       'selected_capability_abstractions': []}
 
         try:
             user_settings = UserAISettings.objects.get(user=user)
@@ -2257,9 +2283,9 @@ class StartGenerateRuleTask(graphene.Mutation):
             )
 
         input_data = {
-            'playbook_id': str(playbook_id),
+            'playbook_id': str(playbook_id) if playbook_id else None,
             'output_format': output_format or 'KQL',
-            'playbook_context': _build_playbook_generation_context(playbook),
+            'playbook_context': context,
         }
 
         task = _create_ai_task(user, AIGenerationTask.TaskType.GENERATE_RULE, input_data)

@@ -261,6 +261,13 @@ class DetectionRule(models.Model):
         related_name='linked_rules'
     )
 
+    # Rule Hub authoring state is separate from legacy/native library content.
+    authoring_document = models.JSONField(null=True, blank=True)
+    attached_workbench = models.ForeignKey(
+        'playbooks.PlaybookGraph', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='attached_rules',
+    )
+
     def __str__(self):
         return self.title
 

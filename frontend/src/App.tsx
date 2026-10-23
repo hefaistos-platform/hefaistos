@@ -1,3 +1,5 @@
+import RuleEditorPage from './pages/RuleEditorPage';
+import { useParams as useRuleEditorParams } from 'react-router-dom';
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -85,6 +87,8 @@ const AppRoutes = () => {
                 <Route path="/waiting-room" element={<WaitingRoomPage />} />
                 <Route path="/playbooks/detail/:playbookId" element={<PlaybookDetailPage />} />
                 <Route path="/rules" element={<RuleHubPage />} />
+                <Route path="/rules/new" element={<RuleEditorPage key="new-rule" />} />
+                <Route path="/rules/:ruleId/edit" element={<RuleEditorRoute />} />
                 <Route path="/rules/:ruleId" element={<RuleDetailPage />} />
                 <Route path="/playbooks/:playbookId" element={<PlaybookWorkbenchPage />} />
                 <Route path="/capability-library" element={<CapabilityLibraryPage />} />
@@ -129,6 +133,8 @@ const AppRoutes = () => {
     </Routes>
   );
 };
+
+function RuleEditorRoute() { const { ruleId } = useRuleEditorParams(); return <RuleEditorPage key={ruleId} />; }
 
 function App() {
   return (

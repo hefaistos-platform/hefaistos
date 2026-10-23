@@ -63,7 +63,7 @@ class FreeFormatTests(SimpleTestCase):
             self.assertEqual(save.call_args.kwargs['custom_file_extension'], 'yml')
 
     def test_hub_edit_keeps_free_identity_and_metadata(self):
-        rule = MagicMock(format='FREE', author='tester', title='Original')
+        rule = MagicMock(format='FREE', author='tester', title='Original', authoring_document=None)
         with patch('rules.schema.DetectionRule.objects.get', return_value=rule), \
              patch('rules.schema.detect_rule_format') as detect, \
              patch('rules.schema.invalidate_mgmt_cave_stats_cache'):

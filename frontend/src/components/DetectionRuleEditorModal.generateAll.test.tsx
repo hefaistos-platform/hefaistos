@@ -228,3 +228,34 @@ describe('FREE Format manual editing', () => {
    const initial = { ...BASE_RULE, freeRule };
    expect(formatHasChanges({ ...initial, freeRule: { ...freeRule, extension: 'yara' } }, 'FREE', savedFormatSnapshot(initial, 'FREE'))).toBe(true);
  });
+
+describe('Standalone Rule Hub editor', () => {
+  beforeEach(() => {
+    (useMutation as jest.Mock).mockImplementation(() => [jest.fn(), { loading: false }]);
+    (useQuery as jest.Mock).mockReturnValue({ data: { me: { id: '1', username: 'tester', role: 'ADMIN' } } });
+    (useLazyQuery as jest.Mock).mockReturnValue([jest.fn()]);
+  });
+
+  test('saves edited metadata through standalone callback without Workbench mutations', async () => {
+    const onSave = jest.fn().mockResolvedValue(undefined);
+    render(<DetectionRuleEditorModal visible standalone onClose={jest.fn()} initialRule="" initialFormat="KQL" initialMode="manual" initialOpenTideRule={BASE_RULE} onSave={onSave} />);
+    expect(screen.queryByRole('checkbox', { name: /commit to repository/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /metadata/i }));
+    fireEvent.change(screen.getByLabelText('Rule title'), { target: { value: 'Standalone alternative' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][4].metadata.title).toBe('Standalone alternative');
+    expect(onSave.mock.calls[0][4].platforms.kql.query).toBe(BASE_RULE.platforms.kql?.query);
+    for (const result of (useMutation as jest.Mock).mock.results) expect(result.value[0]).not.toHaveBeenCalled();
+  });
+
+  test('publish receives latest metadata and all platforms', async () => {
+    const onPublish = jest.fn().mockResolvedValue(undefined);
+    render(<DetectionRuleEditorModal visible standalone onClose={jest.fn()} initialRule="" initialFormat="KQL" initialMode="manual" initialOpenTideRule={BASE_RULE} onSave={jest.fn()} onPublish={onPublish} />);
+    fireEvent.click(screen.getByRole('button', { name: /metadata/i }));
+    fireEvent.change(screen.getByLabelText('Detection description'), { target: { value: 'Updated detection objective' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Publish to Git' }));
+    expect(onPublish.mock.calls[0][0].metadata.description).toBe('Updated detection objective');
+    expect(onPublish.mock.calls[0][0].platforms.spl.query).toBe('index=main');
+  });
+});

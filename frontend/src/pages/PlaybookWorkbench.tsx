@@ -1,3 +1,4 @@
+import WorkbenchLinkedRules from '../components/WorkbenchLinkedRules';
 import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { gql } from '@apollo/client';
@@ -2867,6 +2868,8 @@ export const PlaybookWorkbench = () => {
                        )}
 
                     {/* Part 4: SOAR Configuration */}
+                    <WorkbenchLinkedRules workbenchId={playbookId || ''} canManage={isAuthor || data.me?.role === 'ADMIN' || data.me?.role === 'SUPERADMIN'} />
+
                     {resolvedWorkbenchSections.sections.part4.visible && (
                       <SoarConfiguration 
                         data={{

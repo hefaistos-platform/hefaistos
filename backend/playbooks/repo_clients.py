@@ -194,7 +194,7 @@ class RepoClient:
             resp = self._get(url, headers=headers, timeout=30)
             if resp.status_code != 200:
                 raise ValueError(f'Cannot resolve HEAD of branch {branch}: {resp.text}')
-            sha = resp.json().get('commit', {}).get('id')
+            sha = resp.json().get('commit', {}).get('id') or resp.json().get('commit', {}).get('sha')
 
         if not sha:
             raise ValueError(f'Cannot resolve commit SHA for branch {branch}')
@@ -272,16 +272,18 @@ class RepoClient:
         content = resp.json().get('content', '')
         return base64.b64decode(content).decode('utf-8')
 
-    def commit_files(self, branch: str, files: dict[str, str], commit_message: str) -> str:
+    def commit_files(self, branch: str, files: dict[str, str], commit_message: str, expected_head: str | None = None) -> str:
+        if expected_head and self.resolve_commit_sha(branch) != expected_head:
+            raise ValueError("Branch changed after preview. Preview again before publishing.")
         if self.provider == RepoProvider.GITHUB:
-            return self._commit_files_github(branch, files, commit_message)
+            return self._commit_files_github(branch, files, commit_message, expected_head)
         if self.provider == RepoProvider.GITLAB:
-            return self._commit_files_gitlab(branch, files, commit_message)
+            return self._commit_files_gitlab(branch, files, commit_message, expected_head)
         if self.provider == RepoProvider.GITEA:
-            return self._commit_files_gitea(branch, files, commit_message)
+            return self._commit_files_gitea(branch, files, commit_message, expected_head)
         raise ValueError(f'Unsupported provider: {self.provider}')
 
-    def _commit_files_github(self, branch: str, files: dict[str, str], commit_message: str) -> str:
+    def _commit_files_github(self, branch: str, files: dict[str, str], commit_message: str, expected_head: str | None = None) -> str:
         headers = self._headers()
         read_ref_url = f'{self.api_base_url}/repos/{self.full_name}/git/ref/heads/{branch}'
         update_ref_url = f'{self.api_base_url}/repos/{self.full_name}/git/refs/heads/{branch}'
@@ -292,6 +294,9 @@ class RepoClient:
         base_commit_sha = ref_resp.json().get('object', {}).get('sha')
         if not base_commit_sha:
             raise ValueError(f'Unable to resolve HEAD SHA for branch {branch}')
+
+        if expected_head and base_commit_sha != expected_head:
+            raise ValueError('Branch changed after preview. Preview again before publishing.')
 
         commit_url = f'{self.api_base_url}/repos/{self.full_name}/git/commits/{base_commit_sha}'
         commit_resp = self._get(commit_url, headers=headers, timeout=30)
@@ -348,16 +353,28 @@ class RepoClient:
             raise ValueError(f'Unable to update branch ref: {update_ref_resp.text}')
         return new_commit_sha
 
-    def _commit_files_gitlab(self, branch: str, files: dict[str, str], commit_message: str) -> str:
+    def _commit_files_gitlab(self, branch: str, files: dict[str, str], commit_message: str, expected_head: str | None = None) -> str:
         headers = self._headers()
         actions = []
         for path, content in files.items():
             exists = self.get_file_content(path, branch) is not None
+            file_revision = None
+            if expected_head and exists:
+                file_response = self._get(
+                    f'{self.api_base_url}/projects/{self._project_path()}/repository/files/{quote(path, safe="")}',
+                    headers=headers, params={'ref': expected_head}, timeout=30,
+                )
+                if file_response.status_code != 200:
+                    raise ValueError('Cannot inspect the reviewed GitLab file revision. Preview again.')
+                file_revision = file_response.json().get('last_commit_id')
+                if not file_revision:
+                    raise ValueError('Cannot resolve the reviewed GitLab file revision.')
             actions.append({
                 'action': 'update' if exists else 'create',
                 'file_path': path,
                 'content': content,
                 'encoding': 'text',
+                **({'last_commit_id': file_revision} if file_revision else {}),
             })
 
         url = f'{self.api_base_url}/projects/{self._project_path()}/repository/commits'
@@ -374,7 +391,7 @@ class RepoClient:
             raise ValueError('Unable to resolve commit SHA from GitLab response')
         return sha
 
-    def _commit_files_gitea(self, branch: str, files: dict[str, str], commit_message: str) -> str:
+    def _commit_files_gitea(self, branch: str, files: dict[str, str], commit_message: str, expected_head: str | None = None) -> str:
         headers = self._headers()
         last_sha = ''
         for path, content in files.items():
@@ -393,6 +410,8 @@ class RepoClient:
             }
             if existing_sha:
                 payload['sha'] = existing_sha
+            if expected_head:
+                payload['last_commit_id'] = expected_head
 
             put_resp = self._put(get_url, headers=headers, json=payload, timeout=30)
             if put_resp.status_code not in (200, 201):

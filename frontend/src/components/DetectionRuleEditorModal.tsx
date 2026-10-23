@@ -29,8 +29,8 @@ function isRagReuseSupportedFormat(format: string): boolean {
 
 // Async AI Generation Task Mutations (avoid 504 gateway timeouts)
 const START_GENERATE_RULE_TASK_MUTATION = gql`
-  mutation StartGenerateRuleTask($playbookId: UUID!, $outputFormat: String) {
-    startGenerateRuleTask(playbookId: $playbookId, outputFormat: $outputFormat) {
+  mutation StartGenerateRuleTask($playbookId: UUID, $outputFormat: String, $description: String, $telemetryContext: String) {
+    startGenerateRuleTask(playbookId: $playbookId, outputFormat: $outputFormat, description: $description, telemetryContext: $telemetryContext) {
       taskId
       success
       message
@@ -75,8 +75,8 @@ const START_GENERATE_SIMILAR_RULES_TASK_MUTATION = gql`
 `;
 
 const RECOMMEND_REUSABLE_RULE_FROM_RAG_MUTATION = gql`
-  mutation RecommendReusableRuleFromRag($playbookId: UUID!, $outputFormat: String) {
-    recommendReusableRuleFromRag(playbookId: $playbookId, outputFormat: $outputFormat) {
+  mutation RecommendReusableRuleFromRag($playbookId: UUID, $outputFormat: String, $description: String, $telemetryContext: String, $ruleContent: String) {
+    recommendReusableRuleFromRag(playbookId: $playbookId, outputFormat: $outputFormat, description: $description, telemetryContext: $telemetryContext, ruleContent: $ruleContent) {
       success
       message
       providerUsed
@@ -457,7 +457,12 @@ export interface SaveToLibraryResult {
 interface DetectionRuleEditorModalProps {
   visible: boolean;
   onClose: () => void;
-  playbookId: string;
+  playbookId?: string;
+  standalone?: boolean;
+  onPublish?: (document: OpenTideRule) => Promise<void>;
+  onLink?: (document: OpenTideRule) => Promise<void>;
+  onDuplicate?: (document: OpenTideRule) => Promise<void>;
+  linkedWorkbench?: { id: string; title: string };
   initialRule: string;
   initialFormat: 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'FREE' | 'OTHER';
   initialMode: DetectionMode;
@@ -547,6 +552,15 @@ export function buildOpenTideState(
   return snapshot;
 }
 
+function EditorShell({ standalone, children, title, footer, ...props }: React.ComponentProps<typeof Modal> & { standalone?: boolean }) {
+  if (!standalone) return <Modal {...props} title={title} footer={footer}>{children}</Modal>;
+  return <div className="detection-editor-modal" style={{ height: 'calc(100dvh - 100px)', minHeight: 600, display: 'flex', flexDirection: 'column', background: 'var(--hef-bg-page)' }}>
+    <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--hef-border)' }}>{title}</div>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>{children}</div>
+    <div style={{ padding: '12px 24px', borderTop: '1px solid var(--hef-border)' }}>{typeof footer === 'function' ? null : footer}</div>
+  </div>;
+}
+
 export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> = ({
   visible,
   onClose,
@@ -560,7 +574,13 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   onSaveAllToLibrary,
   initialOpenTideRule,
   playbookData,
+  standalone = false,
+  onPublish,
+  onLink,
+  onDuplicate,
+  linkedWorkbench,
 }) => {
+  const [telemetryContext, setTelemetryContext] = useState('');
   // Local state
   const [ruleContent, setRuleContent] = useState(initialRule);
   const [mode, setMode] = useState<DetectionMode>(initialMode);
@@ -653,7 +673,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   interface StartTaskResult { taskId: string; success: boolean; message: string }
   const [startGenerateRuleTask, { loading: aiLoading }] = useMutation<
     { startGenerateRuleTask: StartTaskResult },
-    { playbookId: string; outputFormat?: string }
+    { playbookId?: string; outputFormat?: string; description?: string; telemetryContext?: string }
   >(START_GENERATE_RULE_TASK_MUTATION);
 
   const [startSuggestImprovementsTask, { loading: suggestingLoading }] = useMutation<
@@ -667,7 +687,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   >(START_GENERATE_SIMILAR_RULES_TASK_MUTATION);
   const [recommendReusableRuleFromRag, { loading: recommendingReuse }] = useMutation<
     { recommendReusableRuleFromRag: RagReuseResult },
-    { playbookId: string; outputFormat?: string }
+    { playbookId?: string; outputFormat?: string; description?: string; telemetryContext?: string; ruleContent?: string }
   >(RECOMMEND_REUSABLE_RULE_FROM_RAG_MUTATION);
   const [saveDetectionRuleMutation] = useMutation(SAVE_DETECTION_RULE_MUTATION);
   const [saveAllDetectionRulesMutation] = useMutation(SAVE_ALL_DETECTION_RULES_MUTATION);
@@ -843,7 +863,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
       setMetadataTitle(freshOt.metadata?.title || playbookData?.title || '');
       setMetadataDescription(freshOt.metadata?.description || '');
       setMetadataAuthor(freshOt.metadata?.author || playbookData?.author?.username || '');
-      setMetadataTags('');
+      setMetadataTags((freshOt.metadata?.tags || []).join(', '));
       // Derive active platform
       let tab: PlatformTab = 'kql';
       if (initialFormat === 'FREE' || (freshOt.freeRule?.content && !Object.values(freshOt.platforms).some(Boolean))) tab = 'free';
@@ -1041,7 +1061,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     setSelectedVariant(null);
     try {
       const res = await startGenerateRuleTask({
-        variables: { playbookId, outputFormat: format },
+        variables: { playbookId, outputFormat: format, description: standalone ? openTideRule.metadata.description : undefined, telemetryContext: standalone ? telemetryContext : undefined },
       });
       const r = res.data?.startGenerateRuleTask;
       if (r?.success && r?.taskId) {
@@ -1054,7 +1074,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     } catch (err: any) {
       message.error(`AI generation failed: ${err.message}`);
     }
-  }, [onGenerateAI, startGenerateRuleTask, playbookId, format, activePlatformTab, stopAiPolling]);
+  }, [onGenerateAI, startGenerateRuleTask, playbookId, format, activePlatformTab, stopAiPolling, standalone, openTideRule.metadata.description, telemetryContext]);
 
   // AI Suggest Improvements handler
   const handleSuggestImprovements = useCallback(async () => {
@@ -1128,7 +1148,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
 
     try {
       const res = await recommendReusableRuleFromRag({
-        variables: { playbookId, outputFormat: format },
+        variables: { playbookId, outputFormat: format, description: standalone ? openTideRule.metadata.description : undefined, telemetryContext: standalone ? telemetryContext : undefined, ruleContent: standalone ? ruleContent : undefined },
       });
       const payload = res.data?.recommendReusableRuleFromRag;
       if (!payload) {
@@ -1152,7 +1172,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     } catch (err: any) {
       message.error(`RAG reuse assessment failed: ${err.message}`);
     }
-  }, [format, playbookId, activePlatformTab, recommendReusableRuleFromRag, stopAiPolling]);
+  }, [format, playbookId, activePlatformTab, recommendReusableRuleFromRag, stopAiPolling, standalone, openTideRule.metadata.description, telemetryContext, ruleContent]);
 
   const getReuseDecisionColor = useCallback((decision?: string): 'green' | 'orange' | 'blue' | 'default' => {
     const normalized = String(decision || '').toUpperCase();
@@ -1232,6 +1252,38 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     const activeFormat = platformToFormat(activePlatformTab);
     await onSave(ruleContent, activeFormat, mode, selectedDataSource?.id, finalRule);
   }, [onSave, ruleContent, activePlatformTab, mode, selectedDataSource]);
+
+  const saveStandalone = async () => {
+    const document = setPlatformContent(openTideRule, activePlatformTab, ruleContent);
+    setSavingAll(true);
+    try {
+      await onSave(ruleContent, platformToFormat(activePlatformTab), mode, selectedDataSource?.id, document);
+      const snapshots: Record<string, string> = {};
+      for (const entry of DETECTION_FORMAT_REGISTRY) snapshots[entry.format] = savedFormatSnapshot(document, entry.format);
+      setSavedSnapshots(snapshots);
+      setSavedMetadataSnapshot(normalize(JSON.stringify(document.metadata)));
+      message.success('Rule draft saved.');
+    } catch (error: any) {
+      message.error(error.message || 'Failed to save rule draft.');
+      throw error;
+    } finally {
+      setSavingAll(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (standalone && anyDirty) {
+      Modal.confirm({ title: 'Discard unsaved changes?', content: 'Your latest edits have not been saved.',
+        okText: 'Discard', onOk: onClose });
+    } else onClose();
+  };
+
+  useEffect(() => {
+    if (!standalone || !anyDirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [standalone, anyDirty]);
 
   const handleSaveFormat = useCallback(async (tab: PlatformTab) => {
     const finalOpenTideRule = setPlatformContent(openTideRule, activePlatformTab, ruleContent);
@@ -1471,9 +1523,10 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   };
 
   return (
-    <Modal
+    <EditorShell
+      standalone={standalone}
       open={visible}
-      onCancel={onClose}
+      onCancel={handleClose}
       centered
       destroyOnClose
       title={
@@ -1486,7 +1539,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
       style={{ paddingBottom: 0, maxWidth: '95vw' }}
       className="fullscreen-modal detection-editor-modal"
       styles={{
-        content: {
+        container: {
           height: 'calc(100dvh - 24px)',
           maxHeight: 'calc(100dvh - 24px)',
           display: 'flex',
@@ -1555,14 +1608,14 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-end">
               {/* Git commit option */}
-              <Checkbox
+              {!standalone && <Checkbox
                 checked={autoCommit}
                 onChange={(e) => setAutoCommit(e.target.checked)}
                 className="text-sm"
               >
                 Commit to Repository
-              </Checkbox>
-              {autoCommit && (
+              </Checkbox>}
+              {!standalone && autoCommit && (
                 <Input
                   placeholder="Commit message (optional)"
                   value={commitMessage}
@@ -1571,7 +1624,13 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                   size="small"
                 />
               )}
-              <Button onClick={onClose}>Cancel</Button>
+              <Button onClick={handleClose}>{standalone ? 'Back to Rule Hub' : 'Cancel'}</Button>
+              {standalone && <>
+                {linkedWorkbench && <a href={`/playbooks/${linkedWorkbench.id}`}>Workbench: {linkedWorkbench.title}</a>}
+                <Button onClick={() => onDuplicate?.(currentSnapshot)}>Duplicate</Button>
+                <Button onClick={() => onLink?.(currentSnapshot)}>{linkedWorkbench ? 'Manage Workbench link' : 'Add to Workbench'}</Button>
+                <Button onClick={() => onPublish?.(currentSnapshot)}>Publish to Git</Button>
+              </>}
               {selectedRule && canDeleteSelectedRule() && (
                 <Button
                   danger
@@ -1582,7 +1641,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                   Delete Rule
                 </Button>
               )}
-              {activePlatformTab !== 'metadata' && activePlatformTab !== 'insights' && (
+              {!standalone && activePlatformTab !== 'metadata' && activePlatformTab !== 'insights' && (
                 <Button
                   type="primary"
                   ghost
@@ -1593,8 +1652,8 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                   {buildSaveButtonLabel(getFormatByTab(activePlatformTab))}
                 </Button>
               )}
-              <Button type="primary" onClick={handleSaveAll} loading={savingAll} disabled={!anyDirty}>
-                {savingAll ? 'SAVING ALL...' : 'SAVE ALL'}
+              <Button type="primary" onClick={standalone ? () => { void saveStandalone().catch(() => {}); } : handleSaveAll} loading={savingAll} disabled={!anyDirty}>
+                {savingAll ? 'SAVING...' : standalone ? 'Save Draft' : 'SAVE ALL'}
               </Button>
             </div>
           </div>
@@ -1607,7 +1666,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
           {activePlatformTab === 'metadata' ? (
             <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 gap-3 py-12">
               <PixelIcon name="file-text" className="w-10 h-10 opacity-40" />
-              <p className="text-sm font-medium text-gray-500">Metadata is read-only</p>
+              <p className="text-sm font-medium text-gray-500">{standalone ? 'Rule metadata' : 'Metadata is read-only'}</p>
               <p className="text-xs text-gray-400">Select a platform tab (KQL, SPL, WAZUH, QRadar) to access editor tools.</p>
             </div>
           ) : activePlatformTab === 'insights' ? (
@@ -1998,7 +2057,26 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
           {/* Metadata Panel (read-only) */}
           {activePlatformTab === 'metadata' ? (
             <div className="flex-1 overflow-auto bg-white p-6">
-              <OpenTideMetadataPreview openTideRule={openTideRule} />
+              {standalone && <div className="space-y-4 mb-6" style={{ maxWidth: 720 }}>
+                <label className="block">Title<Input aria-label="Rule title" maxLength={200} value={openTideRule.metadata.title}
+                  onChange={e => setOpenTideRule(prev => ({ ...prev, metadata: { ...prev.metadata, title: e.target.value } }))} /></label>
+                <label className="block">Detection description<Input.TextArea aria-label="Detection description" rows={4} value={openTideRule.metadata.description}
+                  onChange={e => setOpenTideRule(prev => ({ ...prev, metadata: { ...prev.metadata, description: e.target.value } }))} /></label>
+                <label className="block">Author<Input aria-label="Rule author" value={openTideRule.metadata.author}
+                  onChange={e => setOpenTideRule(prev => ({ ...prev, metadata: { ...prev.metadata, author: e.target.value } }))} /></label>
+                <label className="block">MITRE technique<Input aria-label="MITRE technique" placeholder="T1059.001" value={openTideRule.metadata.mitre?.technique_id || ''}
+                  onChange={e => setOpenTideRule(prev => ({ ...prev, metadata: { ...prev.metadata, mitre: { ...prev.metadata.mitre, technique_id: e.target.value } } }))} /></label>
+                <label className="block">Severity<Select aria-label="Rule severity" style={{ width: '100%' }} value={openTideRule.metadata.response?.severity || 'MEDIUM'}
+                  options={['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map(value => ({ value, label: value }))}
+                  onChange={severity => setOpenTideRule(prev => ({ ...prev, metadata: { ...prev.metadata, response: { ...prev.metadata.response, severity } } }))} /></label>
+                <label className="block">Status<Select aria-label="Rule status" style={{ width: '100%' }} value={openTideRule.metadata.status || 'experimental'}
+                  options={['experimental', 'test', 'stable'].map(value => ({ value, label: value }))}
+                  onChange={status => setOpenTideRule(prev => ({ ...prev, metadata: { ...prev.metadata, status } }))} /></label>
+                <label className="block">Tags<Input aria-label="Rule tags" value={(openTideRule.metadata.tags || []).join(', ')}
+                  onChange={e => setOpenTideRule(prev => ({ ...prev, metadata: { ...prev.metadata, tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) } }))} /></label>
+                <label className="block">Telemetry context / sample events (optional, used for AI generation)<Input.TextArea aria-label="Telemetry context" rows={4} value={telemetryContext} onChange={e => setTelemetryContext(e.target.value)} /></label>
+              </div>}
+              <OpenTideMetadataPreview openTideRule={openTideRule} standalone={standalone} />
             </div>
           ) : activePlatformTab === 'insights' ? (() => {
               const tabInsights = lastInsightsPlatform ? platformGenerationInsights[lastInsightsPlatform] : null;
@@ -2466,7 +2544,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
           )}
         </div>
       </div>
-    </Modal>
+    </EditorShell>
   );
 };
 

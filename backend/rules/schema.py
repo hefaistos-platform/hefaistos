@@ -390,11 +390,41 @@ class RuleRepositoryRAGFileType(DjangoObjectType):
 
 class RuleType(DjangoObjectType):
     tags = graphene.List(graphene.String)
+    editor_document = graphene.JSONString()
+    workbench_id = graphene.UUID()
+    workbench_title = graphene.String()
+    workbench_owned = graphene.Boolean()
+    can_edit = graphene.Boolean()
+
+    def resolve_editor_document(self, info):
+        from .authoring import document_for_rule
+        return document_for_rule(self)
+
+    def resolve_workbench_id(self, info):
+        return self.playbook_id or self.attached_workbench_id
+
+    def resolve_workbench_title(self, info):
+        graph = self.playbook or self.attached_workbench
+        return graph.title if graph else None
+
+    def resolve_workbench_owned(self, info):
+        return bool(self.playbook_id)
+
+    def resolve_can_edit(self, info):
+        from .authoring import editable_rule
+        try:
+            editable_rule(info.context.user, self.pk)
+            return True
+        except Exception:
+            return False
+
     class Meta:
         model = DetectionRule
         fields = "__all__"
 
     def resolve_tags(self, info):
+        if self.authoring_document is not None:
+            return self.authoring_document.get('metadata', {}).get('tags', [])
         try:
             if self.playbook:
                 return list(self.playbook.tags.names())
@@ -514,6 +544,15 @@ class RuleRepositoryRagHealth(graphene.ObjectType):
 
 class Query(graphene.ObjectType):
     rule = graphene.Field(RuleType, id=graphene.ID(required=True))
+    workbench_rule_links = graphene.List(RuleType, workbench_id=graphene.UUID(required=True))
+
+    def resolve_workbench_rule_links(self, info, workbench_id):
+        user = info.context.user
+        if user.is_anonymous:
+            raise Exception('Authentication required')
+        PlaybookGraph.objects.get(pk=workbench_id, organization=user.organization)
+        return DetectionRule.objects.filter(organization=user.organization, attached_workbench_id=workbench_id).order_by('title')
+
     search_rules = graphene.List(
         RuleType,
         search=graphene.String(),
@@ -1970,6 +2009,9 @@ class UpdateDetectionRule(graphene.Mutation):
         if not (is_owner or is_admin_or_super):
             raise Exception("Only the rule author, admin, or superadmin can edit this rule")
 
+        if rule.authoring_document is not None:
+            return UpdateDetectionRule(success=False, message='Use the full Rule Hub editor to update this rule.', rule=rule)
+
         if rule.format == 'FREE':
             if not raw_content.strip():
                 return UpdateDetectionRule(success=False, message='FREE rule content cannot be empty.', rule=rule)
@@ -2046,7 +2088,113 @@ class DeleteDetectionRule(graphene.Mutation):
         return DeleteDetectionRule(success=True, message="Rule deleted successfully")
 
 
+class SaveRuleDraft(graphene.Mutation):
+    class Arguments:
+        document = graphene.JSONString(required=True)
+        rule_id = graphene.ID()
+    rule = graphene.Field(RuleType)
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def mutate(root, info, document, rule_id=None):
+        from .authoring import save_draft
+        rule = save_draft(info.context.user, document, rule_id)
+        invalidate_mgmt_cave_stats_cache(info.context.user.organization_id)
+        return SaveRuleDraft(rule=rule)
+
+
+class DuplicateRule(graphene.Mutation):
+    class Arguments:
+        rule_id = graphene.ID(required=True)
+    rule = graphene.Field(RuleType)
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def mutate(root, info, rule_id):
+        from .authoring import document_for_rule, save_draft
+        user = info.context.user
+        source = DetectionRule.objects.get(pk=rule_id, organization=user.organization)
+        document = document_for_rule(source)
+        document['metadata']['title'] = (document['metadata'].get('title', 'Rule')[:193] + ' (copy)')
+        document['metadata']['author'] = user.username
+        document['metadata'].pop('created', None)
+        document['metadata'].pop('uuid', None)
+        rule = save_draft(user, document)
+        invalidate_mgmt_cave_stats_cache(user.organization_id)
+        return DuplicateRule(rule=rule)
+
+
+class LinkRuleWorkbench(graphene.Mutation):
+    class Arguments:
+        rule_id = graphene.ID(required=True)
+        workbench_id = graphene.UUID()
+    rule = graphene.Field(RuleType)
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def mutate(root, info, rule_id, workbench_id=None):
+        from .authoring import editable_rule
+        from django.db import transaction
+        user = info.context.user
+        with transaction.atomic():
+            rule = editable_rule(user, rule_id)
+            if rule.playbook_id:
+                raise Exception('Workbench-owned rules use the existing Workbench editor. Duplicate the rule to attach an alternative.')
+            graph = PlaybookGraph.objects.get(pk=workbench_id, organization=user.organization) if workbench_id else None
+            current = rule.attached_workbench
+            for target in [current, graph]:
+                if target and not (target.author_id == user.pk or user.role == Roles.ADMIN or user.is_staff or user.is_superuser):
+                    raise Exception('Only the Workbench author or an administrator can change its rule links.')
+            if current and graph and current.pk != graph.pk:
+                raise Exception('Unlink this rule from its current Workbench before linking another.')
+            rule.attached_workbench = graph
+            rule.save(update_fields=['attached_workbench', 'updated_at'])
+        return LinkRuleWorkbench(rule=rule)
+
+
+class RulePublishPreview(graphene.ObjectType):
+    content = graphene.String()
+    diff = graphene.String()
+    token = graphene.String()
+    unchanged = graphene.Boolean()
+
+
+class PreviewRulePublish(graphene.Mutation):
+    class Arguments:
+        rule_id = graphene.ID(required=True)
+        repository_id = graphene.ID(required=True)
+        branch = graphene.String(required=True)
+        path = graphene.String(required=True)
+    preview = graphene.Field(RulePublishPreview)
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def mutate(root, info, rule_id, repository_id, branch, path):
+        from .authoring import preview_publish
+        return PreviewRulePublish(preview=RulePublishPreview(**preview_publish(info.context.user, rule_id, repository_id, branch, path)))
+
+
+class PublishRuleToGit(graphene.Mutation):
+    class Arguments:
+        preview_token = graphene.String(required=True)
+        commit_message = graphene.String(default_value='')
+    commit_sha = graphene.String()
+    file_url = graphene.String()
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def mutate(root, info, preview_token, commit_message=''):
+        from .authoring import publish_preview
+        sha, url = publish_preview(info.context.user, preview_token, commit_message)
+        return PublishRuleToGit(commit_sha=sha, file_url=url)
+
+
 class Mutation(graphene.ObjectType):
+    save_rule_draft = SaveRuleDraft.Field()
+    duplicate_rule = DuplicateRule.Field()
+    link_rule_workbench = LinkRuleWorkbench.Field()
+    preview_rule_publish = PreviewRulePublish.Field()
+    publish_rule_to_git = PublishRuleToGit.Field()
     create_rule_repository = CreateRuleRepository.Field()
     update_rule_repository = UpdateRuleRepository.Field()
     delete_rule_repository = DeleteRuleRepository.Field()

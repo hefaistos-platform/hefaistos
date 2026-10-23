@@ -84,3 +84,7 @@ extension use `.txt`.
 
 See [the implementation plan](FREE_FORMAT_IMPLEMENTATION_PLAN.md) for the
 selected scope and deferred enhancements.
+
+## Rule Hub standalone drafts
+
+FREE content can also be authored and saved in the full Rule Hub editor. It retains exact content and highlighting preferences. Standalone **Publish to Git** uses the strict supported-platform OpenTIDE schema and rejects documents containing non-empty FREE content instead of omitting it. See [Rule Hub authoring](RULE_HUB_AUTHORING.md).
