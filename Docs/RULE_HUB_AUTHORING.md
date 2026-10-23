@@ -4,13 +4,13 @@ Rule Hub supports independent rule authoring without creating a Workbench or com
 
 ## Create and edit
 
-Select **New Rule** in Rule Hub. The full editor opens on a dedicated page and shares the platform editor and tools used by Workbench. Use the **Metadata** tab to enter a title, description, author, MITRE technique, severity, status, and comma-separated tags. Optional telemetry context or sample events ground AI generation and template reuse assessments for the current editing session.
+Select **New Rule**, beside **Refresh**, in Rule Hub. The full editor opens on a dedicated page and shares the platform editor and tools used by Workbench. Use the **Metadata** tab to enter a title, description, author, MITRE technique, severity, status, and comma-separated tags. Optional telemetry context or sample events ground AI generation and template reuse assessments for the current editing session.
 
 Platform tabs support KQL, Elastic EQL, SPL, Wazuh, QRadar AQL, and FREE/custom content. Supported platforms retain the existing autocomplete, language validation, templates, AI generation, suggestions, variations, RAG reuse, and Generate All behavior. FREE remains manual-only.
 
 **Save Draft** saves one independent rule, including all configured platforms, in the internal Rule Repo library. A Git repository is not required. Drafts may have incomplete metadata or empty platform content. Each rule has a stable UUID; editing retains it. **Duplicate** creates a new UUID and an independent copy without a Workbench link.
 
-Select **Open full editor** from a rule detail page to edit existing standalone/native rules. Existing Workbench-owned rules continue to use their original Workbench editor; select **Duplicate into Rule Hub** to make an independent alternative. Legacy OpenTIDE MDR/bundle documents are preserved as FREE YAML when their structure differs from the standalone schema.
+Select **Open full editor** from a rule detail page to edit existing standalone/native rules. For Workbench-owned rules, **Edit** beside **Raw Rule Content** opens a text editor for small fixes to the saved library rule. This does not replace the Workbench’s primary editor content; use **Open Workbench editor** to edit that content. Existing Workbench-owned rules continue to use their original full Workbench editor; select **Duplicate into Rule Hub** to make an independent alternative. Legacy OpenTIDE MDR/bundle documents are preserved as FREE YAML when their structure differs from the standalone schema.
 
 ## Publish to Git
 

@@ -1,4 +1,4 @@
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
 import { gql } from '@apollo/client';
 import { useLazyQuery, useMutation } from '@apollo/client/react';
@@ -84,6 +84,7 @@ interface RulesConnectionVars {
 }
 
 export const RuleSearchPage: React.FC = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialText = searchParams.get('text') || '';
   const initialAuthor = searchParams.get('author') || '';
@@ -220,6 +221,7 @@ export const RuleSearchPage: React.FC = () => {
         <Typography.Title level={3} style={{ margin: 0 }}>Search Detection Rules</Typography.Title>
         <Space>
           <Button onClick={() => { /* placeholder: refresh search */ }}>Refresh</Button>
+          <Button type="primary" onClick={() => navigate('/rules/new')}>New Rule</Button>
         </Space>
       </Space>
       <Card size="small">

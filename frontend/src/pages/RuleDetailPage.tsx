@@ -7,7 +7,7 @@ import { useQuery, useMutation, gql } from '@apollo/client';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { solarizedlight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Button, Space, message, Modal } from 'antd';
+import { Button, Space, message, Modal, Input } from 'antd';
 import { DeleteOutlined, EditOutlined, DeploymentUnitOutlined } from '@ant-design/icons';
 import { RuleConversionModal } from '../components/RuleConversionModal';
 import { RuleDeploymentModal } from '../components/RuleDeploymentModal';
@@ -40,6 +40,16 @@ const DELETE_RULE_MUTATION = gql`
     deleteDetectionRule(ruleId: $ruleId) {
       success
       message
+    }
+  }
+`;
+
+const UPDATE_RULE_MUTATION = gql`
+  mutation UpdateRuleRawContent($ruleId: ID!, $rawContent: String!) {
+    updateDetectionRule(ruleId: $ruleId, rawContent: $rawContent) {
+      success
+      message
+      rule { id title description status rawContent format }
     }
   }
 `;
@@ -106,6 +116,8 @@ export const RuleDetailPage = () => {
   const navigate = useNavigate();
   const [conversionModalVisible, setConversionModalVisible] = useState(false);
   const [deploymentModalVisible, setDeploymentModalVisible] = useState(false);
+  const [editingRaw, setEditingRaw] = useState(false);
+  const [editedContent, setEditedContent] = useState('');
   const [deleting, setDeleting] = useState(false);
 
   const { data, loading, error } = useQuery<GetRuleData, GetRuleVars>(
@@ -116,6 +128,7 @@ export const RuleDetailPage = () => {
   );
 
   const { data: currentUserData } = useQuery<{ me: CurrentUser }>(CURRENT_USER_QUERY);
+  const [updateRule, { loading: savingRaw }] = useMutation(UPDATE_RULE_MUTATION);
   const [deleteRule] = useMutation(DELETE_RULE_MUTATION);
 
   if (loading) return <p>Loading rule details...</p>;
@@ -159,7 +172,26 @@ export const RuleDetailPage = () => {
     }
   };
 
-  const handleEdit = () => { navigate(`/rules/${rule.id}/edit`); };
+  const handleEdit = () => {
+    if (rule.workbenchOwned) {
+      setEditedContent(rule.rawContent);
+      setEditingRaw(true);
+    } else navigate(`/rules/${rule.id}/edit`);
+  };
+
+  const saveRawContent = async () => {
+    try {
+      const response = await updateRule({
+        variables: { ruleId: rule.id, rawContent: editedContent },
+        refetchQueries: [{ query: GET_RULE_QUERY, variables: { id: rule.id } }],
+        awaitRefetchQueries: true,
+      });
+      const result = response.data?.updateDetectionRule;
+      if (!result?.success) { message.error(result?.message || 'Failed to save rule.'); return; }
+      message.success('Raw rule content saved.');
+      setEditingRaw(false);
+    } catch (error: any) { message.error(error.message || 'Failed to save rule.'); }
+  };
 
   const canDeleteRule = () => {
     const currentUser = currentUserData?.me;
@@ -198,7 +230,9 @@ export const RuleDetailPage = () => {
     <div style={{ padding: 24, color: 'var(--hef-text-primary)' }}>
       <h2>{rule.title}</h2>
       <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" onClick={() => navigate(`/rules/${rule.id}/edit`)}>Open full editor</Button>
+        {rule.workbenchOwned
+          ? <Button type="primary" onClick={() => navigate(`/playbooks/${rule.workbenchId}`)}>Open Workbench editor</Button>
+          : <Button type="primary" onClick={() => navigate(`/rules/${rule.id}/edit`)}>Open full editor</Button>}
         {rule.workbenchId && <Button onClick={() => navigate(`/playbooks/${rule.workbenchId}`)}>Workbench: {rule.workbenchTitle}</Button>}
       </Space>
       <p><strong>Format:</strong> {rule.format === 'FREE' ? `FREE Format${rule.customFormatLabel ? ` (${rule.customFormatLabel})` : ''}` : rule.format}</p>
@@ -220,7 +254,9 @@ export const RuleDetailPage = () => {
           <Button 
             type="primary" 
             icon={<EditOutlined />} 
+            aria-label="Edit"
             onClick={handleEdit}
+            disabled={!rule.canEdit}
           >
             Edit
           </Button>
@@ -256,7 +292,14 @@ export const RuleDetailPage = () => {
         {rule.rawContent}
       </SyntaxHighlighter>
 
-      {/* Edit Modal */}
+      <Modal open={editingRaw} title="Edit Raw Rule Content" width={900}
+        onCancel={() => !savingRaw && setEditingRaw(false)} onOk={saveRawContent}
+        okText="Save" confirmLoading={savingRaw} cancelButtonProps={{ disabled: savingRaw }}>
+        <p>Update the saved library rule. To change the Workbench’s primary editor content, open its Workbench editor.</p>
+        <Input.TextArea aria-label="Raw rule content" value={editedContent}
+          onChange={event => setEditedContent(event.target.value)} disabled={savingRaw}
+          autoSize={{ minRows: 16, maxRows: 28 }} style={{ fontFamily: 'monospace' }} />
+      </Modal>
 
 
       {/* Conversion Modal */}
