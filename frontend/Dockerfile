@@ -1,15 +1,17 @@
 # Frontend production image: build React app and serve with Nginx
 
 # Build stage
-FROM node:24-bookworm-slim AS build
+FROM node:24.22.1-bookworm-slim AS build
 WORKDIR /app
 
 # Lock npm to an explicit version for deterministic CI/build behavior
-RUN npm install -g npm@11.17.0
+RUN npm install -g npm@11.19.1 \
+    && test "$(node --version)" = "v24.22.1" \
+    && test "$(npm --version)" = "11.19.1"
 
 # Install dependencies deterministically
-COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci
 
 # Copy source
 COPY . ./

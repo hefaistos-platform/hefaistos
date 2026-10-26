@@ -46,7 +46,7 @@ if (!server || !port) {
 
 const resolvedServer = path.resolve(server);
 const tcpServer = net.createServer((socket) => {
-  const child = spawn('node', [resolvedServer], {
+  const child = spawn(process.execPath, [resolvedServer, '--stdio'], {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: {
       ...process.env,

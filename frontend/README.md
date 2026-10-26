@@ -2,6 +2,24 @@
 
 This frontend uses Vite for development/build and keeps the existing Jest test path via `react-scripts` for now.
 
+## Runtime and installation
+
+Use Node **24.22.1** and npm **11.19.1**, matching both Docker builds:
+
+```sh
+nvm install
+nvm use
+npm install --global npm@11.19.1
+npm ci
+```
+
+The checked-in `.npmrc` preserves the legacy peer resolution needed by the
+retained `react-scripts` test runner. Run `npm ci` from this directory; the root
+package does not install the frontend application.
+
+See [the runtime upgrade assessment](../Docs/RUNTIME_UPGRADE_2026-10.md) for
+compatibility results, other core upgrade candidates, and deployment checks.
+
 ## Available Scripts
 
 In the project directory, you can run:

@@ -1,0 +1,78 @@
+name: Runtime compatibility
+
+on:
+  push:
+    branches: [main, sharp]
+    paths:
+      - '.nvmrc'
+      - 'frontend/**'
+      - 'backend/Dockerfile'
+      - 'backend/requirements.txt'
+      - 'backend/lsp_server/**'
+      - '.github/workflows/runtime-ci.yml'
+  pull_request:
+    paths:
+      - '.nvmrc'
+      - 'frontend/**'
+      - 'backend/Dockerfile'
+      - 'backend/requirements.txt'
+      - 'backend/lsp_server/**'
+      - '.github/workflows/runtime-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Pin npm and verify runtime
+        run: |
+          npm install --global npm@11.19.1
+          test "$(node --version)" = "v24.22.1"
+          test "$(npm --version)" = "11.19.1"
+      - name: Check LSP bridge transport
+        run: node --test backend/lsp_server/syntaxtide_tcp_bridge.test.js
+      - name: Install frontend
+        working-directory: frontend
+        run: npm ci
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+      - name: Run runtime compatibility tests
+        working-directory: frontend
+        env:
+          CI: 'true'
+        # Full-suite baseline failures are recorded in the upgrade assessment.
+        run: |
+          npm test -- --watchAll=false --runInBand --forceExit --runTestsByPath \
+            src/components/__tests__/dragDropCompatibility.test.tsx \
+            src/pages/LoginPage.test.tsx \
+            src/pages/KanbanBoardPage.test.tsx \
+            src/pages/RuleDetailPage.test.tsx \
+            src/components/DetectionRuleEditor.autocomplete.test.tsx \
+            src/components/DetectionRuleEditorModal.generateAll.test.tsx \
+            src/components/__tests__/OpenTidePreviewModal.test.tsx \
+            src/components/mgmt/ReportingTab.test.tsx \
+            src/utils/authSession.test.ts
+
+  containers:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [frontend, backend]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build production image
+        run: docker build --pull --tag hefaistos-${{ matrix.component }}:runtime-check ./${{ matrix.component }}
+      - name: Verify backend runtime
+        if: matrix.component == 'backend'
+        run: |
+          docker run --rm --entrypoint sh hefaistos-backend:runtime-check -c \
+            'test "$(node --version)" = "v24.22.1" && test "$(npm --version)" = "11.19.1" && npx --version'

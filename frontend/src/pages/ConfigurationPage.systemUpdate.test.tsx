@@ -50,7 +50,7 @@ describe('SystemUpdateTab', () => {
 
   test('starts update job with force mode after confirmation', async () => {
     const confirmMock = jest.spyOn(window, 'confirm').mockReturnValue(true);
-    const fetchMock = jest.spyOn(global, 'fetch' as any).mockImplementation((input: RequestInfo | URL) => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith('/api/system/config/update/check')) {
         return Promise.resolve({
@@ -121,7 +121,7 @@ describe('SystemUpdateTab', () => {
   });
 
   test('hides update warning when local and repository versions match', async () => {
-    const fetchMock = jest.spyOn(global, 'fetch' as any).mockImplementation((input: RequestInfo | URL) => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith('/api/system/config/update/check')) {
         return Promise.resolve({
