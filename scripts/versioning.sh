@@ -7,6 +7,7 @@ usage() {
 Usage:
   scripts/versioning.sh validate <version>
   scripts/versioning.sh bump <version> <major|minor|patch>
+  scripts/versioning.sh select-version <current> <previous> <major|minor|patch>
   scripts/versioning.sh detect-bump --range <git-range>
   scripts/versioning.sh sharp <base-version> <build-number>
 
@@ -86,6 +87,27 @@ detect_bump_from_text() {
   echo "patch"
 }
 
+select_version() {
+  local current="$1" previous="$2" bump="$3"
+  validate_semver "${current}"
+  validate_semver "${previous}"
+  if [[ "${current}" == "${previous}" ]]; then
+    bump_version "${current}" "${bump}"
+    return
+  fi
+  local current_major current_minor current_patch previous_major previous_minor previous_patch
+  IFS='.' read -r current_major current_minor current_patch <<< "${current}"
+  IFS='.' read -r previous_major previous_minor previous_patch <<< "${previous}"
+  if (( current_major > previous_major ||
+        (current_major == previous_major && current_minor > previous_minor) ||
+        (current_major == previous_major && current_minor == previous_minor && current_patch > previous_patch) )); then
+    printf '%s\n' "${current}"
+  else
+    echo "Explicit version must increase: ${previous} -> ${current}" >&2
+    return 1
+  fi
+}
+
 detect_bump_from_range() {
   local range="$1"
   local subjects bodies
@@ -130,6 +152,10 @@ main() {
     detect-bump)
       [[ $# -eq 3 && "$2" == "--range" ]] || { usage; exit 1; }
       detect_bump_from_range "$3"
+      ;;
+    select-version)
+      [[ $# -eq 4 ]] || { usage; exit 1; }
+      select_version "$2" "$3" "$4"
       ;;
     sharp)
       [[ $# -eq 3 ]] || { usage; exit 1; }

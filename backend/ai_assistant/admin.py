@@ -1,6 +1,8 @@
 from django.contrib import admin
 from .models import (OrgAISettings, SharedAIProfile, AIGenerationTask,
-                     AIPromptConfiguration, AIPromptVersion, AIPromptAuditEvent)
+                     AIPromptConfiguration, AIPromptVersion, AIPromptAuditEvent,
+                     AIRuleGenerationArtifact, AIRuleRevision, AIRuleLineage,
+                     AIRuleFeedback, AIFeedbackAuditEvent)
 
 
 @admin.register(OrgAISettings)
@@ -20,7 +22,7 @@ class AIGenerationTaskAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'task_type', 'status', 'created_at', 'completed_at')
     list_filter = ('task_type', 'status')
     search_fields = ('user__username',)
-    readonly_fields = ('id', 'user', 'task_type', 'input_data', 'result_data', 'prompt_provenance',
+    readonly_fields = ('id', 'user', 'organization', 'task_type', 'input_data', 'result_data', 'prompt_provenance',
                        'error_message', 'created_at', 'started_at', 'completed_at')
 
 
@@ -42,3 +44,8 @@ class ReadOnlyPromptAdmin(admin.ModelAdmin):
 admin.site.register(AIPromptConfiguration, ReadOnlyPromptAdmin)
 admin.site.register(AIPromptVersion, ReadOnlyPromptAdmin)
 admin.site.register(AIPromptAuditEvent, ReadOnlyPromptAdmin)
+admin.site.register(AIRuleGenerationArtifact, ReadOnlyPromptAdmin)
+admin.site.register(AIRuleRevision, ReadOnlyPromptAdmin)
+admin.site.register(AIRuleLineage, ReadOnlyPromptAdmin)
+admin.site.register(AIRuleFeedback, ReadOnlyPromptAdmin)
+admin.site.register(AIFeedbackAuditEvent, ReadOnlyPromptAdmin)

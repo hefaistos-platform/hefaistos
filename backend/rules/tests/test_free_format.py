@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from graphql import GraphQLError
 
 from identity.decorators import Roles
@@ -13,7 +13,7 @@ from ai_assistant.schema import (StartGenerateRuleTask, StartSuggestImprovements
 from playbooks.models import PlaybookGraph
 
 
-class FreeFormatTests(SimpleTestCase):
+class FreeFormatTests(TestCase):
     def setUp(self):
         self.user = SimpleNamespace(is_anonymous=False, role=Roles.ADMIN, username='tester',
                                     organization=SimpleNamespace(id=1), is_staff=False, is_superuser=False)
@@ -33,7 +33,7 @@ class FreeFormatTests(SimpleTestCase):
                  patch('rules.schema.parse_rule_by_format') as parse, \
                  patch('rules.schema.inject_metadata') as inject, \
                  patch('rules.schema.invalidate_mgmt_cave_stats_cache'):
-                graphs.get.return_value = SimpleNamespace(id=1, pk=1, title='Workbench', author=self.user, opentide_yaml={})
+                graphs.select_for_update.return_value.get.return_value = SimpleNamespace(id=1, pk=1, title='Workbench', author=self.user, opentide_yaml={})
                 repos.filter.return_value.first.return_value = MagicMock()
                 saved = MagicMock(sigma_id='rule-id', custom_format_label='YARA', editor_language='plaintext', custom_file_extension='txt')
                 rules.update_or_create.return_value = (saved, True)
@@ -64,9 +64,10 @@ class FreeFormatTests(SimpleTestCase):
 
     def test_hub_edit_keeps_free_identity_and_metadata(self):
         rule = MagicMock(format='FREE', author='tester', title='Original', authoring_document=None)
-        with patch('rules.schema.DetectionRule.objects.get', return_value=rule), \
+        with patch('rules.schema.DetectionRule.objects.select_for_update') as rules, \
              patch('rules.schema.detect_rule_format') as detect, \
              patch('rules.schema.invalidate_mgmt_cave_stats_cache'):
+            rules.return_value.get.return_value = rule
             result = UpdateDetectionRule.mutate(None, self.info, rule_id=1, raw_content='\n<rule/>\n')
             self.assertTrue(result.success)
             self.assertEqual(rule.raw_content, '\n<rule/>\n')

@@ -595,6 +595,46 @@ code {
   background: var(--ant-color-primary-bg, color-mix(in srgb, var(--hef-info-bg) 75%, var(--hef-bg-surface))) !important;
 }
 
+/* Ant Design 6 paints the Select root; popups and review modals are portaled. */
+.config-quality-select.ant-select,
+.config-quality-select.ant-select .ant-select-selector {
+  background: var(--hef-bg-subtle) !important;
+  border-color: var(--hef-border) !important;
+  color: var(--hef-text-primary) !important;
+}
+
+.config-quality-select.ant-select .ant-select-selection-item,
+.config-quality-select.ant-select .ant-select-input,
+.config-quality-select.ant-select .ant-select-selection-search-input,
+.config-quality-select.ant-select .ant-select-arrow {
+  color: var(--hef-text-primary) !important;
+  -webkit-text-fill-color: var(--hef-text-primary) !important;
+}
+
+.config-quality-select.ant-select input {
+  background: transparent !important;
+}
+
+.config-quality-select-dropdown.ant-select-dropdown {
+  background: var(--hef-bg-surface) !important;
+  border: 1px solid var(--hef-border) !important;
+}
+
+.config-quality-select-dropdown .ant-select-item,
+.config-quality-select-dropdown .ant-select-item-option-content,
+.config-quality-select-dropdown .ant-select-item-option-state {
+  color: var(--hef-text-primary) !important;
+  -webkit-text-fill-color: var(--hef-text-primary) !important;
+}
+
+.config-quality-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background: var(--hef-bg-hover) !important;
+}
+
+.config-quality-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background: var(--hef-bg-accent) !important;
+}
+
 /* Native selects used by Authentication tab for guaranteed visible selected text in dark mode. */
 .configuration-theme .config-auth-native-select {
   background: var(--hef-bg-subtle) !important;

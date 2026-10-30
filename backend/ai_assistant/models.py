@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
 from .quality_models import AIPromptConfiguration, AIPromptVersion, AIPromptAuditEvent, AIPromptLock  # noqa: F401
+from .feedback_models import (AIRuleGenerationArtifact, AIRuleRevision, AIRuleLineage,
+                              AIRuleFeedback, AIFeedbackAuditEvent)  # noqa: F401
 from cryptography.fernet import Fernet, InvalidToken
 import uuid
 

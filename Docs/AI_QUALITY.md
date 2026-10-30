@@ -6,15 +6,14 @@
    immutable deployment-local instruction versions, organization/installation
    scope, language overrides, explicit review, audited activation and rollback,
    and the Configuration → AI Quality interface.
-2. **Generation provenance — started.** Async rule generation records its scope,
-   effective instruction version, exact system/user prompts, prompt hashes,
-   provider/model, assembled context, and retrieved excerpts. Next: persist
-   provenance for synchronous generation and link generated output to saved
-   artifact revisions, including multi-format rules and repeated generations.
-3. **Structured correction feedback — next.** Preserve generated and corrected
-   revisions, prepare diffs on save, collect user-confirmed issue categories and
-   verification evidence, and provide an organization-scoped admin review queue.
-   An edit alone must not be treated as a verified AI error.
+2. **Generation provenance — implemented for the rule-generation pilot.** Async
+   rule generation and synchronous MVE rule generation retain prepared prompts,
+   context, provider/model, and immutable output artifacts. Saved revisions keep
+   per-format lineage across reopened editors and repeated generations.
+3. **Structured correction feedback — implemented.** Saves prepare correction
+   diffs, users explain or dismiss edits, and administrators review structured
+   evidence in an organization-scoped queue. An edit alone is an unconfirmed
+   candidate, not a verified AI error.
 4. **Improvement proposals and component adapters — later.** Group reviewed
    feedback, distinguish prompt/context/retrieval/code causes, draft improvements,
    evaluate representative cases, and require approval of the exact proposal.
@@ -95,29 +94,72 @@ before invoking the provider, so provider failures do not erase the prepared
 input. Provider credentials are not copied into this record. Retrieved excerpts
 are retained with the prepared prompt; `rag_status` records whether references
 were found, absent, unsupported, or retrieval raised an error. The synchronous MVE
-generation path uses scoped approved instructions but does not yet persist a
-generation snapshot.
+rule-generation path also records a task, prepared input, and generation artifact
+before handing the generated rule to the editor.
+
+## Correction feedback
+
+Rule-generation output is captured as immutable evidence, with separate primary,
+quick-win, and robust variants. Each artifact retains the raw provider output,
+cleaned editor content, format, originating context, author, and prompt/context
+snapshot. Saving a rule records a per-format revision and its generation source.
+The initial comparison uses content before server-generated metadata is injected.
+Previously saved metadata already present in an editor remains part of its content.
+
+The editor shows pending candidates after a save. Users choose issue categories
+(table, field, logic, syntax, missing context, false positives, output structure,
+formatting, changed requirements, or other), explain what was wrong and how they
+resolved it, and provide their verification level and evidence. Evidence is
+required for verification claims and is labeled **user-reported**. Intentional
+edits can be dismissed with a reason. A newer save supersedes older unsubmitted
+candidates; submitted feedback remains available for review.
+
+Configuration → AI Quality includes a feedback queue filtered by organization,
+format, and status. Organization admins review their organization; platform
+superusers can review all organizations. Reviewers inspect the diff, explanation,
+exact generation context/prompts, versioned JSON payload, and audit history, then
+accept or reject with a reason and likely root cause. Acceptance does not update
+prompts, retrieval data, or mappings. Improvement proposals and evaluation remain
+phase 4, with separate approval before activation.
+
+Attribution survives reopening a saved rule and is replaced by an explicit new
+generation. Imports and currently untracked AI operations detach the previous
+source to avoid blaming unrelated output on the original generation. FREE format
+is excluded. Standalone Rule Hub drafts and Workbench single/bulk saves capture
+per-format evidence; invalid bulk attribution fails that format while reporting
+other saved formats. Rule deletion preserves feedback snapshots; organization
+deletion removes its records.
+
+The pilot covers rule generation, including rules generated from MVE context.
+Maieutic conversations, OpenTIDE enrichment, strAIn, generate-all conversion,
+RAG adaptation, and improvement suggestions do not yet have their own feedback
+adapters. Existing content and generations from before this feature cannot be
+retroactively attributed. Installation-local feedback is stored only in the
+application database and is excluded from rule publishing and Git exports.
+
+Migration `ai_assistant.0018_ai_rule_feedback` creates generation artifacts,
+revisions, lineage, feedback, and feedback audit tables. Apply both 0017 and 0018
+when upgrading from a deployment without the AI Quality foundation.
 
 ## Validation
 
-Backend coverage includes default resolution, approval gating, organization and
-language isolation, precedence, immutable versions, stale-draft rejection,
-upstream-default updates, rollback/reset, authorization, GraphQL review, exact
-generation input capture, and worker provenance. Frontend coverage exercises
-draft creation, explicit approval with a reason, and inherited-prompt preview.
+Backend coverage includes prompt scope/approval/rollback, immutable evidence,
+per-format lineage, correction diffs, user submission/dismissal, verification
+requirements, admin review, tenant isolation, rejected attribution rollback,
+bulk partial results, MVE generation provenance, rule authoring, and FREE saves.
+Frontend coverage includes explicit prompt approval, correction submission,
+intentional-edit dismissal, scoped feedback review, MVE attribution after edits,
+background generation format isolation, and selected-variant attribution.
 
-The local full migration chain currently fails on SQLite because
+The local full migration chain fails on SQLite because
 `rules.0018_autocompleteevent_and_more` contains PostgreSQL-specific SQL.
-The pilot tests were run using an isolated SQLite schema generated from models;
-the new migration was also applied and reversed separately against its historical
-schema, including organization backfill and preservation of existing task data.
-PostgreSQL migration-chain and concurrent transaction validation remain rollout
-checks for the deployment environment. No live-provider quality evaluation has
-been performed; approved instructions are not automatically proven better.
+Behavioral tests use an isolated SQLite schema generated from models; migration
+0018 was applied and reversed separately against its directly referenced
+historical schema. There is no model/migration drift in `ai_assistant`.
+PostgreSQL full-chain and concurrent transaction validation remain deployment
+checks. No live-provider quality evaluation has been performed.
 
-The first increment passed 21 backend tests (including the existing generation
-format tests), three AI Quality UI tests, a focused TypeScript check for the new
-component/tests, the frontend production build, and composite GraphQL schema
-validation. Three neighboring Configuration test failures were reproduced against
-the original Configuration page. The repository-wide TypeScript check also has
-existing errors outside the new component; these are not resolved by this change.
+The focused backend/UI suites, version-selection checks, composite GraphQL schema
+validation, and frontend production build pass. Repository-wide TypeScript still
+reports existing errors outside the new feedback implementation, including MVE
+UI types and Configuration. These are not resolved by this change.

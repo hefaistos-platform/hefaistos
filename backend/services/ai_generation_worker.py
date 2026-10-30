@@ -128,6 +128,13 @@ def _run_generate_rule(task) -> dict:
         organization_id=task.organization_id,
         on_prompt_prepared=record_prompt,
     )
+    from ai_assistant.rule_feedback import capture_generation
+    artifacts = capture_generation(task.user, bundle, output_format.upper(), task.prompt_provenance,
+        task=task, workbench_id=task.input_data.get('playbook_id'),
+        context_kind='workbench' if task.input_data.get('playbook_id') else 'standalone')
+    for variant, key in (('primary', 'primary_rule'), ('quick_win', 'quick_win_rule'), ('robust', 'robust_rule')):
+        if variant in artifacts:
+            bundle[key] = artifacts[variant].content
     _mark_reference_files_used(reference_context)
     return {
         'rule': bundle.get('primary_rule'),
@@ -140,6 +147,7 @@ def _run_generate_rule(task) -> dict:
         'provider_used': provider,
         'output_format': output_format,
         'reference_context': reference_context,
+        'generation_artifacts': {variant: str(artifact.id) for variant, artifact in artifacts.items()},
     }
 
 

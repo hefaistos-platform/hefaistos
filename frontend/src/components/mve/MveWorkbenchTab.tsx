@@ -376,6 +376,7 @@ const GENERATE_MVE_DETECTION_RULE_MUTATION = gql`
       message
       providerUsed
       generatedRule
+      generationArtifactId
       outputFormat
       validationErrors
       warnings
@@ -439,8 +440,8 @@ const CREATE_WORKBENCH_FROM_MVE_MUTATION = gql`
 `;
 
 const SAVE_RULE_MUTATION = gql`
-  mutation SaveRule($playbookId: UUID!, $rawYaml: String!, $format: String, $autoCommit: Boolean, $commitMessage: String) {
-    saveDetectionRule(playbookId: $playbookId, rawYaml: $rawYaml, format: $format, autoCommit: $autoCommit, commitMessage: $commitMessage) {
+  mutation SaveRule($playbookId: UUID!, $rawYaml: String!, $format: String, $autoCommit: Boolean, $commitMessage: String, $generationArtifactId: UUID) {
+    saveDetectionRule(playbookId: $playbookId, rawYaml: $rawYaml, format: $format, autoCommit: $autoCommit, commitMessage: $commitMessage, generationArtifactId: $generationArtifactId) {
       success
       message
       commitSha
@@ -766,6 +767,7 @@ const MveWorkbenchTab: React.FC = () => {
   const [generateMveRule, { loading: generatingRule }] = useMutation(GENERATE_MVE_DETECTION_RULE_MUTATION);
   const [createWorkbenchFromMve, { loading: creatingWorkbenchFromMve }] = useMutation(CREATE_WORKBENCH_FROM_MVE_MUTATION);
   const [generatedRule, setGeneratedRule] = useState<string>('');
+  const [generatedArtifactId, setGeneratedArtifactId] = useState<string | undefined>();
   const [generatedFormat, setGeneratedFormat] = useState<string>('KQL');
   const [generationWarnings, setGenerationWarnings] = useState<string[]>([]);
   const [editorModalVisible, setEditorModalVisible] = useState(false);
@@ -1335,6 +1337,7 @@ const MveWorkbenchTab: React.FC = () => {
         return;
       }
       setGeneratedRule(payload.generatedRule || '');
+      setGeneratedArtifactId(payload.generationArtifactId || undefined);
       setGeneratedFormat(payload.outputFormat || outputFormat);
       setGenerationWarnings(payload.warnings || []);
       setEditorModalVisible(true);
@@ -1415,6 +1418,7 @@ const MveWorkbenchTab: React.FC = () => {
         format,
         autoCommit: options?.autoCommit,
         commitMessage: options?.commitMessage,
+        generationArtifactId: format === generatedFormat ? generatedArtifactId : undefined,
       },
     });
     const payload = res.data?.saveDetectionRule;
@@ -2345,6 +2349,7 @@ const MveWorkbenchTab: React.FC = () => {
         onClose={() => setEditorModalVisible(false)}
         playbookId={targetWorkbenchId || ''}
         initialRule={generatedRule}
+        initialAiAttributions={generatedArtifactId ? [{ outputFormat: generatedFormat, generationArtifactId: generatedArtifactId }] : undefined}
         initialFormat={(generatedFormat as any) || 'KQL'}
         initialMode={'ai' as DetectionMode}
         onSave={async (rule: string, format: string) => {

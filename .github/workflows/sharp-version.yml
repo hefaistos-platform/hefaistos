@@ -35,8 +35,11 @@ jobs:
           fi
 
           current="$(tr -d '[:space:]' < VERSION)"
+          previous="$(git show "${before}:VERSION" 2>/dev/null | tr -d '[:space:]' || true)"
+          previous="${previous:-${current}}"
           bump="$(scripts/versioning.sh detect-bump --range "${range}")"
-          next="$(scripts/versioning.sh bump "${current}" "${bump}")"
+          next="$(scripts/versioning.sh select-version "${current}" "${previous}" "${bump}")"
+          if [[ "${current}" != "${previous}" ]]; then bump="explicit"; fi
           sharp="$(scripts/versioning.sh sharp "${next}" "${GITHUB_RUN_NUMBER}")"
           tag="v${next}"
 
@@ -63,10 +66,12 @@ jobs:
 
           output_file="Versions/${NEXT_TAG}/changelog.md"
 
-          bash scripts/generate_changelog.sh \
-            --title "${NEXT_TAG}" \
-            --range "${RANGE}" \
-            --output "${output_file}"
+          if [[ ! -f "${output_file}" ]]; then
+            bash scripts/generate_changelog.sh \
+              --title "${NEXT_TAG}" \
+              --range "${RANGE}" \
+              --output "${output_file}"
+          fi
 
           echo "path=${output_file}" >> "${GITHUB_OUTPUT}"
 
@@ -77,14 +82,14 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          if git diff --quiet VERSION README.md "${CHANGELOG_PATH}"; then
+          git add VERSION README.md "${CHANGELOG_PATH}"
+          if git diff --cached --quiet; then
             echo "No version-related change detected; skipping commit."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add VERSION README.md "${CHANGELOG_PATH}"
           git commit -m "chore(version): bump to ${NEXT_VERSION} [skip version bump] [skip ci]"
           git push
 

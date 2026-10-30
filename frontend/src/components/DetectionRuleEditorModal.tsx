@@ -14,6 +14,7 @@ import { OpenTideRule } from '../types/opentide';
 import { compileMetadataFromWorkbench, getConfiguredPlatforms } from '../utils/openTideCompiler';
 import { isDirty, normalize } from '../utils/ruleDiff';
 import OpenTideMetadataPreview from './OpenTideMetadataPreview';
+import RuleCorrectionFeedback from './RuleCorrectionFeedback';
 import { DETECTION_FORMAT_REGISTRY, getFormatByTab, getFormatByName, buildSaveButtonLabel, FREE_HIGHLIGHT_LANGUAGES, PlatformTab } from './detectionFormatRegistry';
 
 const { Option } = Select;
@@ -139,6 +140,8 @@ const SAVE_DETECTION_RULE_MUTATION = gql`
     $tags: [String]
     $autoCommit: Boolean
     $commitMessage: String
+    $generationArtifactId: UUID
+    $detachAiGeneration: Boolean
   ) {
     saveDetectionRule(
       playbookId: $playbookId
@@ -153,6 +156,8 @@ const SAVE_DETECTION_RULE_MUTATION = gql`
       tags: $tags
       autoCommit: $autoCommit
       commitMessage: $commitMessage
+      generationArtifactId: $generationArtifactId
+      detachAiGeneration: $detachAiGeneration
     ) {
       success
       message
@@ -446,6 +451,12 @@ export interface SaveToLibraryOptions {
   commitMessage?: string;
 }
 
+export interface AIRuleAttribution {
+  outputFormat: string;
+  generationArtifactId?: string;
+  detach?: boolean;
+}
+
 /** Result returned from library save callbacks. */
 export interface SaveToLibraryResult {
   success: boolean;
@@ -459,14 +470,16 @@ interface DetectionRuleEditorModalProps {
   onClose: () => void;
   playbookId?: string;
   standalone?: boolean;
-  onPublish?: (document: OpenTideRule) => Promise<void>;
-  onLink?: (document: OpenTideRule) => Promise<void>;
-  onDuplicate?: (document: OpenTideRule) => Promise<void>;
+  onPublish?: (document: OpenTideRule, aiAttributions?: AIRuleAttribution[]) => Promise<void>;
+  onLink?: (document: OpenTideRule, aiAttributions?: AIRuleAttribution[]) => Promise<void>;
+  onDuplicate?: (document: OpenTideRule, aiAttributions?: AIRuleAttribution[]) => Promise<void>;
   linkedWorkbench?: { id: string; title: string };
   initialRule: string;
   initialFormat: 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'FREE' | 'OTHER';
   initialMode: DetectionMode;
-  onSave: (rule: string, format: string, mode: DetectionMode, dataSourceId?: string, openTideRule?: OpenTideRule) => void | Promise<void>;
+  onSave: (rule: string, format: string, mode: DetectionMode, dataSourceId?: string, openTideRule?: OpenTideRule, aiAttributions?: AIRuleAttribution[]) => void | Promise<void>;
+  ruleId?: string;
+  initialAiAttributions?: AIRuleAttribution[];
   onGenerateAI?: (format: string) => Promise<string | null>;
   onSaveToLibrary?: (rule: string, format: string, options?: SaveToLibraryOptions) => Promise<SaveToLibraryResult | void>;
   /** Save all configured platform rules to the library at once. */
@@ -572,6 +585,8 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   onGenerateAI,
   onSaveToLibrary,
   onSaveAllToLibrary,
+  ruleId,
+  initialAiAttributions,
   initialOpenTideRule,
   playbookData,
   standalone = false,
@@ -583,6 +598,11 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   const [telemetryContext, setTelemetryContext] = useState('');
   // Local state
   const [ruleContent, setRuleContent] = useState(initialRule);
+  const [aiSources, setAiSources] = useState<Record<string, string | null>>({});
+  const [feedbackRefresh, setFeedbackRefresh] = useState(0);
+  const aiAttributions = () => Object.entries(aiSources).map(([outputFormat, id]) => ({
+    outputFormat, ...(id ? { generationArtifactId: id } : { detach: true }),
+  }));
   const [mode, setMode] = useState<DetectionMode>(initialMode);
   const [selectedDataSource, setSelectedDataSource] = useState<DataSourceOption | null>(null);
   const [selectedRule, setSelectedRule] = useState<RuleOption | null>(null);
@@ -602,6 +622,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     correlationIdeas?: string;
     expectedBlindSpots?: string;
     testGuidance?: string;
+    generationArtifacts?: Record<string, string>;
   }>>({});
   const [hasUnseenInsights, setHasUnseenInsights] = useState(false);
   const [lastInsightsPlatform, setLastInsightsPlatform] = useState<PlatformTab | null>(null);
@@ -750,29 +771,34 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
           }
 
           if (aiTaskType === 'generate') {
+            const targetFormat = result.output_format || format;
+            const targetPlatform = getFormatByName(targetFormat)?.id;
+            if (!targetPlatform) { message.error('AI returned an unsupported rule format.'); return; }
             let generated: string | null = result.rule || null;
-            if (format === 'AQL' && generated && !isLikelyAql(generated)) {
+            if (targetFormat === 'AQL' && generated && !isLikelyAql(generated)) {
               message.warning('AI returned non-AQL content for QRadar. Please retry.');
               generated = null;
             }
-            if (generated && (format !== 'AQL' || isLikelyAql(generated))) {
+            if (generated && (targetFormat !== 'AQL' || isLikelyAql(generated))) {
               const generatedRule = cleanRuleContent(generated);
-              setRuleContent(generatedRule);
-              setOpenTideRule(prev => setPlatformContent(prev, activePlatformTab, generatedRule));
+              if (activePlatformTab === targetPlatform) setRuleContent(generatedRule);
+              setOpenTideRule(prev => setPlatformContent(prev, targetPlatform, generatedRule));
+              setAiSources(prev => ({ ...prev, [targetFormat]: result.generation_artifacts?.primary || null }));
               setPlatformGenerationInsights(prev => ({
                 ...prev,
-                [activePlatformTab]: {
+                [targetPlatform]: {
                   quickWinRule: result.quick_win_rule || '',
                   robustRule: result.robust_rule || '',
                   generationSummary: result.generation_summary || '',
                   correlationIdeas: result.correlation_ideas || '',
                   expectedBlindSpots: result.expected_blind_spots || '',
                   testGuidance: result.test_guidance || '',
+                  generationArtifacts: result.generation_artifacts || {},
                 },
               }));
               setHasUnseenInsights(true);
               if (activePlatformTab !== 'metadata' && activePlatformTab !== 'insights') {
-                setLastInsightsPlatform(activePlatformTab);
+                setLastInsightsPlatform(targetPlatform);
               }
               setMode('ai');
               message.success(`AI-generated rule loaded (${result.provider_used})`);
@@ -838,6 +864,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   useEffect(() => {
     if (visible && !prevVisibleRef.current) {
       setRuleContent(initialRule);
+      setAiSources(Object.fromEntries((initialAiAttributions || []).map(item => [item.outputFormat, item.generationArtifactId || null])));
       setMode(initialMode);
       setSelectedDataSource(null);
       setSelectedRule(null);
@@ -881,7 +908,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
       setRuleContent(getPlatformContent(freshOt, tab));
     }
     prevVisibleRef.current = visible;
-  }, [visible, initialRule, initialFormat, initialMode, initialOpenTideRule, playbookData]);
+  }, [visible, initialRule, initialFormat, initialMode, initialOpenTideRule, playbookData, initialAiAttributions]);
 
   useEffect(() => {
     if (!visible) return;
@@ -902,6 +929,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     const templateContent = templates[templateName];
     
     if (templateContent) {
+      setAiSources(prev => ({ ...prev, [format]: null }));
       setRuleContent(templateContent);
       setSelectedTemplate(templateName);
       setMode('manual');
@@ -913,6 +941,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
   const handleRuleSelect = useCallback((rule: RuleOption | null) => {
     setSelectedRule(rule);
     if (rule) {
+      setAiSources(prev => ({ ...prev, [format]: null }));
       if (rule.format === 'FREE') setOpenTideRule(prev => ({ ...prev, freeRule: { content: rule.rawContent ?? '', label: rule.customFormatLabel ?? '', language: rule.editorLanguage ?? 'plaintext', extension: rule.customFileExtension || 'txt' } }));
       // Load the rule's content into the editor
       if (rule.rawContent) {
@@ -924,7 +953,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
         message.warning(`Rule "${rule.title}" has no content to load`);
       }
     }
-  }, []);
+  }, [format]);
 
   // Clear content handler
   const handleClearContent = useCallback(() => {
@@ -1039,6 +1068,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
           const generatedRule = generated;
           setRuleContent(generatedRule);
           setOpenTideRule(prev => setPlatformContent(prev, activePlatformTab, generatedRule));
+          setAiSources(prev => ({ ...prev, [format]: null }));
           setMode('ai');
           message.success('AI-generated rule loaded');
         } else if (format === 'AQL') {
@@ -1184,11 +1214,12 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
 
   // Copy a single generated rule to editor
   const handleCopyRuleToEditor = useCallback((ruleText: string) => {
+    setAiSources(prev => ({ ...prev, [platformToFormat(activePlatformTab)]: null }));
     setRuleContent(cleanRuleContent(ruleText));
     setMode('ai');
     setActiveTab('editor');
     message.success('Rule copied to editor');
-  }, []);
+  }, [activePlatformTab]);
 
   const currentSnapshot = useMemo(
     () => setPlatformContent(openTideRule, activePlatformTab, ruleContent),
@@ -1257,7 +1288,8 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     const document = setPlatformContent(openTideRule, activePlatformTab, ruleContent);
     setSavingAll(true);
     try {
-      await onSave(ruleContent, platformToFormat(activePlatformTab), mode, selectedDataSource?.id, document);
+      await onSave(ruleContent, platformToFormat(activePlatformTab), mode, selectedDataSource?.id, document, aiAttributions());
+      setFeedbackRefresh(prev => prev + 1);
       const snapshots: Record<string, string> = {};
       for (const entry of DETECTION_FORMAT_REGISTRY) snapshots[entry.format] = savedFormatSnapshot(document, entry.format);
       setSavedSnapshots(snapshots);
@@ -1312,6 +1344,10 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
           playbookId,
           rawYaml: content,
           format: entry.format,
+          ...(entry.format !== 'FREE' && aiSources[entry.format] !== undefined ? {
+            generationArtifactId: aiSources[entry.format] || undefined,
+            detachAiGeneration: aiSources[entry.format] === null,
+          } : {}),
           customFormatLabel: entry.format === 'FREE' ? finalOpenTideRule.freeRule?.label : undefined,
           editorLanguage: entry.format === 'FREE' ? finalOpenTideRule.freeRule?.language : undefined,
           customFileExtension: entry.format === 'FREE' ? (finalOpenTideRule.freeRule?.extension || 'txt') : undefined,
@@ -1325,6 +1361,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
       });
       const payload = res.data?.saveDetectionRule;
       if (payload?.success) {
+        setFeedbackRefresh(prev => prev + 1);
         setSavedSnapshots((prev) => ({ ...prev, [entry.format]: savedFormatSnapshot(finalOpenTideRule, entry.format) }));
         message.success(payload.filename ? `Saved ${payload.filename}` : `Saved ${entry.displayName}`);
       } else {
@@ -1335,7 +1372,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     } finally {
       setSavingSingle(false);
     }
-  }, [openTideRule, activePlatformTab, ruleContent, savedSnapshots, ensureMetadata, persistWorkbench, saveDetectionRuleMutation, playbookId, autoCommit, commitMessage, playbookData?.title]);
+  }, [openTideRule, activePlatformTab, ruleContent, savedSnapshots, ensureMetadata, persistWorkbench, saveDetectionRuleMutation, playbookId, autoCommit, commitMessage, playbookData?.title, aiSources]);
 
   const handleGenerateAll = useCallback(async () => {
     const finalOpenTideRule = setPlatformContent(openTideRule, activePlatformTab, ruleContent);
@@ -1373,6 +1410,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
         }
         const targetEntry = getFormatByName(result.format);
         if (result.content && targetEntry) {
+          setAiSources(prev => ({ ...prev, [result.format]: null }));
           updatedRule = targetEntry.setContent(updatedRule, cleanRuleContent(result.content));
         }
       }
@@ -1442,7 +1480,12 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
       const result = await saveAllDetectionRulesMutation({
         variables: {
           playbookId,
-          rules: entries.map((item) => ({ format: item.entry.format, content: item.content, ...(item.entry.format === 'FREE' ? { customFormatLabel: finalOpenTideRule.freeRule?.label, editorLanguage: finalOpenTideRule.freeRule?.language, customFileExtension: finalOpenTideRule.freeRule?.extension || 'txt' } : {}) })),
+          rules: entries.map((item) => ({ format: item.entry.format, content: item.content,
+            ...(item.entry.format !== 'FREE' && aiSources[item.entry.format] !== undefined ? {
+              generationArtifactId: aiSources[item.entry.format] || undefined,
+              detachAiGeneration: aiSources[item.entry.format] === null,
+            } : {}),
+            ...(item.entry.format === 'FREE' ? { customFormatLabel: finalOpenTideRule.freeRule?.label, editorLanguage: finalOpenTideRule.freeRule?.language, customFileExtension: finalOpenTideRule.freeRule?.extension || 'txt' } : {}) })),
           title: metadata.title || playbookData?.title || 'rule',
           description: metadata.skipped ? '' : metadata.description,
           author: metadata.skipped ? '' : metadata.author,
@@ -1452,6 +1495,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
         },
       });
       const results = result.data?.saveAllDetectionRules?.results || [];
+      if (results.some((r: any) => r.status === 'saved')) setFeedbackRefresh(prev => prev + 1);
       const failures = results.filter((r: any) => r.status === 'failed');
       const savedFormats = new Set(
         results
@@ -1481,7 +1525,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     } finally {
       setSavingAll(false);
     }
-  }, [openTideRule, activePlatformTab, ruleContent, playbookData, savedSnapshots, savedMetadataSnapshot, ensureMetadata, persistWorkbench, saveAllDetectionRulesMutation, playbookId, autoCommit, commitMessage, playbookData?.title]);
+  }, [openTideRule, activePlatformTab, ruleContent, playbookData, savedSnapshots, savedMetadataSnapshot, ensureMetadata, persistWorkbench, saveAllDetectionRulesMutation, playbookId, autoCommit, commitMessage, playbookData?.title, aiSources]);
 
   // Get syntax language for highlighter
   const getSyntaxLanguage = (): string => {
@@ -1627,9 +1671,9 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
               <Button onClick={handleClose}>{standalone ? 'Back to Rule Hub' : 'Cancel'}</Button>
               {standalone && <>
                 {linkedWorkbench && <a href={`/playbooks/${linkedWorkbench.id}`}>Workbench: {linkedWorkbench.title}</a>}
-                <Button onClick={() => onDuplicate?.(currentSnapshot)}>Duplicate</Button>
-                <Button onClick={() => onLink?.(currentSnapshot)}>{linkedWorkbench ? 'Manage Workbench link' : 'Add to Workbench'}</Button>
-                <Button onClick={() => onPublish?.(currentSnapshot)}>Publish to Git</Button>
+                <Button onClick={() => onDuplicate?.(currentSnapshot, aiAttributions())}>Duplicate</Button>
+                <Button onClick={() => onLink?.(currentSnapshot, aiAttributions())}>{linkedWorkbench ? 'Manage Workbench link' : 'Add to Workbench'}</Button>
+                <Button onClick={() => onPublish?.(currentSnapshot, aiAttributions())}>Publish to Git</Button>
               </>}
               {selectedRule && canDeleteSelectedRule() && (
                 <Button
@@ -1660,6 +1704,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
         </div>
       }
     >
+      <RuleCorrectionFeedback playbookId={playbookId} ruleId={ruleId} refreshKey={feedbackRefresh} />
       <div className="flex h-full">
         {/* Left Panel - Configuration */}
         <div className="w-80 border-r border-gray-200 p-4 overflow-y-auto bg-gray-50">
@@ -2127,6 +2172,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                             type={selectedVariant === 'quickWin' ? 'primary' : 'default'}
                             onClick={() => {
                               const quickWinRule = tabInsights.quickWinRule || '';
+                              setAiSources(prev => ({ ...prev, [platformToFormat(lastInsightsPlatform)]: tabInsights.generationArtifacts?.quick_win || null }));
                               setRuleContent(quickWinRule);
                               setOpenTideRule(prev => setPlatformContent(prev, lastInsightsPlatform, quickWinRule));
                               setMode('ai');
@@ -2144,6 +2190,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                             type={selectedVariant === 'robust' ? 'primary' : 'default'}
                             onClick={() => {
                               const robustRule = tabInsights.robustRule || '';
+                              setAiSources(prev => ({ ...prev, [platformToFormat(lastInsightsPlatform)]: tabInsights.generationArtifacts?.robust || null }));
                               setRuleContent(robustRule);
                               setOpenTideRule(prev => setPlatformContent(prev, lastInsightsPlatform, robustRule));
                               setMode('ai');
@@ -2306,6 +2353,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                                 message.warning('No adapted rule content to apply.');
                                 return;
                               }
+                              setAiSources(prev => ({ ...prev, [platformToFormat(activePlatformTab)]: null }));
                               setRuleContent(adaptedRule);
                               setOpenTideRule(prev => setPlatformContent(prev, activePlatformTab, adaptedRule));
                               setMode('ai');
@@ -2394,6 +2442,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                         onClick={() => {
                           // Apply only the improved rule (section 7) to the editor, replacing
                           // the existing content so users get a clean, better rule.
+                          setAiSources(prev => ({ ...prev, [platformToFormat(activePlatformTab)]: null }));
                           setRuleContent(cleanRuleContent(improvedRule));
                           setActiveTab('editor');
                           message.success('Improved rule applied to editor');

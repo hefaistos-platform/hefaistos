@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { gql } from '@apollo/client';
 import { useMutation, useQuery } from '@apollo/client/react';
 import { Alert, Button, Card, Input, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd';
+import AIFeedbackReview from './AIFeedbackReview';
 
 const QUALITY_PROMPTS = gql`
   query AIQualityPrompts($organizationId: UUID, $installation: Boolean!, $language: String!) {
@@ -157,17 +158,19 @@ export default function AIQuality({ isSuperuser }: { isSuperuser: boolean }) {
       Approved local versions survive upgrades and are stored with this installation.
     </Typography.Paragraph>
     <Space wrap style={{ marginBottom: 16 }}>
-      {isSuperuser && <Select aria-label="Prompt scope" value={scope} onChange={setScope} style={{ minWidth: 240 }}
+      {isSuperuser && <Select className="config-quality-select" classNames={{ popup: { root: 'config-quality-select-dropdown' } }}
+        aria-label="Prompt scope" value={scope} onChange={setScope} style={{ minWidth: 240 }}
         options={[{ value: 'own', label: 'My organization' }, { value: 'installation', label: 'Installation default' },
           ...(orgs?.allOrganizations || []).map(org => ({ value: org.id, label: org.name }))]} />}
-      <Select aria-label="Prompt language" value={language} onChange={setLanguage} style={{ minWidth: 170 }}
+      <Select className="config-quality-select" classNames={{ popup: { root: 'config-quality-select-dropdown' } }}
+        aria-label="Prompt language" value={language} onChange={setLanguage} style={{ minWidth: 170 }}
         options={['*', 'KQL', 'EQL', 'SPL', 'WAZUH', 'AQL', 'OTHER'].map(value => ({
           value, label: value === '*' ? 'All languages' : value,
         }))} />
       <Button onClick={() => refetch()} loading={loading}>Refresh</Button>
     </Space>
     <Alert type="info" showIcon style={{ marginBottom: 16 }} title="Rule generation pilot"
-      description="Customize detection guidance here. The required output structure and generation context are supplied automatically. Feedback collection and automated improvement proposals will follow in later phases." />
+      description="Customize detection guidance here. Review submitted rule corrections below. Automated improvement proposals will follow in a later phase." />
     {error && <Alert type="error" showIcon title={error.message} style={{ marginBottom: 16 }} />}
     {(data?.aiQualityPrompts || []).map(prompt => <Card key={`${scope}:${language}:${prompt.promptKey}`} title={prompt.title}
       loading={loading} style={{ marginBottom: 16 }} extra={<Space>
@@ -209,6 +212,9 @@ export default function AIQuality({ isSuperuser }: { isSuperuser: boolean }) {
         { key: 'baseline', label: 'Product baseline', children: <pre style={{ whiteSpace: 'pre-wrap' }}>{prompt.defaultInstructions}</pre> },
       ]} />
     </Card>)}
+    <Card title="Correction feedback" style={{ marginTop: 24 }}>
+      <AIFeedbackReview organizationId={variables.organizationId} allOrganizations={scope === 'installation'} outputFormat={language} />
+    </Card>
     <Modal title="Create prompt draft" open={Boolean(editor)} onCancel={() => !busy && setEditor(null)}
       onOk={saveDraft} okText="Create draft" confirmLoading={creating} width={800}
       okButtonProps={{ disabled: !editor?.instructions.trim() || !editor?.reason.trim() }}>

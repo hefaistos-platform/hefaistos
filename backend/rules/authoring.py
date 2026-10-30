@@ -8,6 +8,7 @@ import yaml
 from django.core import signing
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
+from django.db import transaction
 from playbooks.repo_clients import RepoClient
 from .models import DetectionRule, RuleRepository
 from .opentide_schemas import OpenTideRule
@@ -86,10 +87,14 @@ def validate_draft(document):
             raise ValueError('Custom format label must be at most 80 characters.')
 
 
-def save_draft(user, document, rule_id=None):
+@transaction.atomic
+def save_draft(user, document, rule_id=None, *, ai_attributions=None):
     validate_draft(document)
     doc = copy.deepcopy(document)
     rule = editable_rule(user, rule_id) if rule_id else DetectionRule(organization=user.organization, author=user.username)
+    if rule_id:
+        # Serialize saves before updating the document and its per-format history.
+        rule = DetectionRule.objects.select_for_update().get(pk=rule.pk)
     if rule.playbook_id:
         raise ValueError('This rule is owned by a Workbench. Use its existing editor or duplicate it for standalone editing.')
     metadata = doc['metadata']
@@ -108,6 +113,8 @@ def save_draft(user, document, rule_id=None):
     if not rule.repository_id:
         rule.repository, _ = RuleRepository.objects.get_or_create(organization=user.organization, name='Rule Repo', defaults={'git_url': None})
     rule.save()
+    from ai_assistant.rule_feedback import record_document_revisions
+    record_document_revisions(user, rule, doc, ai_attributions)
     return rule
 
 

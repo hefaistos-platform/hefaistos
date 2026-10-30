@@ -6668,6 +6668,7 @@ class GenerateMveDetectionRule(graphene.Mutation):
     message = graphene.String()
     provider_used = graphene.String()
     generated_rule = graphene.String()
+    generation_artifact_id = graphene.UUID()
     output_format = graphene.String()
     validation_errors = graphene.List(GenericScalar)
     warnings = graphene.List(graphene.String)
@@ -6758,13 +6759,44 @@ class GenerateMveDetectionRule(graphene.Mutation):
         )
 
         effective_settings = _get_effective_ai_settings(settings)
-        generated_rule, provider = generate_rule(effective_settings, context, fmt,
-                                                  organization_id=user.organization_id)
+        from ai_assistant.models import AIGenerationTask
+        from ai_assistant.rule_feedback import capture_generation
+        from django.utils import timezone as ai_timezone
+        task = AIGenerationTask.objects.create(user=user, organization=user.organization,
+            task_type=AIGenerationTask.TaskType.GENERATE_RULE, status=AIGenerationTask.TaskStatus.RUNNING,
+            started_at=ai_timezone.now(), input_data={'mve_draft_id': str(draft.id), 'output_format': fmt,
+                                                     'playbook_context': context})
+
+        def record_prompt(provenance):
+            task.prompt_provenance = {**provenance, 'context': context, 'reference_context': reference_context}
+            task.save(update_fields=['prompt_provenance'])
+
+        try:
+            generated_rule, provider = generate_rule(effective_settings, context, fmt,
+                organization_id=user.organization_id, on_prompt_prepared=record_prompt)
+            failed = not generated_rule or str(generated_rule).lower().startswith(('# error', 'error:'))
+            artifacts = {} if failed else capture_generation(user, {'primary_rule': generated_rule}, fmt,
+                task.prompt_provenance, task=task, context_kind='mve', context_id=draft.id)
+            artifact = artifacts.get('primary')
+            if artifact:
+                generated_rule = artifact.content
+            task.status = AIGenerationTask.TaskStatus.FAILED if failed else AIGenerationTask.TaskStatus.COMPLETED
+            task.result_data = {'rule': generated_rule, 'provider_used': provider, 'output_format': fmt,
+                                'generation_artifacts': {key: str(value.id) for key, value in artifacts.items()}}
+            task.error_message = str(generated_rule or 'Empty AI output') if failed else ''
+            task.completed_at = ai_timezone.now()
+            task.save(update_fields=['status', 'result_data', 'error_message', 'completed_at'])
+        except Exception:
+            task.status = AIGenerationTask.TaskStatus.FAILED
+            task.error_message = 'MVE generation failed before a usable result was captured.'
+            task.completed_at = ai_timezone.now()
+            task.save(update_fields=['status', 'error_message', 'completed_at'])
+            raise
 
         warnings = []
         if not reference_context:
             warnings.append('No RAG reference context was available for this generation run.')
-        if not generated_rule or not str(generated_rule).strip():
+        if failed or not str(generated_rule).strip():
             warnings.append('Generation returned empty output.')
             return GenerateMveDetectionRule(
                 success=False,
@@ -6785,6 +6817,7 @@ class GenerateMveDetectionRule(graphene.Mutation):
             message='Generated detection rule from MVE draft.',
             provider_used=provider,
             generated_rule=generated_rule,
+            generation_artifact_id=artifact.id if artifact else None,
             output_format=fmt,
             validation_errors=[],
             warnings=warnings,

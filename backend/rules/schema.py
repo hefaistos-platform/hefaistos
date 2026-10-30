@@ -1,11 +1,13 @@
 import graphene
+from graphql import GraphQLError
 import logging
 import os
 import re
 import yaml as pyyaml
 from datetime import timedelta
 from graphene_django import DjangoObjectType
-from django.db import models
+from django.db import models, transaction
+from ai_assistant.feedback_schema import AIRuleAttributionInput
 from django.db.models import F, Value
 from django.db.models.functions import Greatest
 from services.publisher import get_publisher
@@ -1351,6 +1353,8 @@ class SyncRuleRepositoryRag(graphene.Mutation):
 class SaveDetectionRule(graphene.Mutation):
     class Arguments:
         playbook_id = graphene.UUID(required=True)
+        generation_artifact_id = graphene.UUID()
+        detach_ai_generation = graphene.Boolean(default_value=False)
         custom_format_label = graphene.String(required=False)
         editor_language = graphene.String(required=False)
         custom_file_extension = graphene.String(required=False)
@@ -1372,14 +1376,15 @@ class SaveDetectionRule(graphene.Mutation):
 
     @staticmethod
     @role_required([Roles.ADMIN, Roles.ANALYST])
-    def mutate(root, info, playbook_id, raw_yaml, format=None, title=None, description=None, author=None, tags=None, auto_commit=False, commit_message=None, custom_format_label=None, editor_language=None, custom_file_extension=None):
+    @transaction.atomic
+    def mutate(root, info, playbook_id, raw_yaml, format=None, title=None, description=None, author=None, tags=None, auto_commit=False, commit_message=None, custom_format_label=None, editor_language=None, custom_file_extension=None, generation_artifact_id=None, detach_ai_generation=False):
         user = info.context.user
         if user.is_anonymous:
             raise Exception("Authentication required")
 
         # 1) Load the graph and validate org ownership
         try:
-            graph = PlaybookGraph.objects.get(pk=playbook_id, organization=user.organization)
+            graph = PlaybookGraph.objects.select_for_update().get(pk=playbook_id, organization=user.organization)
         except PlaybookGraph.DoesNotExist:
             raise Exception("Playbook not found or you do not have permission")
 
@@ -1531,6 +1536,10 @@ class SaveDetectionRule(graphene.Mutation):
             pass
 
         invalidate_mgmt_cave_stats_cache(getattr(user.organization, 'id', None))
+
+        from ai_assistant.rule_feedback import record_rule_revision
+        record_rule_revision(user, rule, fmt_norm, raw_yaml,
+                             artifact_id=generation_artifact_id, detach=detach_ai_generation)
 
         extension = (rule.custom_file_extension or 'txt') if fmt_norm == 'FREE' else get_format_spec(fmt_norm).file_extension
         filename = f"{slugify(extracted['title']) or 'rule'}.{extension}"
@@ -1715,6 +1724,8 @@ class GenerateAllDetectionRules(graphene.Mutation):
 class SaveRuleInput(graphene.InputObjectType):
     format = graphene.String(required=True)
     content = graphene.String(required=True)
+    generation_artifact_id = graphene.UUID()
+    detach_ai_generation = graphene.Boolean(default_value=False)
     custom_format_label = graphene.String(required=False)
     editor_language = graphene.String(required=False)
     custom_file_extension = graphene.String(required=False)
@@ -1760,22 +1771,28 @@ class SaveAllDetectionRules(graphene.Mutation):
             if not raw_content.strip():
                 results.append(SaveRuleResult(format=fmt, status='skipped', filename=None, message='Empty content'))
                 continue
-            saved = SaveDetectionRule.mutate(
-                root,
-                info,
-                playbook_id=playbook_id,
-                raw_yaml=raw_content,
-                format=fmt,
-                custom_format_label=getattr(entry, 'custom_format_label', None),
-                editor_language=getattr(entry, 'editor_language', None),
-                custom_file_extension=getattr(entry, 'custom_file_extension', None),
-                title=title,
-                description=description,
-                author=author,
-                tags=tags,
-                auto_commit=auto_commit,
-                commit_message=commit_message,
-            )
+            try:
+                saved = SaveDetectionRule.mutate(
+                    root,
+                    info,
+                    playbook_id=playbook_id,
+                    raw_yaml=raw_content,
+                    format=fmt,
+                    custom_format_label=getattr(entry, 'custom_format_label', None),
+                    editor_language=getattr(entry, 'editor_language', None),
+                    custom_file_extension=getattr(entry, 'custom_file_extension', None),
+                    generation_artifact_id=getattr(entry, 'generation_artifact_id', None),
+                    detach_ai_generation=getattr(entry, 'detach_ai_generation', False),
+                    title=title,
+                    description=description,
+                    author=author,
+                    tags=tags,
+                    auto_commit=auto_commit,
+                    commit_message=commit_message,
+                )
+            except GraphQLError as exc:
+                results.append(SaveRuleResult(format=fmt, status='failed', filename=None, message=str(exc)))
+                continue
             results.append(SaveRuleResult(
                 format=fmt,
                 status='saved' if saved.success else 'failed',
@@ -1993,13 +2010,14 @@ class UpdateDetectionRule(graphene.Mutation):
 
     @staticmethod
     @role_required([Roles.ADMIN, Roles.ANALYST])
+    @transaction.atomic
     def mutate(root, info, rule_id, raw_content):
         user = info.context.user
         if user.is_anonymous:
             raise Exception("Authentication required")
 
         try:
-            rule = DetectionRule.objects.get(pk=rule_id, organization=user.organization)
+            rule = DetectionRule.objects.select_for_update().get(pk=rule_id, organization=user.organization)
         except DetectionRule.DoesNotExist:
             raise Exception("Rule not found or you do not have permission")
 
@@ -2038,6 +2056,8 @@ class UpdateDetectionRule(graphene.Mutation):
             rule.status = extracted['status']
         rule.save()
 
+        from ai_assistant.rule_feedback import record_rule_revision
+        record_rule_revision(user, rule, fmt, raw_content)
         invalidate_mgmt_cave_stats_cache(getattr(user.organization, 'id', None))
 
         return UpdateDetectionRule(success=True, message="Rule updated successfully", rule=rule)
@@ -2092,13 +2112,14 @@ class SaveRuleDraft(graphene.Mutation):
     class Arguments:
         document = graphene.JSONString(required=True)
         rule_id = graphene.ID()
+        ai_attributions = graphene.List(graphene.NonNull(AIRuleAttributionInput))
     rule = graphene.Field(RuleType)
 
     @staticmethod
     @role_required([Roles.ADMIN, Roles.ANALYST])
-    def mutate(root, info, document, rule_id=None):
+    def mutate(root, info, document, rule_id=None, ai_attributions=None):
         from .authoring import save_draft
-        rule = save_draft(info.context.user, document, rule_id)
+        rule = save_draft(info.context.user, document, rule_id, ai_attributions=ai_attributions)
         invalidate_mgmt_cave_stats_cache(info.context.user.organization_id)
         return SaveRuleDraft(rule=rule)
 

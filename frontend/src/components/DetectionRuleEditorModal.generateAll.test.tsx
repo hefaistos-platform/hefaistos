@@ -12,7 +12,7 @@ import { useLazyQuery, useMutation, useQuery } from '@apollo/client/react';
 
 jest.mock('./DataSourcePicker', () => () => <div data-testid="data-source-picker" />);
 jest.mock('./RulePicker', () => () => <div data-testid="rule-picker" />);
-jest.mock('./DetectionRuleEditor', () => () => <div data-testid="detection-rule-editor" />);
+jest.mock('./DetectionRuleEditor', () => ({ value, onChange }: { value: string; onChange: (value: string) => void }) => <textarea aria-label="Rule content" data-testid="detection-rule-editor" value={value} onChange={event => onChange(event.target.value)} />);
 jest.mock('./OpenTideMetadataPreview', () => () => <div data-testid="opentide-metadata-preview" />);
 jest.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: () => <div data-testid="markdown-renderer" /> }));
 jest.mock('./ui/PixelIcon', () => ({ PixelIcon: () => <span data-testid="pixel-icon" /> }));
@@ -46,7 +46,7 @@ const BASE_RULE: OpenTideRule = {
 describe('DetectionRuleEditorModal generate-all overwrite behavior', () => {
   beforeEach(() => {
     (useMutation as jest.Mock).mockImplementation(() => [jest.fn(), { loading: false }]);
-    (useQuery as jest.Mock).mockReturnValue({ data: { me: { id: '1', username: 'tester', role: 'ADMIN' } } });
+    (useQuery as jest.Mock).mockReturnValue({ refetch: jest.fn().mockResolvedValue({}), data: { me: { id: '1', username: 'tester', role: 'ADMIN' } } });
     (useLazyQuery as jest.Mock).mockReturnValue([jest.fn()]);
   });
 
@@ -168,7 +168,7 @@ describe('DetectionRuleEditorModal generate-all overwrite behavior', () => {
 describe('FREE Format manual editing', () => {
   beforeEach(() => {
     (useMutation as jest.Mock).mockImplementation(() => [jest.fn(), { loading: false }]);
-    (useQuery as jest.Mock).mockReturnValue({ data: { me: { id: '1', username: 'tester', role: 'ADMIN' } } });
+    (useQuery as jest.Mock).mockReturnValue({ refetch: jest.fn().mockResolvedValue({}), data: { me: { id: '1', username: 'tester', role: 'ADMIN' } } });
     (useLazyQuery as jest.Mock).mockReturnValue([jest.fn()]);
   });
 
@@ -232,7 +232,7 @@ describe('FREE Format manual editing', () => {
 describe('Standalone Rule Hub editor', () => {
   beforeEach(() => {
     (useMutation as jest.Mock).mockImplementation(() => [jest.fn(), { loading: false }]);
-    (useQuery as jest.Mock).mockReturnValue({ data: { me: { id: '1', username: 'tester', role: 'ADMIN' } } });
+    (useQuery as jest.Mock).mockReturnValue({ refetch: jest.fn().mockResolvedValue({}), data: { me: { id: '1', username: 'tester', role: 'ADMIN' } } });
     (useLazyQuery as jest.Mock).mockReturnValue([jest.fn()]);
   });
 
@@ -257,5 +257,54 @@ describe('Standalone Rule Hub editor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Publish to Git' }));
     expect(onPublish.mock.calls[0][0].metadata.description).toBe('Updated detection objective');
     expect(onPublish.mock.calls[0][0].platforms.spl.query).toBe('index=main');
+  });
+});
+
+
+describe('AI generation attribution', () => {
+  beforeEach(() => {
+    (useMutation as jest.Mock).mockImplementation(() => [jest.fn(), { loading: false }]);
+    (useQuery as jest.Mock).mockReturnValue({ refetch: jest.fn().mockResolvedValue({}), data: { me: { id: '1', username: 'tester', role: 'ADMIN' } } });
+    (useLazyQuery as jest.Mock).mockReturnValue([jest.fn()]);
+  });
+
+  test('MVE source survives manual edits and stays separate from the authoring document', async () => {
+    const onSave = jest.fn().mockResolvedValue(undefined);
+    render(<DetectionRuleEditorModal visible standalone onClose={jest.fn()} initialRule="DeviceProcessEvents | take 1"
+      initialFormat="KQL" initialMode="ai" initialAiAttributions={[{ outputFormat: 'KQL', generationArtifactId: 'mve-generation-1' }]} onSave={onSave} />);
+    fireEvent.change(screen.getByLabelText('Rule content'), { target: { value: 'ProcessEvents_CL | take 1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][4].platforms.kql.query).toBe('ProcessEvents_CL | take 1');
+    expect(onSave.mock.calls[0][4]).not.toHaveProperty('aiAttributions');
+    expect(onSave.mock.calls[0][5]).toEqual([{ outputFormat: 'KQL', generationArtifactId: 'mve-generation-1' }]);
+  });
+
+  test('background KQL generation stays in KQL after a tab switch and robust selection preserves its source', async () => {
+    const start = jest.fn().mockResolvedValue({ data: { startGenerateRuleTask: { success: true, taskId: 'task-1' } } });
+    const poll = jest.fn().mockResolvedValue({ data: { aiGenerationTaskStatus: { status: 'COMPLETED', resultData: JSON.stringify({
+      output_format: 'KQL', rule: 'DeviceProcessEvents | take 1', robust_rule: 'DeviceProcessEvents | take 5',
+      generation_artifacts: { primary: 'primary-1', robust: 'robust-1' },
+    }) } } });
+    (useMutation as jest.Mock).mockImplementation((document) => [
+      document.definitions?.[0]?.name?.value === 'StartGenerateRuleTask' ? start : jest.fn(), { loading: false },
+    ]);
+    (useLazyQuery as jest.Mock).mockReturnValue([poll]);
+    const onSave = jest.fn().mockResolvedValue(undefined);
+    render(<DetectionRuleEditorModal visible standalone onClose={jest.fn()} initialRule="" initialFormat="KQL"
+      initialMode="manual" initialOpenTideRule={BASE_RULE} onSave={onSave} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Generate with AI' }));
+    await waitFor(() => expect(start).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: /SPL/ }));
+    await waitFor(() => expect(poll).toHaveBeenCalled(), { timeout: 4000 });
+    expect(screen.getByLabelText('Rule content')).toHaveValue('index=main');
+    fireEvent.click(screen.getByRole('button', { name: /Insights/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Load robust variant' }));
+    fireEvent.change(screen.getByLabelText('Rule content'), { target: { value: 'ProcessEvents_CL | take 5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][4].platforms.spl.query).toBe('index=main');
+    expect(onSave.mock.calls[0][4].platforms.kql.query).toBe('ProcessEvents_CL | take 5');
+    expect(onSave.mock.calls[0][5]).toEqual([{ outputFormat: 'KQL', generationArtifactId: 'robust-1' }]);
   });
 });
