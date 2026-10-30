@@ -189,6 +189,7 @@ class AIGenerationTests(TestCase):
         mock_settings = MagicMock()
         mock_settings.get_openai_key.return_value = 'test-key'
         mock_settings.user.username = 'testuser'
+        mock_settings.user.organization_id = None
 
         context = {
             'title': 'Detect suspicious PowerShell',
@@ -239,6 +240,7 @@ class AIGenerationTests(TestCase):
         mock_settings = MagicMock()
         mock_settings.get_openai_key.return_value = 'test-key'
         mock_settings.user.username = 'testuser'
+        mock_settings.user.organization_id = None
 
         context = {
             'title': 'Test Rule',

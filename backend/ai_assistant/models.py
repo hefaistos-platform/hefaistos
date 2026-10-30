@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from .quality_models import AIPromptConfiguration, AIPromptVersion, AIPromptAuditEvent, AIPromptLock  # noqa: F401
 from cryptography.fernet import Fernet, InvalidToken
 import uuid
 
@@ -160,7 +161,11 @@ class AIGenerationTask(models.Model):
         default=TaskStatus.PENDING,
     )
     # Input payload stored as JSON so a single model covers all task types
+    organization = models.ForeignKey('organizations.Organization', null=True, blank=True,
+                                     on_delete=models.SET_NULL, related_name='ai_generation_tasks')
     input_data = models.JSONField()
+    # Exact instructions/context sent to the provider, without credentials.
+    prompt_provenance = models.JSONField(default=dict, blank=True)
     # Output result stored as JSON when COMPLETED
     result_data = models.JSONField(null=True, blank=True)
     error_message = models.TextField(blank=True, null=True)

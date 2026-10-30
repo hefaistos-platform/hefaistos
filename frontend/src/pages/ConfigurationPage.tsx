@@ -38,6 +38,7 @@ import { InviteUserModal } from '../components/InviteUserModal';
 import PlatformCredentials from './settings/PlatformCredentials';
 import HefPublishTargets from './settings/HefPublishTargets';
 import AITasksTab from './settings/AITasks';
+import AIQuality from './settings/AIQuality';
 import InstanceSharing from './settings/InstanceSharing';
 import { getApiBaseUrl } from '../config/env';
 import { getStoredAccessToken } from '../utils/authSession';
@@ -2363,7 +2364,7 @@ export const SystemUpdateTab: React.FC<{ isSuperuser: boolean }> = ({ isSuperuse
 // Main ConfigurationPage
 // ---------------------------------------------------------------------------
 
-const VALID_TABS = ['users', 'auth', 'hef', 'rules', 'misp', 'smtp', 'sharing', 'aitasks', 'orgai', 'platforms', 'dac', 'system-update'] as const;
+const VALID_TABS = ['users', 'auth', 'hef', 'rules', 'misp', 'smtp', 'sharing', 'aitasks', 'orgai', 'aiquality', 'platforms', 'dac', 'system-update'] as const;
 type TabKey = typeof VALID_TABS[number];
 
 export const ConfigurationPage: React.FC = () => {
@@ -3328,6 +3329,11 @@ export const ConfigurationPage: React.FC = () => {
         </Space>
       ),
       children: <App><DacTab repositories={repoData?.allRuleRepositories || []} /></App>,
+    }] : []),
+    ...((isCurrentSuperuser || accessData?.me?.role === 'ADMIN') ? [{
+      key: 'aiquality',
+      label: 'AI Quality',
+      children: <App><AIQuality isSuperuser={isCurrentSuperuser} /></App>,
     }] : []),
     ...(isCurrentSuperuser ? [{
       key: 'system-update',

@@ -2132,6 +2132,7 @@ def _create_ai_task(user, task_type: str, input_data: dict) -> 'AIGenerationTask
 
     task = AIGenerationTask.objects.create(
         user=user,
+        organization=user.organization,
         task_type=task_type,
         input_data=input_data,
     )
@@ -2996,7 +2997,7 @@ class Query(graphene.ObjectType):
         if user.is_anonymous:
             raise GraphQLError("Authentication required")
         try:
-            task = AIGenerationTask.objects.get(pk=task_id, user=user)
+            task = AIGenerationTask.objects.get(pk=task_id, user=user, organization_id=user.organization_id)
         except AIGenerationTask.DoesNotExist:
             raise GraphQLError("Task not found")
 

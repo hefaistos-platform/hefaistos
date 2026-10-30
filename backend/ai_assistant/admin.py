@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import OrgAISettings, SharedAIProfile, AIGenerationTask
+from .models import (OrgAISettings, SharedAIProfile, AIGenerationTask,
+                     AIPromptConfiguration, AIPromptVersion, AIPromptAuditEvent)
 
 
 @admin.register(OrgAISettings)
@@ -19,5 +20,25 @@ class AIGenerationTaskAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'task_type', 'status', 'created_at', 'completed_at')
     list_filter = ('task_type', 'status')
     search_fields = ('user__username',)
-    readonly_fields = ('id', 'user', 'task_type', 'input_data', 'result_data',
+    readonly_fields = ('id', 'user', 'task_type', 'input_data', 'result_data', 'prompt_provenance',
                        'error_message', 'created_at', 'started_at', 'completed_at')
+
+
+class ReadOnlyPromptAdmin(admin.ModelAdmin):
+    """All writes go through the audited approval service."""
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+admin.site.register(AIPromptConfiguration, ReadOnlyPromptAdmin)
+admin.site.register(AIPromptVersion, ReadOnlyPromptAdmin)
+admin.site.register(AIPromptAuditEvent, ReadOnlyPromptAdmin)

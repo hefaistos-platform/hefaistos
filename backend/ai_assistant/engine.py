@@ -589,7 +589,8 @@ def run_custom_prompt(user_settings, user_prompt: str, system_prompt: str | None
     return response_text, provider
 
 
-def generate_rule_bundle(user_settings, playbook_context, output_format: str = 'KQL'):
+def generate_rule_bundle(user_settings, playbook_context, output_format: str = 'KQL', *,
+                         organization_id=None, on_prompt_prepared=None):
     """Generate a capability-aware detection package with primary and alternative rules."""
     available = build_available(user_settings)
     if not available:
@@ -632,10 +633,16 @@ def generate_rule_bundle(user_settings, playbook_context, output_format: str = '
         if isinstance(reference_context_prompt, str) and reference_context_prompt.strip()
         else ""
     )
-    system_prompt = f"""You are a Principal Detection Engineer. Generate layered detection outputs grounded in the supplied capability abstractions.
+    from .prompt_registry import digest, resolve_prompt
 
-Use the structured capability abstractions as authoritative grounding data. Do not ignore them. The PRIMARY-RULE must prioritize the requested detection focus layer when one is provided.
+    # Explicit scope survives shared provider profiles, which have no user relation.
+    if organization_id is None:
+        organization_id = getattr(getattr(user_settings, 'user', None), 'organization_id', None)
+    prompt = resolve_prompt('rule_generation.generate', organization_id=organization_id,
+                            language=fmt if fmt in {'KQL', 'EQL', 'SPL', 'WAZUH', 'AQL'} else 'OTHER')
+    system_prompt = f"""{prompt.instructions}
 
+APPLICATION OUTPUT CONTRACT (required regardless of custom instructions):
 Return your full response using ONLY these exact delimited sections, in this exact order:
 ---GENERATION-SUMMARY-START---
 <2-5 lines summarizing the chosen anchor, key tradeoff, and why>
@@ -722,6 +729,33 @@ REQUIREMENTS:
 - Never mention retrieved examples explicitly in the final sections.
 """
 
+    if on_prompt_prepared:
+        model = provider
+        if 'GPT' in provider:
+            model = _map_gpt(provider)
+        elif 'GEMINI' in provider:
+            model = _map_gemini(provider)
+        elif 'CLAUDE' in provider:
+            model = _map_claude(provider)
+        elif provider == 'OLLAMA':
+            model = user_settings.get_ollama_model()
+        elif provider == 'AZURE-OPENAI':
+            model = user_settings.get_azure_openai_deployment()
+        on_prompt_prepared({
+            'schema_version': 1,
+            'prompt_key': 'rule_generation.generate',
+            **prompt.provenance(),
+            'organization_id': str(organization_id) if organization_id else None,
+            'output_format': fmt,
+            'provider': provider,
+            'model': model,
+            'output_contract_version': 'rule-bundle-v1',
+            'system_prompt_hash': digest(system_prompt),
+            'user_prompt_hash': digest(user_prompt),
+            'system_prompt': system_prompt,
+            'user_prompt': user_prompt,
+        })
+
     try:
         response_text = _invoke_detection_generation_model(user_settings, provider, system_prompt, user_prompt)
         return (_parse_generated_rule_bundle(response_text), provider)
@@ -739,9 +773,12 @@ REQUIREMENTS:
         }, provider)
 
 
-def generate_rule(user_settings, playbook_context, output_format: str = 'KQL'):
+def generate_rule(user_settings, playbook_context, output_format: str = 'KQL', *,
+                  organization_id=None, on_prompt_prepared=None):
     """Generate the main rule text from the richer capability-aware detection package."""
-    bundle, provider = generate_rule_bundle(user_settings, playbook_context, output_format)
+    bundle, provider = generate_rule_bundle(user_settings, playbook_context, output_format,
+                                            organization_id=organization_id,
+                                            on_prompt_prepared=on_prompt_prepared)
     return (bundle.get('primary_rule') or bundle.get('quick_win_rule') or '', provider)
 
 

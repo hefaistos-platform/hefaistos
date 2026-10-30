@@ -83,6 +83,9 @@ def _run_generate_rule(task) -> dict:
         retrieve_reference_context,
     )
 
+    if task.organization_id != task.user.organization_id:
+        raise ValueError('Task organization no longer matches the user. Start a new generation.')
+
     user_settings = UserAISettings.objects.get(user=task.user)
     effective = _get_effective_ai_settings(user_settings)
 
@@ -91,24 +94,40 @@ def _run_generate_rule(task) -> dict:
     rag_language = _resolve_rag_language(output_format)
 
     reference_context = []
+    rag_status = 'UNSUPPORTED_LANGUAGE'
     if rag_language:
         try:
-            org_id = getattr(getattr(task.user, 'organization', None), 'id', None)
+            org_id = task.organization_id
             reference_context = retrieve_reference_context(
                 playbook_context=context or {},
                 language=rag_language,
                 organization_id=str(org_id) if org_id else None,
                 limit=6,
             )
+            rag_status = 'FOUND' if reference_context else 'NO_MATCHES'
             if reference_context:
                 context = {
                     **(context or {}),
                     'reference_context_prompt': build_reference_context_prompt(reference_context),
                 }
         except Exception as exc:
+            rag_status = 'RETRIEVAL_FAILED'
             logger.warning("RAG retrieval failed for task %s: %s", task.id, exc)
 
-    bundle, provider = generate_rule_bundle(effective, context, output_format)
+    def record_prompt(provenance):
+        task.prompt_provenance = {
+            **provenance,
+            'context': context,
+            'reference_context': reference_context,
+            'rag_status': rag_status,
+        }
+        task.save(update_fields=['prompt_provenance'])
+
+    bundle, provider = generate_rule_bundle(
+        effective, context, output_format,
+        organization_id=task.organization_id,
+        on_prompt_prepared=record_prompt,
+    )
     _mark_reference_files_used(reference_context)
     return {
         'rule': bundle.get('primary_rule'),

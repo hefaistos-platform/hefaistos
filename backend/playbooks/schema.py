@@ -6758,7 +6758,8 @@ class GenerateMveDetectionRule(graphene.Mutation):
         )
 
         effective_settings = _get_effective_ai_settings(settings)
-        generated_rule, provider = generate_rule(effective_settings, context, fmt)
+        generated_rule, provider = generate_rule(effective_settings, context, fmt,
+                                                  organization_id=user.organization_id)
 
         warnings = []
         if not reference_context:

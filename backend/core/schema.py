@@ -14,6 +14,7 @@ import notifications.schema
 import data_catalog.schema
 import knowledge.schema # Import the new knowledge schema
 import ai_assistant.schema
+import ai_assistant.quality_schema
 import platform_data.schema
 import log_catalog.schema # Import log_catalog schema
 import news.schema # Import the news schema
@@ -101,6 +102,7 @@ class UUID(Scalar):
 
 
 class Query(
+    ai_assistant.quality_schema.Query,
     platform_data.schema.Query,
     ach.schema.Query, # Add ach queries
     advops.schema.Query,
@@ -180,6 +182,7 @@ class ObtainJSONWebTokenWithSignal(graphql_jwt.ObtainJSONWebToken):
 
 
 class Mutation(
+    ai_assistant.quality_schema.Mutation,
     ach.schema.Mutation, # Add ach mutations
     advops.schema.Mutation,
     pain_points.schema.Mutation,  # Add pain_points mutations
