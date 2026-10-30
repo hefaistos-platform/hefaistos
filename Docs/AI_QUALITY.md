@@ -105,8 +105,10 @@ before handing the generated rule to the editor.
 **Rule authors**
 
 1. Open a rule editor and use **Generate with AI**, or generate a rule from MVE.
-2. Correct the output and save it with **Save Draft**, the format save button, or
-   **SAVE ALL**. Saving a Workbench's other fields alone is not a rule-library save.
+2. Correct the output and save it. In the Workbench editor, use the format save
+   button (for example, **SAVE KQL**) or **SAVE ALL**. In the Rule Hub editor,
+   use its save button; when editing raw content on the detail page, click **Save**.
+   Saving a Workbench's other fields alone is not a rule-library save.
 3. Click the **AI feedback** speech-bubble button beside the editor save controls,
    or on the saved rule's detail page. A count highlights pending corrections.
 4. Click **Explain correction**, select a category, explain what was wrong and how

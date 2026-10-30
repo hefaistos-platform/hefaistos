@@ -6,7 +6,9 @@ export function RuleFeedbackHowTo() {
     <Typography.Paragraph>Help improve the next AI-generated rule by explaining a correction you made.</Typography.Paragraph>
     <ol style={{ paddingLeft: 24 }}>
       <li>Generate a rule with <strong>Generate with AI</strong>, or generate a rule from MVE.</li>
-      <li>Correct the rule in the editor, then save it with <strong>Save Draft</strong>, the format save button, or <strong>SAVE ALL</strong>.</li>
+      <li>Correct the rule in the editor, then save it. In the Workbench editor, use the format save button
+        (for example, <strong>SAVE KQL</strong>) or <strong>SAVE ALL</strong>. In the Rule Hub editor, use its save button;
+        when editing raw rule content on the detail page, click <strong>Save</strong>.</li>
       <li>Open <strong>AI feedback</strong> beside the save controls, or on the saved rule's detail page. Select <strong>Explain correction</strong> for the saved change.</li>
       <li>Choose what changed, explain what was wrong and how you fixed it, and describe how you checked the correction. Click <strong>Submit feedback</strong>.</li>
     </ol>
