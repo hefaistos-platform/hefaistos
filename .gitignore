@@ -13,3 +13,6 @@ db.sqlite3
 # Secrets (do not commit)
 .secrets/
 backups/
+
+# Local editor settings
+.vscode/
