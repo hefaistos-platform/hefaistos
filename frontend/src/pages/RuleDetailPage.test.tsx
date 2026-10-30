@@ -5,6 +5,10 @@ import { useNavigate } from 'react-router-dom';
 import { RuleDetailPage } from './RuleDetailPage';
 
 jest.mock('@apollo/client', () => ({ gql: jest.fn(), useQuery: jest.fn(), useMutation: jest.fn() }));
+jest.mock('@apollo/client/react', () => ({
+  useQuery: (...args: unknown[]) => require('@apollo/client').useQuery(...args),
+  useMutation: (...args: unknown[]) => require('@apollo/client').useMutation(...args),
+}));
 jest.mock('react-router-dom', () => ({ useParams: () => ({ ruleId: '7' }), useNavigate: jest.fn() }));
 jest.mock('../context/ThemeContext', () => ({ useTheme: () => ({ resolvedTheme: 'light' }) }));
 jest.mock('../components/RuleConversionModal', () => ({ RuleConversionModal: () => null }));
@@ -16,10 +20,12 @@ const rule = { id: '7', title: 'Existing rule', rawContent: 'DeviceProcessEvents
   author: 'analyst', canEdit: true, workbenchOwned: true, workbenchId: 'wb', workbenchTitle: 'Detection' };
 const update = jest.fn();
 const navigate = jest.fn();
+const refetch = jest.fn().mockResolvedValue({});
 beforeEach(() => {
   jest.clearAllMocks();
+  refetch.mockResolvedValue({});
   (useNavigate as jest.Mock).mockReturnValue(navigate);
-  (useQuery as jest.Mock).mockReturnValue({ data: { rule, me: { username: 'analyst', role: 'ANALYST' } } });
+  (useQuery as jest.Mock).mockReturnValue({ refetch, data: { rule, me: { username: 'analyst', role: 'ANALYST' } } });
   (useMutation as jest.Mock).mockReturnValue([update, { loading: false }]);
 });
 
@@ -48,4 +54,12 @@ test('standalone Edit continues to open the full Rule Hub editor', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
   expect(navigate).toHaveBeenCalledWith('/rules/7/edit');
   expect(screen.queryByLabelText('Raw rule content')).not.toBeInTheDocument();
+});
+
+
+test('saved rule details expose AI feedback and a simple how-to', () => {
+  render(<RuleDetailPage />);
+  fireEvent.click(screen.getByRole('button', { name: 'AI feedback' }));
+  expect(screen.getByText('AI feedback: explain a saved correction')).toBeInTheDocument();
+  expect(screen.getByText(/Correct the rule in the editor, then save it/)).toBeInTheDocument();
 });

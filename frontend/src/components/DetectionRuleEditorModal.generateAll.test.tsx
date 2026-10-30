@@ -240,6 +240,7 @@ describe('Standalone Rule Hub editor', () => {
     const onSave = jest.fn().mockResolvedValue(undefined);
     render(<DetectionRuleEditorModal visible standalone onClose={jest.fn()} initialRule="" initialFormat="KQL" initialMode="manual" initialOpenTideRule={BASE_RULE} onSave={onSave} />);
     expect(screen.queryByRole('checkbox', { name: /commit to repository/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'AI feedback' }).closest('[aria-label="Rule editor actions"]')).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /metadata/i }));
     fireEvent.change(screen.getByLabelText('Rule title'), { target: { value: 'Standalone alternative' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));

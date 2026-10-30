@@ -34,12 +34,13 @@ beforeEach(() => {
 
 test('a correction submits categories and resolution only after user confirmation', async () => {
   render(<RuleCorrectionFeedback ruleId="rule-1" />);
+  fireEvent.click(screen.getByRole('button', { name: 'AI feedback' }));
   expect(mockSubmit).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Explain correction' }));
   expect(screen.getByText(/-DeviceProcessEvents\s+\+ProcessEvents_CL/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Submit feedback' })).toBeDisabled();
   fireEvent.mouseDown(screen.getByRole('combobox', { name: 'What changed?' }));
-  fireEvent.click(screen.getByText('Incorrect table'));
+  fireEvent.click(screen.getByText('Incorrect table', { selector: '.ant-select-item-option-content' }));
   fireEvent.change(screen.getByLabelText('What was wrong?'), { target: { value: 'Local telemetry uses another table.' } });
   fireEvent.change(screen.getByLabelText('How was it resolved?'), { target: { value: 'Replaced the table name.' } });
   fireEvent.click(screen.getByRole('button', { name: 'Submit feedback' }));
@@ -52,6 +53,7 @@ test('a correction submits categories and resolution only after user confirmatio
 
 test('intentional edits require a reason and never submit an error classification', async () => {
   render(<RuleCorrectionFeedback ruleId="rule-1" />);
+  fireEvent.click(screen.getByRole('button', { name: 'AI feedback' }));
   fireEvent.click(screen.getByRole('button', { name: 'Intentional edit / dismiss' }));
   expect(screen.getByRole('button', { name: 'Dismiss candidate' })).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Why is this an intentional edit?'), { target: { value: 'Requirements changed.' } });
@@ -74,4 +76,22 @@ test('admin accepts exact feedback with a reason without calling prompt activati
     feedbackId: 'feedback-1', accept: true, rootCause: 'SCHEMA_MAPPING', reviewNote: 'Confirmed local schema mismatch.',
   } }));
   expect(mockSubmit).not.toHaveBeenCalled(); expect(mockDismiss).not.toHaveBeenCalled();
+});
+
+
+test('feedback entry stays visible before the first save and explains how to create a correction', () => {
+  mockQuery.mockReturnValue({ data: { aiRuleCorrectionCandidates: [] }, refetch: mockRefetch, loading: false });
+  render(<RuleCorrectionFeedback />);
+  expect(screen.getByRole('button', { name: 'AI feedback' })).toBeVisible();
+  expect(mockQuery.mock.calls[0][1].skip).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'AI feedback' }));
+  expect(screen.getByText('No saved AI corrections awaiting feedback')).toBeInTheDocument();
+  expect(screen.getByText(/Correct the rule in the editor, then save it/)).toBeInTheDocument();
+  expect(mockSubmit).not.toHaveBeenCalled();
+});
+
+test('pending correction count is visible on the feedback button', () => {
+  render(<RuleCorrectionFeedback ruleId="rule-1" />);
+  expect(screen.getByRole('button', { name: 'AI feedback' })).toHaveTextContent('AI feedback (1)');
+  expect(screen.queryByRole('button', { name: 'Explain correction' })).not.toBeInTheDocument();
 });

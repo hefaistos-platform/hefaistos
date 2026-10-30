@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@apollo/client/react';
 import { Alert, Button, Card, Input, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd';
 import AIFeedbackReview from './AIFeedbackReview';
 import AIImprovementProposals from './AIImprovementProposals';
+import AIQualityHowTo from '../../components/AIQualityHowTo';
 
 const QUALITY_PROMPTS = gql`
   query AIQualityPrompts($organizationId: UUID, $installation: Boolean!, $language: String!) {
@@ -159,6 +160,7 @@ export default function AIQuality({ isSuperuser }: { isSuperuser: boolean }) {
       Review and improve instructions used by AI rule generation. Drafts take effect after explicit approval.
       Approved local versions survive upgrades and are stored with this installation.
     </Typography.Paragraph>
+    <AIQualityHowTo />
     <Space wrap style={{ marginBottom: 16 }}>
       {isSuperuser && <Select className="config-quality-select" classNames={{ popup: { root: 'config-quality-select-dropdown' } }}
         aria-label="Prompt scope" value={scope} onChange={setScope} style={{ minWidth: 240 }}

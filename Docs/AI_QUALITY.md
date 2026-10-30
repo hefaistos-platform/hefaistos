@@ -100,6 +100,39 @@ were found, absent, unsupported, or retrieval raised an error. The synchronous M
 rule-generation path also records a task, prepared input, and generation artifact
 before handing the generated rule to the editor.
 
+## Quick how-to
+
+**Rule authors**
+
+1. Open a rule editor and use **Generate with AI**, or generate a rule from MVE.
+2. Correct the output and save it with **Save Draft**, the format save button, or
+   **SAVE ALL**. Saving a Workbench's other fields alone is not a rule-library save.
+3. Click the **AI feedback** speech-bubble button beside the editor save controls,
+   or on the saved rule's detail page. A count highlights pending corrections.
+4. Click **Explain correction**, select a category, explain what was wrong and how
+   you fixed it, select a verification level, and provide evidence when required.
+5. Click **Submit feedback**. Your admin reviews it; active prompts stay unchanged.
+   Use **Intentional edit / dismiss** if requirements or preferences changed.
+
+The button is always available with a short guide. With no pending correction,
+it explains that feedback needs a saved edit to a tracked AI generation. Older,
+manual/imported, unchanged, and FREE-format rules do not have a correction to
+submit. Submitted or dismissed corrections are not shown in the pending list.
+Reporting generation failures without a saved correction is not part of this pilot.
+
+**Admins**
+
+1. Open **Configuration → AI Quality** and select the scope and language.
+2. In **Correction feedback**, review submitted evidence, accept/reject it, and
+   record the likely root cause. Use **PROMPT** for instruction-related problems.
+3. In **Improvement proposals**, create a proposal from accepted prompt corrections,
+   add regression cases, and write or request suggested instructions.
+4. Save the proposal, run **Evaluate**, and **Assess outputs** for every case.
+5. Once checks and assessments pass, choose **Review and activate**, inspect the
+   exact instructions, and approve with a reason.
+
+The Configuration tab also includes an expandable **How to use AI Quality** guide.
+
 ## Correction feedback
 
 Rule-generation output is captured as immutable evidence, with separate primary,
@@ -109,7 +142,8 @@ snapshot. Saving a rule records a per-format revision and its generation source.
 The initial comparison uses content before server-generated metadata is injected.
 Previously saved metadata already present in an editor remains part of its content.
 
-The editor shows pending candidates after a save. Users choose issue categories
+The editor’s persistent **AI feedback** button shows a pending count after a save.
+Its dialog lists candidates and a short submission guide. Users choose issue categories
 (table, field, logic, syntax, missing context, false positives, output structure,
 formatting, changed requirements, or other), explain what was wrong and how they
 resolved it, and provide their verification level and evidence. Evidence is

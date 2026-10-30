@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { gql } from '@apollo/client';
 import { useMutation, useQuery } from '@apollo/client/react';
 import { Alert, Button, Input, Modal, Select, Space, Tag, Typography, message } from 'antd';
+import { CommentOutlined } from '@ant-design/icons';
+import { RuleFeedbackHowTo } from './AIQualityHowTo';
 
 const CANDIDATES = gql`
   query RuleCorrectionCandidates($playbookId: UUID, $ruleId: ID) {
@@ -38,7 +40,7 @@ export const CORRECTION_CATEGORIES = [
 export default function RuleCorrectionFeedback({ playbookId, ruleId, refreshKey = 0 }: {
   playbookId?: string; ruleId?: string; refreshKey?: number;
 }) {
-  const { data, error, refetch } = useQuery<{ aiRuleCorrectionCandidates: CorrectionCandidate[] }>(CANDIDATES, {
+  const { data, loading, error, refetch } = useQuery<{ aiRuleCorrectionCandidates: CorrectionCandidate[] }>(CANDIDATES, {
     variables: { playbookId: playbookId || null, ruleId: ruleId || null },
     skip: !playbookId && !ruleId, fetchPolicy: 'network-only',
   });
@@ -46,6 +48,7 @@ export default function RuleCorrectionFeedback({ playbookId, ruleId, refreshKey 
   const [submit, { loading: submitting }] = useMutation(SUBMIT);
   const [dismiss, { loading: dismissing }] = useMutation(DISMISS);
   const [candidate, setCandidate] = useState<CorrectionCandidate | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [dismissMode, setDismissMode] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [explanation, setExplanation] = useState('');
@@ -53,6 +56,7 @@ export default function RuleCorrectionFeedback({ playbookId, ruleId, refreshKey 
   const [verification, setVerification] = useState('NOT_TESTED');
   const [evidence, setEvidence] = useState('');
   const open = (item: CorrectionCandidate, dismissOnly = false) => {
+    setFeedbackOpen(false);
     setCandidate(item); setDismissMode(dismissOnly); setCategories([]); setExplanation('');
     setResolution(''); setVerification('NOT_TESTED'); setEvidence('');
   };
@@ -69,15 +73,24 @@ export default function RuleCorrectionFeedback({ playbookId, ruleId, refreshKey 
   };
   const candidates = data?.aiRuleCorrectionCandidates || [];
   return <>
-    {error && <Alert type="error" title="Could not load AI correction feedback" description={error.message} />}
-    {candidates.length > 0 && <Alert type="info" showIcon title="Saved rules differ from their AI-generated versions"
+    <Button icon={<CommentOutlined />} type={candidates.length ? 'primary' : 'default'}
+      aria-label="AI feedback" onClick={() => { setFeedbackOpen(true); if (playbookId || ruleId) void refetch().catch(() => {}); }}>
+      AI feedback{candidates.length > 0 ? ` (${candidates.length})` : ''}
+    </Button>
+    <Modal open={feedbackOpen} width={850} title="AI feedback: explain a saved correction"
+      onCancel={() => setFeedbackOpen(false)} footer={<Button onClick={() => setFeedbackOpen(false)}>Close</Button>}>
+      <RuleFeedbackHowTo />
+      {error && <Alert type="error" title="Could not load AI correction feedback" description={error.message} />}
+      {candidates.length > 0 ? <Alert type="info" showIcon title="Saved corrections awaiting your explanation"
       description={<Space orientation="vertical">
         <Typography.Text>Explain a correction for admin review, or dismiss it if the edit was intentional.</Typography.Text>
         {candidates.map(item => <Space key={item.id} wrap><Tag>{item.outputFormat} · revision {item.revisionNumber}</Tag>
           <Button size="small" onClick={() => open(item)}>Explain correction</Button>
           <Button size="small" onClick={() => open(item, true)}>Intentional edit / dismiss</Button>
         </Space>)}
-      </Space>} />}
+      </Space>} /> : <Alert type="info" showIcon title={loading ? 'Checking for saved corrections…' : 'No saved AI corrections awaiting feedback'}
+        description="After changing a tracked AI-generated rule, save it first, then reopen AI feedback. Unchanged, imported, manual, FREE-format, and older rules without a recorded AI generation have no correction to explain. Corrections already submitted or dismissed are not shown here." />}
+    </Modal>
     <Modal open={Boolean(candidate)} width={850} title={dismissMode ? 'Dismiss correction candidate' : 'Explain AI rule correction'}
       onCancel={() => !submitting && !dismissing && setCandidate(null)} onOk={save}
       okText={dismissMode ? 'Dismiss candidate' : 'Submit feedback'} confirmLoading={submitting || dismissing}

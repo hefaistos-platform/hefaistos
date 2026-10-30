@@ -1611,7 +1611,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
         },
       }}
       footer={
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2" role="group" aria-label="Rule editor actions">
           {/* Validation errors */}
           {validationErrors.length > 0 && (
             <Alert
@@ -1668,6 +1668,7 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                   size="small"
                 />
               )}
+              <RuleCorrectionFeedback playbookId={playbookId} ruleId={ruleId} refreshKey={feedbackRefresh} />
               <Button onClick={handleClose}>{standalone ? 'Back to Rule Hub' : 'Cancel'}</Button>
               {standalone && <>
                 {linkedWorkbench && <a href={`/playbooks/${linkedWorkbench.id}`}>Workbench: {linkedWorkbench.title}</a>}
@@ -1704,7 +1705,6 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
         </div>
       }
     >
-      <RuleCorrectionFeedback playbookId={playbookId} ruleId={ruleId} refreshKey={feedbackRefresh} />
       <div className="flex h-full">
         {/* Left Panel - Configuration */}
         <div className="w-80 border-r border-gray-200 p-4 overflow-y-auto bg-gray-50">

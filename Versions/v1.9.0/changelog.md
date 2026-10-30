@@ -11,6 +11,8 @@ _2026-10-30_
 
 - Add feedback-driven prompt improvement proposals with optional AI drafting, paired baseline/candidate evaluations, immutable evidence, per-case admin assessment, and approval before activation.
 
+- Add a visible AI feedback entry point beside editor save controls and on saved rule details, plus in-app how-to guides for authors and admins.
+
 ## Fixes
 - Honor explicit version increases in release automation without applying another automatic bump.
 - Keep AI Quality selected values and dropdown menus readable in light, dark, and system themes.

@@ -2,6 +2,7 @@
  * (c) 2026 M3C4N1SM0 & All kinds of AI Bots
  */
 import React, { useState } from 'react';
+import RuleCorrectionFeedback from '../components/RuleCorrectionFeedback';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -118,6 +119,7 @@ export const RuleDetailPage = () => {
   const [deploymentModalVisible, setDeploymentModalVisible] = useState(false);
   const [editingRaw, setEditingRaw] = useState(false);
   const [editedContent, setEditedContent] = useState('');
+  const [feedbackRefresh, setFeedbackRefresh] = useState(0);
   const [deleting, setDeleting] = useState(false);
 
   const { data, loading, error } = useQuery<GetRuleData, GetRuleVars>(
@@ -189,6 +191,7 @@ export const RuleDetailPage = () => {
       const result = response.data?.updateDetectionRule;
       if (!result?.success) { message.error(result?.message || 'Failed to save rule.'); return; }
       message.success('Raw rule content saved.');
+      setFeedbackRefresh(current => current + 1);
       setEditingRaw(false);
     } catch (error: any) { message.error(error.message || 'Failed to save rule.'); }
   };
@@ -230,6 +233,7 @@ export const RuleDetailPage = () => {
     <div style={{ padding: 24, color: 'var(--hef-text-primary)' }}>
       <h2>{rule.title}</h2>
       <Space style={{ marginBottom: 16 }}>
+        {rule.canEdit && <RuleCorrectionFeedback ruleId={rule.id} refreshKey={feedbackRefresh} />}
         {rule.workbenchOwned
           ? <Button type="primary" onClick={() => navigate(`/playbooks/${rule.workbenchId}`)}>Open Workbench editor</Button>
           : <Button type="primary" onClick={() => navigate(`/rules/${rule.id}/edit`)}>Open full editor</Button>}
