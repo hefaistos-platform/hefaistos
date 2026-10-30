@@ -131,6 +131,8 @@ def review_version(user, *, version_id, approve, review_note):
     if version.status != AIPromptVersion.Status.DRAFT:
         raise GraphQLError('Only draft versions can be reviewed.')
     if approve:
+        from .improvements import require_proposal_evaluation
+        require_proposal_evaluation(version)
         current = resolve_prompt(config.prompt_key, organization_id=config.organization_id,
                                  language=config.language)
         if current.fingerprint != version.base_fingerprint:

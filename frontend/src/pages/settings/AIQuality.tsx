@@ -3,6 +3,7 @@ import { gql } from '@apollo/client';
 import { useMutation, useQuery } from '@apollo/client/react';
 import { Alert, Button, Card, Input, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd';
 import AIFeedbackReview from './AIFeedbackReview';
+import AIImprovementProposals from './AIImprovementProposals';
 
 const QUALITY_PROMPTS = gql`
   query AIQualityPrompts($organizationId: UUID, $installation: Boolean!, $language: String!) {
@@ -12,7 +13,7 @@ const QUALITY_PROMPTS = gql`
       inheritedInstructions inheritedSource inheritedFingerprint
       versions {
         id number instructions baseInstructions contentHash changeReason status createdAt
-        createdByUsername reviewedByUsername reviewNote diff
+        createdByUsername reviewedByUsername reviewNote diff improvementProposalId
       }
       events { id action reason createdAt actorUsername versionNumber previousVersionNumber }
     }
@@ -63,6 +64,7 @@ interface PromptVersion {
   reviewedByUsername?: string;
   reviewNote: string;
   diff: string;
+  improvementProposalId?: string;
 }
 
 interface AuditEvent {
@@ -170,7 +172,7 @@ export default function AIQuality({ isSuperuser }: { isSuperuser: boolean }) {
       <Button onClick={() => refetch()} loading={loading}>Refresh</Button>
     </Space>
     <Alert type="info" showIcon style={{ marginBottom: 16 }} title="Rule generation pilot"
-      description="Customize detection guidance here. Review submitted rule corrections below. Automated improvement proposals will follow in a later phase." />
+      description="Customize detection guidance here. Review submitted corrections, draft improvements from accepted feedback, and evaluate proposals before activation." />
     {error && <Alert type="error" showIcon title={error.message} style={{ marginBottom: 16 }} />}
     {(data?.aiQualityPrompts || []).map(prompt => <Card key={`${scope}:${language}:${prompt.promptKey}`} title={prompt.title}
       loading={loading} style={{ marginBottom: 16 }} extra={<Space>
@@ -192,7 +194,8 @@ export default function AIQuality({ isSuperuser }: { isSuperuser: boolean }) {
             { title: 'Author', dataIndex: 'createdByUsername' },
             { title: 'Actions', render: (_, version) => <Space>
               {version.status === 'DRAFT' && <>
-                <Button size="small" onClick={() => openDecision({ prompt, version, action: 'approve' })}>Review</Button>
+                {version.improvementProposalId ? <Typography.Text type="secondary">Review in Improvement proposals below</Typography.Text>
+                  : <Button size="small" onClick={() => openDecision({ prompt, version, action: 'approve' })}>Review</Button>}
                 <Button size="small" danger onClick={() => openDecision({ prompt, version, action: 'reject' })}>Reject</Button>
               </>}
               {version.status === 'APPROVED' && version.id !== prompt.activeVersionId && <Button size="small" onClick={() => openDecision({ prompt, version, action: 'restore' })}>Restore</Button>}
@@ -211,6 +214,10 @@ export default function AIQuality({ isSuperuser }: { isSuperuser: boolean }) {
           ]} /> },
         { key: 'baseline', label: 'Product baseline', children: <pre style={{ whiteSpace: 'pre-wrap' }}>{prompt.defaultInstructions}</pre> },
       ]} />
+    </Card>)}
+    {(data?.aiQualityPrompts || []).map(prompt => <Card key={`proposals:${scope}:${language}:${prompt.promptKey}`} title="Improvement proposals" style={{ marginTop: 24 }}>
+      <AIImprovementProposals organizationId={variables.organizationId} installation={variables.installation} language={language}
+        instructions={prompt.effectiveInstructions} baseFingerprint={prompt.effectiveFingerprint} onChanged={() => { void refetch(); }} />
     </Card>)}
     <Card title="Correction feedback" style={{ marginTop: 24 }}>
       <AIFeedbackReview organizationId={variables.organizationId} allOrganizations={scope === 'installation'} outputFormat={language} />

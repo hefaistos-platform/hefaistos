@@ -332,7 +332,19 @@ def _run_populate_workbench_from_threat_report(task) -> dict:
     }
 
 
+def _run_prompt_improvement(task):
+    from ai_assistant.improvements import run_suggestion
+    return run_suggestion(task)
+
+
+def _run_prompt_evaluation(task):
+    from ai_assistant.improvements import run_evaluation
+    return run_evaluation(task)
+
+
 _TASK_HANDLERS = {
+    'DRAFT_PROMPT_IMPROVEMENT': _run_prompt_improvement,
+    'EVALUATE_PROMPT_IMPROVEMENT': _run_prompt_evaluation,
     'GENERATE_RULE': _run_generate_rule,
     'SUGGEST_IMPROVEMENTS': _run_suggest_improvements,
     'GENERATE_SIMILAR': _run_generate_similar,

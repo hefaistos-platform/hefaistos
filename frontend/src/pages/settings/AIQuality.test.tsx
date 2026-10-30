@@ -16,6 +16,8 @@ jest.mock('@apollo/client/react', () => ({
     : document.includes('mutation ReviewQuality') ? mockReview : mockRestore, { loading: false }],
 }));
 
+jest.mock('./AIImprovementProposals', () => () => <div data-testid="improvement-proposals" />);
+
 import AIQuality from './AIQuality';
 
 const prompt = {

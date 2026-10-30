@@ -26,6 +26,7 @@ def _scope(user, organization_id=None, installation=False):
 
 
 class PromptVersionType(DjangoObjectType):
+    improvement_proposal_id = graphene.UUID()
     created_by_username = graphene.String()
     reviewed_by_username = graphene.String()
     diff = graphene.String()
@@ -47,6 +48,9 @@ class PromptVersionType(DjangoObjectType):
         return ''.join(unified_diff(self.base_instructions.splitlines(keepends=True),
                                     self.instructions.splitlines(keepends=True),
                                     fromfile='previous instructions', tofile='proposed instructions'))
+
+    def resolve_improvement_proposal_id(self, info):
+        return self.improvement_proposal.id if hasattr(self, 'improvement_proposal') else None
 
 
 class PromptAuditType(DjangoObjectType):

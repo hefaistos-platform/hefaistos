@@ -3,6 +3,8 @@ from .models import (OrgAISettings, SharedAIProfile, AIGenerationTask,
                      AIPromptConfiguration, AIPromptVersion, AIPromptAuditEvent,
                      AIRuleGenerationArtifact, AIRuleRevision, AIRuleLineage,
                      AIRuleFeedback, AIFeedbackAuditEvent)
+from .models import (AIImprovementProposal, AIImprovementEvaluation,
+                     AIImprovementAssessment, AIImprovementEvaluationResult)
 
 
 @admin.register(OrgAISettings)
@@ -49,3 +51,7 @@ admin.site.register(AIRuleRevision, ReadOnlyPromptAdmin)
 admin.site.register(AIRuleLineage, ReadOnlyPromptAdmin)
 admin.site.register(AIRuleFeedback, ReadOnlyPromptAdmin)
 admin.site.register(AIFeedbackAuditEvent, ReadOnlyPromptAdmin)
+admin.site.register(AIImprovementProposal, ReadOnlyPromptAdmin)
+admin.site.register(AIImprovementEvaluation, ReadOnlyPromptAdmin)
+admin.site.register(AIImprovementAssessment, ReadOnlyPromptAdmin)
+admin.site.register(AIImprovementEvaluationResult, ReadOnlyPromptAdmin)

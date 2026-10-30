@@ -14,11 +14,14 @@
    diffs, users explain or dismiss edits, and administrators review structured
    evidence in an organization-scoped queue. An edit alone is an unconfirmed
    candidate, not a verified AI error.
-4. **Improvement proposals and component adapters — later.** Group reviewed
-   feedback, distinguish prompt/context/retrieval/code causes, draft improvements,
-   evaluate representative cases, and require approval of the exact proposal.
-   Add Maieutic turn/step feedback, OpenTIDE field/evidence feedback, and strAIn
-   source/extraction feedback through component-specific schemas.
+4. **Prompt improvement proposals — implemented for rule generation.** Draft
+   instructions from accepted feedback, freeze correction/regression cases, replay
+   baseline and candidate prompts, collect per-case admin assessments, and require
+   approval of the exact evaluated version before activation.
+5. **Component adapters and richer evaluation — later.** Add Maieutic turn/step
+   feedback, OpenTIDE field/evidence feedback, and strAIn source/extraction feedback.
+   Extend evaluation with curated holdout cases, format validators, and telemetry
+   execution in supported test environments.
 
 ## Current behavior
 
@@ -119,8 +122,8 @@ format, and status. Organization admins review their organization; platform
 superusers can review all organizations. Reviewers inspect the diff, explanation,
 exact generation context/prompts, versioned JSON payload, and audit history, then
 accept or reject with a reason and likely root cause. Acceptance does not update
-prompts, retrieval data, or mappings. Improvement proposals and evaluation remain
-phase 4, with separate approval before activation.
+prompts, retrieval data, or mappings. Improvement proposals and evaluation have
+their own workflow and require separate approval before activation.
 
 Attribution survives reopening a saved rule and is replaced by an explicit new
 generation. Imports and currently untracked AI operations detach the previous
@@ -141,21 +144,89 @@ Migration `ai_assistant.0018_ai_rule_feedback` creates generation artifacts,
 revisions, lineage, feedback, and feedback audit tables. Apply both 0017 and 0018
 when upgrading from a deployment without the AI Quality foundation.
 
+## Improvement proposals and evaluation
+
+The Improvement proposals card is available in Configuration → AI Quality for
+organization admins and platform superusers, using the selected scope/language.
+Choose one to five accepted feedback records. At least one must be reviewed with
+root cause `PROMPT` and marked as a correction case. Accepted feedback with other
+root causes may be added as regression cases, but cannot drive automatic prompt
+suggestions. Non-prompt causes still need their own context/retrieval/code fixes.
+
+Write revised instructions manually, or request an asynchronous AI suggestion.
+The suggestion receives the current baseline and selected reviewed explanations
+as untrusted JSON evidence. Its output must contain only instructions and a
+rationale. It populates the editor for review; it creates no prompt version and
+activates nothing. Admins supply per-case review criteria and optional required
+and forbidden literal phrases before saving an immutable proposal. Revising it
+creates a new proposal against the current effective baseline.
+
+Each proposal freezes its feedback evidence, baseline, revised instructions,
+criteria, assertions, and saved generation inputs. Evaluation uses the existing
+AI generation worker and the requesting admin's effective provider settings.
+It makes two calls per case, using the same provider/model and saved user prompt:
+one with the baseline instructions and one with the proposed instructions. The
+application output contract from the saved prompt remains intact. The selected
+primary/quick-win/robust variant is evaluated. Corrected answers, review notes,
+and assertions are never added to the replay prompt. No fresh Qdrant retrieval
+occurs, so comparisons share the same captured context.
+
+Checks require non-empty output, the selected variant's output delimiters, and
+satisfaction of the configured case-sensitive literal phrases. These checks do
+not prove syntax correctness or detection quality. Admins inspect both outputs,
+assess logic and regression risk, and record a pass/fail decision with evidence
+for **every** case. Assessment does not activate a prompt. Explicit approval
+requires the latest evaluation to complete, its candidate checks and every
+admin assessment to pass, and the effective baseline to remain unchanged.
+The generic prompt-approval API enforces this gate for linked proposals too.
+Existing manual prompt drafts retain their original approval workflow.
+
+Failed checks cannot be waived by marking the manual assessment as passed.
+A new run invalidates readiness from earlier runs, and changing instructions or
+cases requires a new proposal and evaluation. A failed assessment is immutable;
+rerun to reassess. Rejection is available without running an evaluation. The same
+authorized admin can assess and approve; two-person review is not enforced.
+Approved proposal versions use the existing scope precedence, audit history,
+restore, and rollback mechanisms. They remain in the installation database and
+are never exported with rules or written to tracked Git prompt files.
+
+This is controlled replay of a small selected set, not statistical evidence of
+improvement. Include regression cases and verify against representative telemetry.
+Installation/all-language evaluations apply the proposed target instructions to
+the selected saved cases; production organization/language overrides still follow
+the documented precedence. Future component adapters and holdout/evaluation suites
+will broaden this coverage. Live-provider quality experiments were not performed
+while implementing the workflow.
+
+Migration `ai_assistant.0019_ai_improvement_proposals` adds proposals, evaluations,
+immutable completed results, and admin assessments, plus the new job types.
+Deploy the updated backend, worker, and frontend together after migration. AI
+suggestions and evaluation require configured AI credentials and RabbitMQ/worker
+availability; queue failures are reported and can be retried. Prepared inputs and
+partial outputs survive provider failures. Completed results remain available if
+an originating task/user is deleted. If a task disappears before its completion
+was assessed, rerun evaluation before approval. Records follow their proposal's deployment
+scope, including organization cascade deletion for organization proposals.
+
 ## Validation
 
 Backend coverage includes prompt scope/approval/rollback, immutable evidence,
 per-format lineage, correction diffs, user submission/dismissal, verification
 requirements, admin review, tenant isolation, rejected attribution rollback,
 bulk partial results, MVE generation provenance, rule authoring, and FREE saves.
+Proposal tests cover exact-input replay, immutable results and assessments,
+activation gating, stale baselines, root-cause/scope restrictions, failed checks,
+failed providers/queues, selected variants, duplicate jobs, and scoped GraphQL APIs.
 Frontend coverage includes explicit prompt approval, correction submission,
 intentional-edit dismissal, scoped feedback review, MVE attribution after edits,
-background generation format isolation, and selected-variant attribution.
+background generation format isolation, selected-variant attribution, proposal creation,
+AI suggestion/stale-result handling, per-case assessment, and explicit activation.
 
 The local full migration chain fails on SQLite because
 `rules.0018_autocompleteevent_and_more` contains PostgreSQL-specific SQL.
 Behavioral tests use an isolated SQLite schema generated from models; migration
-0018 was applied and reversed separately against its directly referenced
-historical schema. There is no model/migration drift in `ai_assistant`.
+0018 and 0019 were applied and reversed separately against their referenced
+historical schemas; 0019 also preserved existing task data. There is no model/migration drift in `ai_assistant`.
 PostgreSQL full-chain and concurrent transaction validation remain deployment
 checks. No live-provider quality evaluation has been performed.
 

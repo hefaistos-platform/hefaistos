@@ -9,6 +9,8 @@ _2026-10-30_
 - Track per-format and selected-variant attribution across Workbench saves, standalone drafts, and MVE rule generation.
 - Add an organization-scoped feedback review queue with JSON evidence, root-cause classification, and audit history; accepting feedback leaves prompt activation in its separate approval workflow.
 
+- Add feedback-driven prompt improvement proposals with optional AI drafting, paired baseline/candidate evaluations, immutable evidence, per-case admin assessment, and approval before activation.
+
 ## Fixes
 - Honor explicit version increases in release automation without applying another automatic bump.
 - Keep AI Quality selected values and dropdown menus readable in light, dark, and system themes.
@@ -19,3 +21,4 @@ _2026-10-30_
 ## Database Migrations
 - `ai_assistant.0017_ai_quality_prompt_versions`
 - `ai_assistant.0018_ai_rule_feedback`
+- `ai_assistant.0019_ai_improvement_proposals`

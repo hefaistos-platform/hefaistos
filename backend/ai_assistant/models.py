@@ -3,6 +3,8 @@ from django.conf import settings
 from .quality_models import AIPromptConfiguration, AIPromptVersion, AIPromptAuditEvent, AIPromptLock  # noqa: F401
 from .feedback_models import (AIRuleGenerationArtifact, AIRuleRevision, AIRuleLineage,
                               AIRuleFeedback, AIFeedbackAuditEvent)  # noqa: F401
+from .improvement_models import (AIImprovementProposal, AIImprovementEvaluation,
+                                 AIImprovementAssessment, AIImprovementEvaluationResult)  # noqa: F401
 from cryptography.fernet import Fernet, InvalidToken
 import uuid
 
@@ -143,6 +145,8 @@ class AIGenerationTask(models.Model):
         SUGGEST_IMPROVEMENTS = 'SUGGEST_IMPROVEMENTS', 'Suggest Improvements'
         GENERATE_SIMILAR = 'GENERATE_SIMILAR', 'Generate Similar Rules'
         POPULATE_THREAT_REPORT = 'POPULATE_THREAT_REPORT', 'Populate Workbench from Threat Report'
+        DRAFT_PROMPT_IMPROVEMENT = 'DRAFT_PROMPT_IMPROVEMENT', 'Draft Prompt Improvement'
+        EVALUATE_PROMPT_IMPROVEMENT = 'EVALUATE_PROMPT_IMPROVEMENT', 'Evaluate Prompt Improvement'
 
     class TaskStatus(models.TextChoices):
         PENDING = 'PENDING', 'Pending'
