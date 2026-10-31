@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { gql } from '@apollo/client';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Button, Modal, Input, Card, List, Typography, Space, Tag, Empty, App } from 'antd';
+import { Button, Modal, Input, Card, List, Typography, Space, Tag, Empty, App, Select } from 'antd';
 import { PixelIcon } from '../components/ui/PixelIcon';
 import { MarkdownRenderer, markdownToPlainText } from '../components/MarkdownRenderer';
 
@@ -415,17 +415,18 @@ export const KnowledgeBasePage = () => {
                 {allTags.length > 0 && (
                   <Space>
                     <Typography.Text type="secondary">Filter by tag:</Typography.Text>
-                    <div>
-                      {allTags.map(tag => (
-                        <Tag.CheckableTag
-                          key={tag}
-                          checked={selectedTags.includes(tag)}
-                          onChange={(checked) => {
-                            setSelectedTags(prev => checked ? [...prev, tag] : prev.filter(t => t !== tag));
-                          }}
-                        >{tag}</Tag.CheckableTag>
-                      ))}
-                    </div>
+                    <Select
+                      mode="multiple"
+                      allowClear
+                      showSearch
+                      placeholder="Select tags"
+                      value={selectedTags}
+                      onChange={(vals: string[]) => setSelectedTags(vals)}
+                      options={allTags.map(tag => ({ label: tag, value: tag }))}
+                      maxTagCount="responsive"
+                      style={{ minWidth: 240 }}
+                      optionFilterProp="label"
+                    />
                   </Space>
                 )}
                 <Button onClick={() => refetch()}>
