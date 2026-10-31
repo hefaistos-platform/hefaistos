@@ -2,7 +2,7 @@
 
 ## Overview
 
-This backend implementation provides intelligent autocomplete suggestions for SIGMA, KQL, WAZUH, and SPL detection rules. Currently implemented: **SIGMA**, **KQL**, **WAZUH**, and **SPL** formats.
+This backend implementation provides intelligent autocomplete suggestions for detection rules. Currently implemented: **KQL**, **WAZUH**, **SPL**, **AQL**, and **EQL** formats.
 
 ## Architecture
 
@@ -12,9 +12,11 @@ This backend implementation provides intelligent autocomplete suggestions for SI
 backend/rules/autocomplete/
 ├── __init__.py                 # Package exports
 ├── base.py                    # AbstractAutocompleteEngine
-├── sigma_engine.py            # SIGMA-specific implementation
 ├── kql_engine.py              # KQL implementation
-├── wazuh_engine.py            # WAZUH XML implementation (NEW)
+├── wazuh_engine.py            # WAZUH XML implementation
+├── spl_engine.py              # Splunk SPL implementation
+├── aql_engine.py              # QRadar AQL implementation
+├── eql_engine.py              # Elastic EQL implementation
 └── suggestions.py             # Data models
 ```
 
@@ -136,13 +138,13 @@ mutation {
 ### 3. Python Usage
 
 ```python
-from rules.autocomplete.sigma_engine import SigmaAutocompleteEngine
+from rules.autocomplete import KQLAutocompleteEngine
 
-engine = SigmaAutocompleteEngine()
+engine = KQLAutocompleteEngine()
 
 # Get autocomplete suggestions
 result = engine.get_autocomplete(
-    text="title: My\nstatus: ",
+    text="SecurityEvent\n| where ",
     position=20
 )
 

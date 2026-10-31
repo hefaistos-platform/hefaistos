@@ -81,6 +81,15 @@ class CustomUser(AbstractUser):
     )
     # --- END ADD ---
 
+    # Explicit marker for internal service/connector accounts. Service accounts
+    # bypass role-gated mutations, so this MUST be set deliberately (e.g. for
+    # 'connector_svc') and must never be inferred from the username, which a
+    # user could otherwise abuse to bypass authorization.
+    is_service_account = models.BooleanField(
+        default=False,
+        help_text="Internal service/connector account that bypasses role-gated mutations."
+    )
+
     # --- PROFILE FIELDS (Phase: User Profiles) ---
     avatar = models.ImageField(
         upload_to='avatars/',

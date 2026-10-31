@@ -20,7 +20,7 @@ from playbooks.models import DetectionPlaybook, PlaybookGraph
 from django.utils import timezone
 import json
 import requests
-from identity.decorators import role_required, Roles
+from identity.decorators import role_required, Roles, is_service_account_user
 from django.utils.text import slugify
 from mgmt_reports.cache_utils import invalidate_mgmt_cave_stats_cache
 
@@ -116,6 +116,10 @@ class GetAutocompleteOptions(graphene.Mutation):
 
     @staticmethod
     def mutate(root, info, format, context, position, dataSourceId=None):
+        user = getattr(info.context, 'user', None)
+        if user is None or getattr(user, 'is_anonymous', True):
+            raise Exception("Authentication required")
+
         from rules.autocomplete import (
             AQLAutocompleteEngine,
             EQLAutocompleteEngine,
@@ -187,6 +191,10 @@ class ValidateRuleContent(graphene.Mutation):
 
     @staticmethod
     def mutate(root, info, format, context, position, dataSourceId=None):
+        user = getattr(info.context, 'user', None)
+        if user is None or getattr(user, 'is_anonymous', True):
+            raise Exception("Authentication required")
+
         from rules.autocomplete import (
             AQLAutocompleteEngine,
             EQLAutocompleteEngine,
@@ -315,11 +323,9 @@ class RuleRepositoryType(DjangoObjectType):
 
     def resolve_token(self, info):
         user = info.context.user
-        # Allow service accounts: connector_svc, or usernames containing 'service'
-        if user and getattr(user, 'username', ''):
-            username = user.username.lower()
-            if username == 'connector_svc' or 'service' in username:
-                return getattr(self, 'token', None)
+        # Allow explicitly-flagged service accounts (e.g. connector_svc)
+        if is_service_account_user(user):
+            return getattr(self, 'token', None)
         return None
 
     def resolve_rule_count(self, info):
@@ -774,10 +780,7 @@ class Query(graphene.ObjectType):
 
         # Service accounts (connector_svc) can access any repository
         # to support cross-org operations like scheduled pulls
-        is_service_account = (
-            hasattr(user, 'username') and
-            (user.username == 'connector_svc' or 'service' in user.username.lower())
-        )
+        is_service_account = is_service_account_user(user)
 
         try:
             if is_service_account:
@@ -1836,7 +1839,7 @@ class UpsertRule(graphene.Mutation):
             raise Exception("Authentication required")
 
         # Service accounts can access any repository for cross-org sync
-        is_service_account = hasattr(user, 'username') and ('service' in user.username.lower() or user.username == 'connector_svc')
+        is_service_account = is_service_account_user(user)
 
         try:
             if is_service_account:
@@ -2372,7 +2375,7 @@ class UpdateRuleRepositoryLastSync(graphene.Mutation):
             raise Exception("Authentication required")
 
         # Service accounts can access any repository for cross-org sync
-        is_service_account = hasattr(user, 'username') and ('service' in user.username.lower() or user.username == 'connector_svc')
+        is_service_account = is_service_account_user(user)
 
         try:
             if is_service_account:
@@ -2403,7 +2406,7 @@ class UpdateRuleRepositoryRagSyncStatus(graphene.Mutation):
         if user.is_anonymous:
             raise Exception("Authentication required")
 
-        is_service_account = hasattr(user, 'username') and ('service' in user.username.lower() or user.username == 'connector_svc')
+        is_service_account = is_service_account_user(user)
 
         try:
             if is_service_account:
@@ -2466,7 +2469,7 @@ class UpdateRuleRepositoryRagFileStatuses(graphene.Mutation):
         if user.is_anonymous:
             raise Exception("Authentication required")
 
-        is_service_account = hasattr(user, 'username') and ('service' in user.username.lower() or user.username == 'connector_svc')
+        is_service_account = is_service_account_user(user)
 
         try:
             if is_service_account:

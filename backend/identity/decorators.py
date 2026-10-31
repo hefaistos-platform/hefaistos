@@ -23,6 +23,22 @@ def is_bot_auditor_user(user) -> bool:
     return bool(user and not getattr(user, 'is_anonymous', True) and is_bot_auditor_role(getattr(user, 'role', None)))
 
 
+def is_service_account_user(user) -> bool:
+    """Return True only for explicitly-flagged internal service accounts.
+
+    Service accounts are identified by the ``is_service_account`` flag, never by
+    a username substring. The exact-match ``connector_svc`` fallback keeps the
+    built-in connector working on deployments where the data migration flagging
+    it has not yet run; it is a precise match and cannot be spoofed by a
+    substring such as ``my-service-test``.
+    """
+    if not user or getattr(user, 'is_anonymous', True):
+        return False
+    if getattr(user, 'is_service_account', False):
+        return True
+    return getattr(user, 'username', None) == 'connector_svc'
+
+
 def is_global_bot_auditor_user(user) -> bool:
     return bool(user and not getattr(user, 'is_anonymous', True) and getattr(user, 'role', None) == Roles.BOT_AUDITOR_GLOBAL)
 
@@ -30,7 +46,8 @@ def role_required(roles: list):
     """
     A decorator that checks if a logged-in user has one of the required roles.
     `roles` is a list of strings, e.g., [Roles.ADMIN, Roles.ANALYST]
-    Service accounts (connector_svc or usernames containing 'service') bypass role checks.
+    Service accounts (flagged via is_service_account, or the built-in
+    'connector_svc') bypass role checks.
     Platform admins (is_superuser or is_staff) also bypass org-scoped role checks —
     the ADMIN role is scoped to the user's own organization only.
     """
@@ -74,10 +91,7 @@ def role_required(roles: list):
                     raise PermissionDenied("You must be logged in to perform this action.")
 
                 # Check 2: Allow service accounts to bypass role checks
-                is_service_account = (
-                    hasattr(user, 'username') and 
-                    (user.username == 'connector_svc' or 'service' in user.username.lower())
-                )
+                is_service_account = is_service_account_user(user)
                 
                 if is_service_account:
                     logger.info(f"[role_required] Service account '{user.username}' allowed access to {func.__name__}")

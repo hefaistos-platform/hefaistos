@@ -82,7 +82,7 @@ class MarkNotificationAsRead(graphene.Mutation):
 		description = "Marks a single notification as read."
 
 	@staticmethod
-	@role_required([Roles.ADMIN, Roles.ANALYST])
+	@role_required([Roles.ADMIN, Roles.ANALYST, Roles.REVIEWER])
 	def mutate(root, info, id):
 		user = info.context.user
 		if user.is_anonymous:
@@ -107,7 +107,7 @@ class MarkAllNotificationsAsRead(graphene.Mutation):
 		description = "Marks all of the user's notifications as read."
 
 	@staticmethod
-	@role_required([Roles.ADMIN, Roles.ANALYST])
+	@role_required([Roles.ADMIN, Roles.ANALYST, Roles.REVIEWER])
 	def mutate(root, info):
 		user = info.context.user
 		if user.is_anonymous:
@@ -132,6 +132,7 @@ class CreateNotification(graphene.Mutation):
 		description = "Creates a new notification. (Used by internal services)"
 
 	@staticmethod
+	@role_required([Roles.ADMIN])
 	def mutate(root, info, recipient_id, actor_id, organization_id, verb, object_id, content_type):
 		import logging
 		logger = logging.getLogger(__name__)
@@ -293,6 +294,32 @@ The HEFAISTOS Team"""
 <p>Hello <strong>{recipient.username}</strong>,</p>
 <p><strong>{actor_name}</strong> performed an action on your workbench:</p>
 <blockquote>{verb}</blockquote>
+{login_link_html()}
+<p>Best regards,<br/>The HEFAISTOS Team</p>
+</body></html>"""
+					elif ct_lower == 'playbook':
+						# Workbench review decisions are published as 'playbook'
+						# notifications (see review.approved in notifier.py). Only
+						# approvals honour the "Email me when my review is approved"
+						# preference.
+						if 'approved' in verb.lower():
+							should_email = bool(getattr(recipient, 'email_notify_review_approved', False))
+							subject = "✅ Your Review Was Approved - HEFAISTOS"
+							text_body = f"""Hello {recipient.username},
+
+Your review request has been approved.
+
+Details: {verb}
+
+{login_link_text()}
+
+Best regards,
+The HEFAISTOS Team"""
+							html_body = f"""<html><body>
+<h2>✅ Review Approved</h2>
+<p>Hello <strong>{recipient.username}</strong>,</p>
+<p>Your review request has been approved.</p>
+<p><strong>Details:</strong> {verb}</p>
 {login_link_html()}
 <p>Best regards,<br/>The HEFAISTOS Team</p>
 </body></html>"""

@@ -244,7 +244,7 @@ class CreateDataSource(graphene.Mutation):
         description = "Creates a new data source for the user's organization."
 
     @staticmethod
-    @role_required([Roles.ADMIN, Roles.ANALYST, Roles.REVIEWER, Roles.VIEWER])
+    @role_required([Roles.ADMIN, Roles.ANALYST])
     def mutate(root, info, name, **kwargs):
         user = info.context.user
         if user.is_anonymous:
@@ -268,6 +268,7 @@ class AddDataSourceField(graphene.Mutation):
         description = "Adds a new field to an existing data source. The data source must belong to the user's organization."
 
     @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
     def mutate(root, info, data_source_id, field_name, **kwargs):
         user = info.context.user
         if user.is_anonymous:
@@ -489,6 +490,7 @@ class UpdateDataSource(graphene.Mutation):
     data_source = graphene.Field(DataSourceType)
 
     @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
     def mutate(root, info, id, **kwargs):
         user = info.context.user
         if user.is_anonymous:
@@ -513,6 +515,7 @@ class DeleteDataSource(graphene.Mutation):
     ok = graphene.Boolean()
 
     @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
     def mutate(root, info, id):
         user = info.context.user
         if user.is_anonymous:
@@ -538,6 +541,7 @@ class UpdateDataSourceField(graphene.Mutation):
     data_source_field = graphene.Field(DataSourceFieldType)
 
     @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
     def mutate(root, info, id, **kwargs):
         user = info.context.user
         if user.is_anonymous:
@@ -563,6 +567,7 @@ class DeleteDataSourceField(graphene.Mutation):
     ok = graphene.Boolean()
 
     @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
     def mutate(root, info, id):
         user = info.context.user
         if user.is_anonymous:

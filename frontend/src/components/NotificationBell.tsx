@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { gql } from '@apollo/client';
 import { useQuery, useMutation } from '@apollo/client/react';
+import { Link } from 'react-router-dom';
 import { Badge, Button, List, Popover, Space } from 'antd';
 import { BellOutlined } from '@ant-design/icons';
+
+interface HeaderNotificationTarget {
+  id: string;
+  title?: string | null;
+}
 
 interface HeaderNotificationItem {
   id: string;
   verb: string;
   read: boolean;
   timestamp: string;
+  target?: HeaderNotificationTarget | null;
 }
 
 interface HeaderNotificationsData {
@@ -24,6 +31,16 @@ const HEADER_NOTIFICATIONS = gql`
       verb
       read
       timestamp
+      target {
+        ... on PlaybookType {
+          id
+          title
+        }
+        ... on PlaybookGraphType {
+          id
+          title
+        }
+      }
     }
   }
 `;
@@ -88,7 +105,19 @@ export const NotificationBell: React.FC = () => {
             locale={{ emptyText: loading ? 'Loading...' : 'No notifications' }}
             renderItem={(item) => (
               <List.Item style={{ opacity: item.read ? 0.7 : 1 }}>
-                <List.Item.Meta title={item.verb} description={new Date(item.timestamp).toLocaleString()} />
+                <List.Item.Meta
+                  title={
+                    item.target?.id ? (
+                      <Link to={`/playbooks/${item.target.id}`} onClick={() => setOpen(false)}>
+                        {item.verb}
+                        {item.target.title ? ` — ${item.target.title}` : ''}
+                      </Link>
+                    ) : (
+                      item.verb
+                    )
+                  }
+                  description={new Date(item.timestamp).toLocaleString()}
+                />
               </List.Item>
             )}
           />

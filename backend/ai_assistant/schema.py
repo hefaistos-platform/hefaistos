@@ -2433,6 +2433,7 @@ class StartPopulateWorkbenchFromThreatReportTask(graphene.Mutation):
     message = graphene.String()
 
     @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
     def mutate(root, info, playbook_id, file_content, filename):
         user = info.context.user
         if user.is_anonymous:
@@ -2512,6 +2513,7 @@ class ApplyThreatReportPopulateResult(graphene.Mutation):
     capabilities_added = graphene.Int()
 
     @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
     def mutate(root, info, playbook_id, payload, mode):
         user = info.context.user
         if user.is_anonymous:

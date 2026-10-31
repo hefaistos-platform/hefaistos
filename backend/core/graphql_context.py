@@ -14,7 +14,8 @@ def get_context(request):
     
     # Debug logging for service accounts
     if user and hasattr(user, 'username'):
-        if 'service' in user.username.lower() or user.username == 'connector_svc':
+        from identity.decorators import is_service_account_user
+        if is_service_account_user(user):
             logger.debug(f"[get_context] Service account detected: {user.username}")
     
     return {

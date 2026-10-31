@@ -3833,24 +3833,11 @@ class SubmitForReview(graphene.Mutation):
             comment = CanonReviewComment.objects.create(review_request=req, author=user, text=note)
             logger.info(f"[SubmitForReview] Created comment: {comment.id}")
 
-        # 4. Notify reviewers (Admin/Reviewer roles) via RabbitMQ
-        try:
-            payload = {
-                'event': 'review.requested',
-                'organization_id': str(user.organization_id),
-                'graph_id': str(graph.id),
-                'playbook_id': str(playbook.id),
-                'review_request_id': str(req.id),
-                'title': graph.title,
-                'actor_id': str(user.id),
-                'author_id': str(user.id),
-                'author_username': getattr(user, 'username', None),
-            }
-            publish_event('review.requested', payload)
-            logger.info(f"[SubmitForReview] Published review.requested event")
-        except Exception as e:
-            # Log but do not block submit on notification failures
-            logger.warning(f"Failed to publish review.requested event: {e}")
+        # 4. Notify reviewers (Admin/Reviewer roles) via RabbitMQ.
+        # NOTE: notifications are published by the ReviewRequest post_save signal
+        # (review/signals.py -> 'playbook.review.created'). Publishing a second
+        # 'review.requested' event here caused every recipient to receive two
+        # notifications per submission, so the mutation no longer re-publishes.
 
         logger.info(f"[SubmitForReview] Mutation complete, returning success=True")
         return SubmitForReview(success=True, review_request=req)
