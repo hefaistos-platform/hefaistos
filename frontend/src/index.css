@@ -643,6 +643,12 @@ code {
   color: var(--hef-text-primary) !important;
 }
 
+/* Ant Design 6 overlays this empty input on top of the selected badge.
+   Configuration's general input background must not obscure that badge. */
+.tlp-maximum-select.ant-select input {
+  background: transparent !important;
+}
+
 .tlp-maximum-select.ant-select .ant-select-arrow {
   color: var(--hef-text-primary) !important;
 }
