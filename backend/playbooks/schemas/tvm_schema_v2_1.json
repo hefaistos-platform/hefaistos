@@ -32,7 +32,7 @@
         },
         "tlp": {
           "type": "string",
-          "description": "Traffic Light Protocol classification"
+          "description": "Traffic Light Protocol classification; unclear follows the community proposal at https://tlp-unclear.org/ for an unknown source or unknown, unclear, or unused sharing model"
         },
         "created": {
           "type": "string",

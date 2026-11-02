@@ -12,6 +12,7 @@ import { applyMaieuticToWorkbench } from '../utils/maieuticMapping';
 import { MaieuticOutput, MaieuticImportSelections } from '../types/maieutic';
 import { Button as CustomButton } from '../components/ui/Button';
 import { PixelIcon } from '../components/ui/PixelIcon';
+import { TlpBadge } from '../components/ui/TlpBadge';
 
 const AchPageLazy = React.lazy(() => import('./ACHPage').then(m => ({ default: m.ACHPage })));
 const AdvopsPageLazy = React.lazy(() => import('./ADVOPSPage').then(m => ({ default: m.ADVOPSPage ?? m.default })));
@@ -23,6 +24,7 @@ const GET_ALL_GRAPHS_QUERY = gql`
       id
       title
       status
+      tlpClassification
       updatedAt
       tags
       author { id username }
@@ -37,7 +39,7 @@ const GET_ALL_GRAPHS_QUERY = gql`
 const CREATE_PLAYBOOK_GRAPH_MUTATION = gql`
   mutation CreatePlaybookGraph($title: String!) {
     createPlaybookGraph(title: $title) {
-      graph { id title status updatedAt }
+      graph { id title status tlpClassification updatedAt }
     }
   }
 `;
@@ -100,6 +102,7 @@ interface GraphRow {
   id: string;
   title: string;
   status: string;
+  tlpClassification: string;
   updatedAt: string;
   tags?: string[];
   author: { id: string; username: string } | null;
@@ -266,6 +269,10 @@ export const PlaybooksHubPage: React.FC = () => {
       )
     },
     {
+      title: 'TLP', dataIndex: 'tlpClassification', key: 'tlpClassification',
+      render: (classification: string | null) => <TlpBadge classification={classification} />
+    },
+    {
       title: 'Actions', key: 'actions', render: (_: any, row: GraphRow) => {
         const isAuthor = currentUserId && row.author?.id === currentUserId;
         const canDelete = isAuthor && row.status !== 'DEPLOYED';
@@ -295,6 +302,7 @@ export const PlaybooksHubPage: React.FC = () => {
               id: 'temp-' + Date.now().toString(),
               title,
               status: 'IDEA',
+              tlpClassification: 'UNCLEAR',
               updatedAt: new Date().toISOString(),
               author: { id: 'temp-user', username: 'You' },
               mitreTechnique: null,
@@ -339,6 +347,7 @@ export const PlaybooksHubPage: React.FC = () => {
               id: 'temp-' + Date.now().toString(),
               title,
               status: 'IDEA',
+              tlpClassification: 'UNCLEAR',
               updatedAt: new Date().toISOString(),
               author: { id: 'temp-user', username: 'You' },
               mitreTechnique: null,

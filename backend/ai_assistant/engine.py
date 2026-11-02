@@ -2531,7 +2531,7 @@ Required JSON schema:
     "Containment": ["<step>", "<step>"],
     "Notifications": ["<routing target>", "<routing target>"],
     "OpenTide Classification & Reference": {
-      "TLP Level": "<CLEAR|GREEN|AMBER|RED|Unknown>",
+      "TLP Level": "<CLEAR|GREEN|AMBER|AMBER+STRICT|RED|UNCLEAR — use unofficial UNCLEAR if the source or sharing model is unknown, unclear, or not used>",
       "URL / External References": ["<url or citation>"],
       "Internal Reference": ["<internal ref>"],
       "Threat Surface Taxonomy": ["<Endpoint|Identity|Network|Cloud Workload|Unknown>"]

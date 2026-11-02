@@ -14,6 +14,7 @@ from django.db import transaction
 from django.db.models import Count, Q, Prefetch
 from django.core.exceptions import ObjectDoesNotExist
 from playbooks.models import DetectionPlaybook
+from playbooks.utils.tlp import normalize_tlp
 from playbooks.l1_portal import (
     build_l1_portal_share_url as _build_l1_portal_share_url,
     upsert_l1_portal_snapshot as _upsert_l1_portal_snapshot,
@@ -3249,6 +3250,7 @@ class ClonePlaybookGraph(graphene.Mutation):
             enrichment_steps=graph.enrichment_steps,
             containment_steps=graph.containment_steps,
             notification_steps=graph.notification_steps,
+            tlp_classification=normalize_tlp(graph.tlp_classification),
             downstream_correlation_requirements=graph.downstream_correlation_requirements,
         )
         new_graph.title = _normalize_workbench_title(new_title, new_graph)
@@ -3623,7 +3625,7 @@ class UpdatePlaybookDetails(graphene.Mutation):
         if 'downstream_correlation_requirements' in kwargs: graph.downstream_correlation_requirements = kwargs['downstream_correlation_requirements'] or {}
 
         # OpenTide v2.1 fields
-        if 'tlp_classification' in kwargs: graph.tlp_classification = kwargs['tlp_classification']
+        if 'tlp_classification' in kwargs: graph.tlp_classification = normalize_tlp(kwargs['tlp_classification'])
         if 'public_references' in kwargs: graph.public_references = kwargs['public_references'] or []
         if 'internal_references' in kwargs: graph.internal_references = kwargs['internal_references'] or []
         if 'threat_actors' in kwargs: graph.threat_actors = kwargs['threat_actors'] or []
@@ -4003,6 +4005,7 @@ def serialize_playbook_graph(graph: PlaybookGraph) -> dict:
             "enrichment_steps": graph.enrichment_steps or [],
             "containment_steps": graph.containment_steps or [],
             "notification_steps": graph.notification_steps or [],
+            "tlp_classification": normalize_tlp(graph.tlp_classification),
             "downstream_correlation_requirements": graph.downstream_correlation_requirements or {},
             
             # Notes
@@ -4070,6 +4073,7 @@ def deserialize_playbook_graph(data: dict, organization, author) -> PlaybookGrap
         enrichment_steps=playbook_data.get("enrichment_steps", []),
         containment_steps=playbook_data.get("containment_steps", []),
         notification_steps=playbook_data.get("notification_steps", []),
+        tlp_classification=normalize_tlp(playbook_data.get("tlp_classification")),
         downstream_correlation_requirements=playbook_data.get("downstream_correlation_requirements", {}),
         
         # Notes
@@ -4213,6 +4217,8 @@ def update_playbook_graph_from_v1(data: dict, graph: PlaybookGraph, author, new_
     graph.enrichment_steps = playbook_data.get("enrichment_steps", [])
     graph.containment_steps = playbook_data.get("containment_steps", [])
     graph.notification_steps = playbook_data.get("notification_steps", [])
+    if "tlp_classification" in playbook_data:
+        graph.tlp_classification = normalize_tlp(playbook_data["tlp_classification"])
     graph.downstream_correlation_requirements = playbook_data.get("downstream_correlation_requirements", {})
 
     graph.notes = playbook_data.get("notes", "")
@@ -4362,6 +4368,7 @@ def serialize_playbook_graph_hex_v2(graph: PlaybookGraph) -> dict:
             "enrichment_steps": graph.enrichment_steps or [],
             "containment_steps": graph.containment_steps or [],
             "notification_steps": graph.notification_steps or [],
+            "tlp_classification": normalize_tlp(graph.tlp_classification),
             "downstream_correlation_requirements": graph.downstream_correlation_requirements or {},
         },
         "graph_structure": {
@@ -4461,6 +4468,7 @@ def deserialize_playbook_graph_hex_v2(data: dict, organization, author) -> Playb
         enrichment_steps=soar_config.get("enrichment_steps", []),
         containment_steps=soar_config.get("containment_steps", []),
         notification_steps=soar_config.get("notification_steps", []),
+        tlp_classification=normalize_tlp(soar_config.get("tlp_classification")),
         downstream_correlation_requirements=soar_config.get("downstream_correlation_requirements", {}),
         
         # Notes
@@ -4636,6 +4644,8 @@ def update_playbook_graph_from_hex_v2(data: dict, graph: PlaybookGraph, author, 
     graph.enrichment_steps = soar_config.get("enrichment_steps", [])
     graph.containment_steps = soar_config.get("containment_steps", [])
     graph.notification_steps = soar_config.get("notification_steps", [])
+    if "tlp_classification" in soar_config:
+        graph.tlp_classification = normalize_tlp(soar_config["tlp_classification"])
     graph.downstream_correlation_requirements = soar_config.get("downstream_correlation_requirements", {})
 
     graph.notes = audit_trail.get("notes", "")
@@ -5178,13 +5188,7 @@ def deserialize_playbook_graph_from_opentide(
     # TVM v2.1 fields: TLP, references, threat surface, threat actors
     # ------------------------------------------------------------------
     tvm_metadata = tvm.get('metadata') or {}
-    tlp_classification = tvm_metadata.get('tlp', 'AMBER')
-    # Normalise to our stored choices (strip "TLP:" prefix if present)
-    if tlp_classification.startswith('TLP:'):
-        tlp_classification = tlp_classification[4:]
-    _VALID_TLPS = {'CLEAR', 'GREEN', 'AMBER', 'AMBER+STRICT', 'RED'}
-    if tlp_classification not in _VALID_TLPS:
-        tlp_classification = 'AMBER'
+    tlp_classification = normalize_tlp(tvm_metadata.get('tlp') or (mdr.get('metadata') or {}).get('tlp'))
 
     tvm_references = tvm.get('references') or {}
     public_references = list((tvm_references.get('public') or {}).values())

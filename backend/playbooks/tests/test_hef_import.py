@@ -101,6 +101,20 @@ class TestBundleToHexV2(SimpleTestCase):
         result = bundle_to_hex_v2(self._make_bundle_files())
         self.assertEqual(result.get('hex_format'), '2.0')
 
+    def test_unclear_classification_is_preserved(self):
+        files = self._make_bundle_files(tvm='metadata:\n  tlp: unclear\n')
+        result = bundle_to_hex_v2(files)
+        self.assertEqual(result['soar_configuration']['tlp_classification'], 'UNCLEAR')
+
+    def test_missing_classification_is_unclear(self):
+        result = bundle_to_hex_v2(self._make_bundle_files())
+        self.assertEqual(result['soar_configuration']['tlp_classification'], 'UNCLEAR')
+
+    def test_prefixed_mdr_classification_survives_without_tvm(self):
+        files = self._make_bundle_files(tvm=None, mdr='metadata:\n  tlp: TLP:UNCLEAR\n')
+        result = bundle_to_hex_v2(files)
+        self.assertEqual(result['soar_configuration']['tlp_classification'], 'UNCLEAR')
+
     def test_metadata_contains_mdr_uuid(self):
         result = bundle_to_hex_v2(self._make_bundle_files())
         meta = result.get('metadata', {})

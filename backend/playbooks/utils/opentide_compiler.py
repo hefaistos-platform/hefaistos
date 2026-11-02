@@ -15,6 +15,7 @@ import re
 import logging
 import uuid
 import yaml
+from playbooks.utils.tlp import normalize_tlp
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 from playbooks.l1_portal import (
@@ -502,13 +503,14 @@ def _extract_threat_surface(technical_context: str) -> List[str]:
 
 
 def _get_tlp(playbook) -> str:
-    """Return the TLP value from the playbook in lowercase, defaulting to 'amber'.
+    """Return the TLP value from the playbook in lowercase, defaulting to 'unclear'.
 
     OpenTIDE/CoreTide validators require lowercase TLP classification values
     (e.g. ``amber``, ``red``, ``green``, ``clear``, ``amber+strict``).
+    The ``unclear`` value follows the community proposal at https://tlp-unclear.org/.
     """
     tlp = getattr(playbook, 'tlp_classification', None)
-    return tlp.lower() if tlp else 'amber'
+    return normalize_tlp(tlp).lower()
 
 
 def _build_author_obj(playbook) -> Optional[str]:

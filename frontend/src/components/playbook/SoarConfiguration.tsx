@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import { PixelIcon } from '../ui/PixelIcon';
+import { TLP_OPTIONS, TLP_UNCLEAR_SOURCE_URL, TlpBadge } from '../ui/TlpBadge';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
@@ -56,14 +57,6 @@ interface SoarProps {
 // ──────────────────────────────────────────────────────────────────────────────
 // Constants
 // ──────────────────────────────────────────────────────────────────────────────
-
-const TLP_OPTIONS = [
-  { value: 'CLEAR', label: 'TLP:CLEAR — Public disclosure', color: 'text-gray-700 bg-gray-100' },
-  { value: 'GREEN', label: 'TLP:GREEN — Community sharing', color: 'text-green-700 bg-green-100' },
-  { value: 'AMBER', label: 'TLP:AMBER — Limited disclosure', color: 'text-amber-700 bg-amber-100' },
-  { value: 'AMBER+STRICT', label: 'TLP:AMBER+STRICT — Organization only', color: 'text-orange-700 bg-orange-100' },
-  { value: 'RED', label: 'TLP:RED — Personal for named recipients', color: 'text-red-700 bg-red-100' },
-];
 
 /** Threat surface taxonomy (mirrors SURFACE_KEYWORD_MAP in opentide_compiler.py). */
 const SURFACE_TAXONOMY: { group: string; items: string[] }[] = [
@@ -363,7 +356,6 @@ export const SoarConfiguration: React.FC<SoarProps> = ({ data, onSave }) => {
       setIsDirty(false);
   };
 
-  const selectedTlp = TLP_OPTIONS.find(o => o.value === (localData.tlpClassification || 'AMBER'));
   const hasDownstreamData = dcr.correlationScope.length > 0
     || Boolean(dcr.temporalLogic.windowSize)
     || dcr.joinKeys.requiredFields.length > 0
@@ -487,17 +479,21 @@ export const SoarConfiguration: React.FC<SoarProps> = ({ data, onSave }) => {
           <label className="block text-sm font-bold mb-1">TLP Classification</label>
           <select
             className="w-full p-2 border rounded"
-            value={localData.tlpClassification || 'AMBER'}
+            value={localData.tlpClassification || 'UNCLEAR'}
             onChange={(e) => updateField('tlpClassification', e.target.value)}
           >
             {TLP_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          {selectedTlp && (
-            <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-semibold ${selectedTlp.color}`}>
-              {selectedTlp.value}
-            </span>
+          <TlpBadge classification={localData.tlpClassification} className="mt-1" />
+          {(!localData.tlpClassification || localData.tlpClassification === 'UNCLEAR') && (
+            <p className="mt-1 text-xs text-gray-500">
+              Based on the community proposal at{' '}
+              <a href={TLP_UNCLEAR_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="text-purple-700 underline">
+                tlp-unclear.org
+              </a>.
+            </p>
           )}
         </div>
 

@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from playbooks.repo_clients import RepoClient
+from playbooks.utils.tlp import normalize_tlp
 
 logger = logging.getLogger(__name__)
 
@@ -551,6 +552,7 @@ def bundle_to_hex_v2(bundle_files: Dict[str, Optional[str]], title_override: Opt
             'target_file_path': '',
         },
         'soar_configuration': {
+            'tlp_classification': normalize_tlp(tvm_meta.get('tlp') or mdr_meta.get('tlp')),
             'alert_trigger': '',
             'default_severity': alert_severity,
             'enrichment_steps': [],

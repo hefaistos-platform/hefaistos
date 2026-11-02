@@ -16,6 +16,7 @@ Avoid importing `DetectionRule` here to prevent circular imports with
 from data_catalog.models import DataSource
 from django.core.validators import MinValueValidator, MaxValueValidator
 from core.rabbitmq import publish_event
+from playbooks.utils.tlp import TLP_CHOICES
 
 
 
@@ -516,15 +517,9 @@ class PlaybookGraph(models.Model):
     # TLP classification for information sharing (WikiTide v2.1)
     tlp_classification = models.CharField(
         max_length=20,
-        choices=[
-            ('CLEAR', 'TLP:CLEAR - Public disclosure'),
-            ('GREEN', 'TLP:GREEN - Community sharing'),
-            ('AMBER', 'TLP:AMBER - Limited disclosure'),
-            ('AMBER+STRICT', 'TLP:AMBER+STRICT - Organization only'),
-            ('RED', 'TLP:RED - Personal for named recipients'),
-        ],
-        default='AMBER',
-        help_text='Traffic Light Protocol classification for information sharing',
+        choices=TLP_CHOICES,
+        default='UNCLEAR',
+        help_text='Traffic Light Protocol classification for information sharing; UNCLEAR follows the community proposal at https://tlp-unclear.org/',
     )
 
     # Public references (URLs, research papers, blog posts)

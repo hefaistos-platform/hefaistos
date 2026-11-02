@@ -1448,10 +1448,16 @@ class TestMdrAlertSeverityTitleCase(TestCase):
         mdr = compile_mdr_yaml(playbook)
         self.assertEqual(mdr['metadata']['tlp'], 'red')
 
-    def test_empty_tlp_defaults_to_amber(self):
+    def test_empty_tlp_defaults_to_unclear(self):
         playbook = _make_playbook(tlp_classification='')
         tvm = compile_tvm_yaml(playbook)
-        self.assertEqual(tvm['metadata']['tlp'], 'amber')
+        self.assertEqual(tvm['metadata']['tlp'], 'unclear')
+
+    def test_unclear_preserved_across_all_object_types(self):
+        playbook = _make_playbook(tlp_classification='UNCLEAR', linked_rules=[])
+        for compiler in (compile_tvm_yaml, compile_dom_yaml, compile_mdr_yaml):
+            with self.subTest(compiler=compiler.__name__):
+                self.assertEqual(compiler(playbook)['metadata']['tlp'], 'unclear')
 
 
 class TestExtractThreatSurface(TestCase):

@@ -20,6 +20,7 @@ import { ReviewWorkflow } from '../components/playbook/ReviewWorkflow';
 import { ActivityOverview } from '../components/playbook/ActivityOverview';
 import { PlaybookSidebar } from '../components/playbook/PlaybookSidebar';
 import { WorkbenchSectionControls } from '../components/playbook/WorkbenchSectionControls';
+import { TlpBadge } from '../components/ui/TlpBadge';
 import { Button } from '../components/ui/Button';
 import { PixelIcon } from '../components/ui/PixelIcon';
 import { useRef } from 'react';
@@ -1530,7 +1531,7 @@ export const PlaybookWorkbench = () => {
                 containmentSteps: JSON.stringify(soarData.containment),
                 notificationSteps: JSON.stringify(soarData.notifications),
                 downstreamCorrelationRequirements: JSON.stringify(soarData.downstreamCorrelationRequirements ?? {}),
-                tlpClassification: soarData.tlpClassification || 'AMBER',
+                tlpClassification: soarData.tlpClassification || 'UNCLEAR',
                 publicReferences: JSON.stringify(soarData.publicReferences || []),
                 internalReferences: JSON.stringify(soarData.internalReferences || []),
                 threatActors: JSON.stringify(soarData.threatActors || []),
@@ -2531,12 +2532,12 @@ export const PlaybookWorkbench = () => {
                          savingDefaults={savingWorkbenchDefaults}
                        />
 
-                       {/* Robustness Level Badge */}
-                       {data.playbookGraph.robustnessLevel && data.playbookGraph.robustnessLevel > 0 && (
-                         <div className="mb-4">
+                       <div className="mb-4 flex flex-wrap items-center gap-2">
+                         {data.playbookGraph.robustnessLevel > 0 && (
                            <RobustnessBadge level={data.playbookGraph.robustnessLevel} />
-                         </div>
-                       )}
+                         )}
+                         <TlpBadge classification={data.playbookGraph.tlpClassification} />
+                       </div>
 
                        {/* Conversation History Viewer */}
                        {conversationHistory.length > 0 && (
@@ -2883,7 +2884,7 @@ export const PlaybookWorkbench = () => {
                                 ? JSON.parse(data.playbookGraph.downstreamCorrelationRequirements)
                                 : data.playbookGraph.downstreamCorrelationRequirements)
                             : {},
-                          tlpClassification: data.playbookGraph.tlpClassification || 'AMBER',
+                          tlpClassification: data.playbookGraph.tlpClassification || 'UNCLEAR',
                           publicReferences: data.playbookGraph.publicReferences ? JSON.parse(data.playbookGraph.publicReferences) : [],
                           internalReferences: data.playbookGraph.internalReferences ? JSON.parse(data.playbookGraph.internalReferences) : [],
                           threatActors: data.playbookGraph.threatActors ? JSON.parse(data.playbookGraph.threatActors) : [],

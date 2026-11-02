@@ -28,6 +28,7 @@ from .engine import (
 import requests
 from requests.exceptions import RequestException
 from playbooks.models import PlaybookGraph, CapabilityAbstraction
+from playbooks.utils.tlp import map_tlp_text as _map_tlp
 from platform_data.models import MitreAttackTechnique, ChokepointSnapshot, ChokepointEntry
 from identity.decorators import role_required, Roles
 
@@ -515,14 +516,6 @@ def _map_robustness_level(raw) -> int:
 def _map_severity(raw: str, default: str = 'MEDIUM') -> str:
     text = (raw or '').upper()
     for value in ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW'):
-        if value in text:
-            return value
-    return default
-
-
-def _map_tlp(raw: str, default: str = 'AMBER') -> str:
-    text = (raw or '').upper()
-    for value in ('CLEAR', 'GREEN', 'AMBER+STRICT', 'AMBER', 'RED'):
         if value in text:
             return value
     return default
@@ -2844,7 +2837,7 @@ class ApplyThreatReportPopulateResult(graphene.Mutation):
                     graph.downstream_correlation_requirements = merged
                     applied_fields.append('downstreamCorrelationRequirements')
 
-            mapped_tlp = _map_tlp(tlp_level, default=graph.tlp_classification or 'AMBER')
+            mapped_tlp = _map_tlp(tlp_level, default=graph.tlp_classification or 'UNCLEAR')
             if mode_value == 'OVERWRITE' or not graph.tlp_classification:
                 if mapped_tlp and mapped_tlp != graph.tlp_classification:
                     graph.tlp_classification = mapped_tlp
