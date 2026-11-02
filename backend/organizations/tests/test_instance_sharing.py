@@ -899,7 +899,7 @@ class SharingPullDiagnosticsTests(SharingImportRulesTests):
         self.assertEqual(payload['workbenches'][0]['source_id'], str(graph.pk))
         self.assertEqual(payload['diagnostics']['workbenches'], {
             'total': 3, 'excluded_by_status': 1, 'excluded_by_remote_pull_disabled': 1,
-            'excluded_by_tags': 0, 'deduplicated': 0, 'exported': 1,
+            'excluded_by_tags': 0, 'excluded_by_tlp': 0, 'deduplicated': 0, 'exported': 1,
         })
 
 
@@ -942,7 +942,7 @@ class ACHSharingRoundTripTests(TestCase):
         self.assertEqual({entry['title'] for entry in payload['ach']}, {'FINISHED', 'APPROVED'})
         self.assertEqual(payload['diagnostics']['ach'], {
             'total': 4, 'excluded_by_status': 1, 'excluded_by_remote_pull_disabled': 1,
-            'excluded_by_tags': 0, 'deduplicated': 0, 'exported': 2,
+            'excluded_by_tags': 0, 'excluded_by_tlp': 0, 'deduplicated': 0, 'exported': 2,
         })
 
     def test_full_approved_analysis_round_trip_and_repeat_import(self):

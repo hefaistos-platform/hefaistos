@@ -63,7 +63,8 @@ In **Configuration → Instance Sharing**, select **Capability Abstraction Libra
 as the scope for an inbound API key or a remote peer. **All** includes this library.
 
 To share an entry, edit it in Capability Library, set its review status to
-**Approved**, and enable **Allow remote pull**. Both conditions are required.
+**Approved**, and enable **Allow remote pull**. Both conditions are required, and the entry must fit the key’s Required TLP
+Classification maximum.
 Sharing exports only entries belonging to the organization; shared baseline
 entries are excluded. The key's optional tag filter applies to Workbench and Rules.
 
@@ -72,6 +73,19 @@ The matching ATT&CK technique must already exist locally. Repeated pulls update
 entries matching the technique, abstraction layer, and component/artifact name
 (ignoring case and repeated whitespace). New imported entries have remote pull
 disabled until explicitly enabled locally.
+
+## TLP classification
+
+Create/edit forms in Capability Library and Workbench include a TLP dropdown.
+New and migrated existing entries default to **AMBER+STRICT**. Select any of the
+six supported values, including purple TLP:UNCLEAR from [tlp-unclear.org](https://tlp-unclear.org/).
+The Library table, capability cards, and details display the classification.
+Edits follow existing permissions and increment the entry version.
+
+Exports/imports preserve TLP. Older payloads without TLP retain existing local
+values and use AMBER+STRICT for new entries. A GREEN sharing maximum excludes
+the default AMBER+STRICT entries. See [Instance Sharing TLP](instance-sharing-tlp.md)
+for the maximum matrix, combined filtering, diagnostics, and migrations.
 
 ## Notes for maintainers
 

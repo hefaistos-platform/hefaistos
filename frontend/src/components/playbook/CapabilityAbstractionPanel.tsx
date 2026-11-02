@@ -18,6 +18,8 @@ import {
   UPDATE_CAPABILITY_ABSTRACTION_MUTATION,
 } from './capabilityAbstractionShared';
 
+import { TlpBadge } from '../ui/TlpBadge';
+
 const { Text, Paragraph } = Typography;
 
 interface CapabilityAbstractionPanelProps {
@@ -280,6 +282,7 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
           applicableTelemetry: restValues.applicableTelemetry,
           detectionValue: restValues.detectionValue,
           robustnessLevel: restValues.robustnessLevel,
+          tlpClassification: restValues.tlpClassification || 'AMBER+STRICT',
           column: restValues.column,
           reviewStatus: restValues.reviewStatus,
           allowRemotePull: restValues.allowRemotePull,
@@ -386,6 +389,7 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
                     <Tag color="geekblue" style={{ margin: 0 }}>{getLayerLabel(entry.abstractionLayer)}</Tag>
                     <Text strong style={{ fontSize: 13 }}>{entry.componentArtifact}</Text>
                     <Tag color="blue" style={{ margin: 0 }}>{entry.technique?.techniqueId || 'Unknown'}</Tag>
+                    <TlpBadge classification={entry.tlpClassification || 'AMBER+STRICT'} />
                     <Tag color={getRobustnessColor(entry.robustnessLevel)} style={{ margin: 0 }}>
                       R{entry.robustnessLevel || 0}
                     </Tag>
@@ -586,6 +590,7 @@ export const CapabilityAbstractionPanel: React.FC<CapabilityAbstractionPanelProp
                               {entry.technique?.name ? ` · ${entry.technique.name.slice(0, 30)}${entry.technique.name.length > 30 ? '…' : ''}` : ''}
                             </Tag>
                             <Tag color="geekblue">{getLayerLabel(entry.abstractionLayer)}</Tag>
+                            <TlpBadge classification={entry.tlpClassification || 'AMBER+STRICT'} />
                             <Tag color={getRobustnessColor(entry.robustnessLevel)}>
                               Robustness {entry.robustnessLevel || 0}
                             </Tag>

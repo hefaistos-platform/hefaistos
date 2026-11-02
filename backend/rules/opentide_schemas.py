@@ -3,7 +3,7 @@ Pydantic schemas for CoreTide OpenTide YAML validation.
 Enforces strict schema compliance before rule persistence.
 """
 from pydantic import BaseModel, Field, field_validator, UUID4
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Literal
 from enum import Enum
 import re
 
@@ -32,6 +32,7 @@ class OpenTideMetadata(BaseModel):
     mitre_technique: str = Field(..., description="MITRE ATT&CK technique ID (e.g., T1059.001)")
     uuid: UUID4 = Field(..., description="UUIDv4 identifier")
     status: Status = Status.EXPERIMENTAL
+    tlp: Literal['clear', 'green', 'amber', 'amber+strict', 'red', 'unclear'] = 'unclear'
     tags: Optional[List[str]] = Field(default_factory=list, description="Searchable tags")
     created: Optional[str] = Field(None, description="ISO 8601 timestamp")
     modified: Optional[str] = Field(None, description="ISO 8601 timestamp")

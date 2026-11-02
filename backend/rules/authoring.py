@@ -10,6 +10,7 @@ from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from django.db import transaction
 from playbooks.repo_clients import RepoClient
+from playbooks.utils.tlp import normalize_tlp
 from .models import DetectionRule, RuleRepository
 from .opentide_schemas import OpenTideRule
 
@@ -26,7 +27,9 @@ def editable_rule(user, rule_id):
 
 def document_for_rule(rule):
     if rule.authoring_document is not None:
-        return copy.deepcopy(rule.authoring_document)
+        document = copy.deepcopy(rule.authoring_document)
+        document.setdefault('metadata', {})['tlp'] = rule.effective_tlp_classification.lower()
+        return document
     metadata = {'title': rule.title, 'description': rule.description or '', 'author': rule.author or '',
                 'created': rule.created_at.isoformat() if rule.created_at else '',
                 'modified': rule.updated_at.isoformat() if rule.updated_at else '',
@@ -49,6 +52,7 @@ def document_for_rule(rule):
     else:
         doc['freeRule'] = {'content': rule.raw_content, 'label': rule.custom_format_label or rule.format,
                            'language': rule.editor_language, 'extension': rule.custom_file_extension}
+    doc['metadata']['tlp'] = rule.effective_tlp_classification.lower()
     return doc
 
 
@@ -98,6 +102,9 @@ def save_draft(user, document, rule_id=None, *, ai_attributions=None):
     if rule.playbook_id:
         raise ValueError('This rule is owned by a Workbench. Use its existing editor or duplicate it for standalone editing.')
     metadata = doc['metadata']
+    if not rule_id:
+        rule.tlp_classification = normalize_tlp(metadata.get('tlp'))
+    metadata['tlp'] = rule.effective_tlp_classification.lower()
     now = timezone.now().isoformat()
     metadata['uuid'] = str(rule.sigma_id)
     metadata['created'] = (rule.authoring_document or {}).get('metadata', {}).get('created') or metadata.get('created') or now
@@ -129,6 +136,7 @@ def publish_yaml(rule):
         'severity': metadata.get('response', {}).get('severity') or metadata.get('severity'),
         'mitre_technique': metadata.get('mitre', {}).get('technique_id') or metadata.get('mitre_technique'),
         'uuid': str(rule.sigma_id), 'status': metadata.get('status', 'experimental'),
+        'tlp': rule.effective_tlp_classification.lower(),
         'tags': metadata.get('tags', []), 'created': metadata.get('created'), 'modified': metadata.get('modified'),
     }, 'platforms': {key: value for key, value in doc['platforms'].items()
                      if value.get('rule' if key == 'wazuh' else 'query', '').strip()}}

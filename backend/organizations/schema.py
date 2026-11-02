@@ -1,4 +1,5 @@
 import graphene
+from playbooks.utils.tlp import normalize_tlp_maximum
 import logging
 import re
 from datetime import timedelta
@@ -490,6 +491,7 @@ class HefaistosInboundShareKeyType(graphene.ObjectType):
     allowed_scopes = graphene.List(graphene.String)
     enforce_tag_filter = graphene.Boolean()
     required_tags = graphene.List(graphene.String)
+    required_tlp_classification = graphene.String()
     is_active = graphene.Boolean()
     expires_at = graphene.DateTime()
     last_used_at = graphene.DateTime()
@@ -3531,6 +3533,7 @@ class CreateHefaistosInboundShareKey(graphene.Mutation):
         allowed_scopes = graphene.List(graphene.String, required=True)
         enforce_tag_filter = graphene.Boolean(required=False, default_value=False)
         required_tags = graphene.List(graphene.String, required=False)
+        required_tlp_classification = graphene.String(required=False, default_value='RED')
         expires_at = graphene.DateTime(required=False)
 
     success = graphene.Boolean()
@@ -3547,6 +3550,7 @@ class CreateHefaistosInboundShareKey(graphene.Mutation):
         allowed_scopes,
         enforce_tag_filter=False,
         required_tags=None,
+        required_tlp_classification='RED',
         expires_at=None,
     ):
         from django.core.exceptions import ValidationError
@@ -3560,6 +3564,10 @@ class CreateHefaistosInboundShareKey(graphene.Mutation):
         else:
             scopes = list(dict.fromkeys(scopes))
 
+        try:
+            maximum_tlp = normalize_tlp_maximum(required_tlp_classification)
+        except ValueError as exc:
+            raise GraphQLError(str(exc)) from exc
         normalized_tags = normalize_required_tags(required_tags)
         raw_key = generate_raw_share_key()
         entry = HefaistosInboundShareKey(
@@ -3570,6 +3578,7 @@ class CreateHefaistosInboundShareKey(graphene.Mutation):
             allowed_scopes=scopes,
             enforce_tag_filter=bool(enforce_tag_filter),
             required_tags=normalized_tags,
+            required_tlp_classification=maximum_tlp,
             expires_at=expires_at,
             is_active=True,
             created_by=user,
@@ -3587,6 +3596,30 @@ class CreateHefaistosInboundShareKey(graphene.Mutation):
             key=entry,
             raw_api_key=raw_key,
         )
+
+
+class UpdateHefaistosInboundShareKeyTlp(graphene.Mutation):
+    class Arguments:
+        id = graphene.UUID(required=True)
+        required_tlp_classification = graphene.String(required=True)
+
+    success = graphene.Boolean()
+    message = graphene.String()
+    key = graphene.Field(HefaistosInboundShareKeyType)
+
+    @staticmethod
+    @role_required([Roles.ADMIN])
+    def mutate(root, info, id, required_tlp_classification):
+        try:
+            entry = HefaistosInboundShareKey.objects.get(id=id, organization=info.context.user.organization)
+        except HefaistosInboundShareKey.DoesNotExist:
+            raise GraphQLError('Inbound share key not found')
+        try:
+            entry.required_tlp_classification = normalize_tlp_maximum(required_tlp_classification)
+        except ValueError as exc:
+            raise GraphQLError(str(exc)) from exc
+        entry.save(update_fields=['required_tlp_classification', 'updated_at'])
+        return UpdateHefaistosInboundShareKeyTlp(success=True, message='Maximum TLP updated', key=entry)
 
 
 class RevokeHefaistosInboundShareKey(graphene.Mutation):
@@ -4062,4 +4095,5 @@ class Mutation(graphene.ObjectType):
     delete_hefaistos_remote_peer = DeleteHefaistosRemotePeer.Field()
     create_hefaistos_inbound_share_key = CreateHefaistosInboundShareKey.Field()
     revoke_hefaistos_inbound_share_key = RevokeHefaistosInboundShareKey.Field()
+    update_hefaistos_inbound_share_key_tlp = UpdateHefaistosInboundShareKeyTlp.Field()
     pull_from_remote_hefaistos = PullFromRemoteHefaistos.Field()

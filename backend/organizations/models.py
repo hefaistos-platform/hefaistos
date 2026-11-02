@@ -2,6 +2,7 @@ import uuid
 from dataclasses import dataclass
 from django.conf import settings
 from django.db import models
+from playbooks.utils.tlp import TLP_MAXIMUM_CHOICES
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from cryptography.fernet import Fernet, InvalidToken
@@ -1373,6 +1374,10 @@ class HefaistosInboundShareKey(models.Model):
         default=list,
         blank=True,
         help_text='Required tags for export eligibility when enforce_tag_filter is enabled (e.g. ["PULL"]).',
+    )
+    required_tlp_classification = models.CharField(
+        max_length=20, choices=TLP_MAXIMUM_CHOICES, default='RED',
+        help_text='Maximum TLP for exported items; lower levels and UNCLEAR are included.',
     )
     is_active = models.BooleanField(default=True)
     expires_at = models.DateTimeField(null=True, blank=True)

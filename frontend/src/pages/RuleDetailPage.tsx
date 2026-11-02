@@ -1,6 +1,7 @@
 /**
  * (c) 2026 M3C4N1SM0 & All kinds of AI Bots
  */
+import { TlpBadge } from '../components/ui/TlpBadge';
 import React, { useState } from 'react';
 import RuleCorrectionFeedback from '../components/RuleCorrectionFeedback';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -26,6 +27,7 @@ const GET_RULE_QUERY = gql`
       title
       description
       status
+      tlpClassification
       author
       rawContent
       format
@@ -75,6 +77,7 @@ interface RuleDetail {
   title: string;
   description: string | null;
   status: string | null;
+  tlpClassification?: string;
   author: string | null;
   rawContent: string;
   format: string;
@@ -231,7 +234,7 @@ export const RuleDetailPage = () => {
 
   return (
     <div style={{ padding: 24, color: 'var(--hef-text-primary)' }}>
-      <h2>{rule.title}</h2>
+      <h2>{rule.title} <TlpBadge classification={rule.tlpClassification} /></h2>
       <Space style={{ marginBottom: 16 }}>
         {rule.canEdit && <RuleCorrectionFeedback ruleId={rule.id} refreshKey={feedbackRefresh} />}
         {rule.workbenchOwned

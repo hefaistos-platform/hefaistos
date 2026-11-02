@@ -27,6 +27,8 @@ import {
 import { gql } from '@apollo/client';
 import { useMutation, useQuery } from '@apollo/client/react';
 
+import { TlpMaximumSelect } from '../../components/ui/TlpMaximumSelect';
+
 const { Text, Title } = Typography;
 
 const GET_INSTANCE_SHARING = gql`
@@ -62,6 +64,7 @@ const GET_INSTANCE_SHARING = gql`
       allowedScopes
       enforceTagFilter
       requiredTags
+      requiredTlpClassification
       isActive
       expiresAt
       lastUsedAt
@@ -134,6 +137,7 @@ const CREATE_INBOUND_KEY = gql`
     $allowedScopes: [String]!
     $enforceTagFilter: Boolean
     $requiredTags: [String]
+    $requiredTlpClassification: String
     $expiresAt: DateTime
   ) {
     createHefaistosInboundShareKey(
@@ -141,12 +145,21 @@ const CREATE_INBOUND_KEY = gql`
       allowedScopes: $allowedScopes
       enforceTagFilter: $enforceTagFilter
       requiredTags: $requiredTags
+      requiredTlpClassification: $requiredTlpClassification
       expiresAt: $expiresAt
     ) {
       success
       message
       rawApiKey
       key { id }
+    }
+  }
+`;
+
+const UPDATE_INBOUND_KEY_TLP = gql`
+  mutation UpdateHefaistosInboundShareKeyTlp($id: UUID!, $requiredTlpClassification: String!) {
+    updateHefaistosInboundShareKeyTlp(id: $id, requiredTlpClassification: $requiredTlpClassification) {
+      success message key { id requiredTlpClassification }
     }
   }
 `;
@@ -197,6 +210,7 @@ interface InboundShareKey {
   allowedScopes: string[];
   enforceTagFilter: boolean;
   requiredTags: string[];
+  requiredTlpClassification: string;
   isActive: boolean;
   expiresAt?: string | null;
   lastUsedAt?: string | null;
@@ -282,6 +296,7 @@ const InstanceSharing: React.FC = () => {
   const [setRemotePeer, { loading: savingPeer }] = useMutation(SET_REMOTE_PEER);
   const [deleteRemotePeer] = useMutation(DELETE_REMOTE_PEER);
   const [createInboundKey, { loading: creatingKey }] = useMutation(CREATE_INBOUND_KEY);
+  const [updateInboundKeyTlp, { loading: updatingKeyTlp }] = useMutation(UPDATE_INBOUND_KEY_TLP);
   const [revokeInboundKey] = useMutation(REVOKE_INBOUND_KEY);
   const [pullFromRemote, { loading: pulling }] = useMutation(PULL_FROM_REMOTE);
 
@@ -400,6 +415,7 @@ const InstanceSharing: React.FC = () => {
           allowedScopes: values.allowedScopes,
           enforceTagFilter: Boolean(values.enforceTagFilter),
           requiredTags: values.requiredTags || [],
+          requiredTlpClassification: values.requiredTlpClassification || 'RED',
           expiresAt: values.expiresAt ? values.expiresAt.toISOString() : null,
         },
       });
@@ -414,6 +430,21 @@ const InstanceSharing: React.FC = () => {
       keyForm.resetFields();
     } catch (err: any) {
       message.error(err?.message || 'Failed to create share key');
+    }
+  };
+
+  const onUpdateKeyTlp = async (id: string, requiredTlpClassification: string) => {
+    try {
+      const result = await updateInboundKeyTlp({ variables: { id, requiredTlpClassification } });
+      const payload = result.data?.updateHefaistosInboundShareKeyTlp;
+      if (!payload?.success) {
+        message.error(payload?.message || 'Failed to update TLP maximum');
+        return;
+      }
+      message.success('TLP maximum updated');
+      await refetch();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Failed to update TLP maximum');
     }
   };
 
@@ -518,6 +549,14 @@ const InstanceSharing: React.FC = () => {
       ),
     },
     {
+      title: 'Required TLP (Maximum)',
+      key: 'requiredTlpClassification',
+      render: (_: unknown, record: InboundShareKey) => (
+        <TlpMaximumSelect value={record.requiredTlpClassification || 'RED'} disabled={!record.isActive || updatingKeyTlp}
+          onChange={(value) => onUpdateKeyTlp(record.id, value)} style={{ minWidth: 180 }} />
+      ),
+    },
+    {
       title: 'Tag Policy',
       key: 'tagPolicy',
       render: (_: unknown, record: InboundShareKey) => (
@@ -567,7 +606,7 @@ const InstanceSharing: React.FC = () => {
         type="info"
         showIcon
         message="PULL-only design"
-        description="Remote sharing endpoints are read-only. Pull operations never modify the remote HEFAISTOS instance. Export eligibility is default-deny and now requires explicit per-item remote-pull enablement; Workbench and ADVOPS items must be DEPLOYED, ACH analyses FINISHED or APPROVED, and capabilities APPROVED. Optional key-level tag filtering further restricts Workbench/Rules export. Expand a Pull Job History row for counts, origin filters, and errors."
+        description="Remote sharing endpoints are read-only. Pull operations never modify the remote HEFAISTOS instance. Export eligibility is default-deny and now requires explicit per-item remote-pull enablement; Workbench and ADVOPS items must be DEPLOYED, ACH analyses FINISHED or APPROVED, and capabilities APPROVED. Each key’s Required TLP Classification is a maximum across all scopes, always including UNCLEAR. GREEN permits GREEN, CLEAR, and UNCLEAR. Optional tag filtering combines with TLP to further restrict Workbench/Rules export. Expand a Pull Job History row for counts, origin filters, and errors."
       />
 
       <Card loading={loading}>
@@ -743,6 +782,9 @@ const InstanceSharing: React.FC = () => {
                   />
                 </Form.Item>
               )}
+            </Form.Item>
+            <Form.Item name="requiredTlpClassification" label="Required TLP Classification (Maximum)" initialValue="RED" rules={[{ required: true }]}>
+              <TlpMaximumSelect />
             </Form.Item>
             <Form.Item name="expiresAt" label="Expiration (optional)">
               <DatePicker showTime style={{ width: '100%' }} />

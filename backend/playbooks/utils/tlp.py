@@ -12,6 +12,21 @@ TLP_CHOICES = [
 ]
 
 TLP_VALUES = {value for value, _ in TLP_CHOICES}
+TLP_LEVELS = ('CLEAR', 'GREEN', 'AMBER', 'AMBER+STRICT', 'RED')
+TLP_MAXIMUM_CHOICES = [(value, label) for value, label in TLP_CHOICES if value in TLP_LEVELS]
+
+
+def normalize_tlp_maximum(raw) -> str:
+    value = normalize_tlp('RED' if raw is None else raw)
+    if value not in TLP_LEVELS:
+        raise ValueError('Maximum TLP must be CLEAR, GREEN, AMBER, AMBER+STRICT, or RED')
+    return value
+
+
+def allowed_tlp_classifications(maximum) -> tuple[str, ...]:
+    value = normalize_tlp_maximum(maximum)
+    return (*TLP_LEVELS[:TLP_LEVELS.index(value) + 1], 'UNCLEAR')
+
 
 
 def normalize_tlp(raw) -> str:

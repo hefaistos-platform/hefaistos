@@ -276,6 +276,7 @@ class CapabilityAbstraction(models.Model):
         blank=True,
         related_name='updated_capability_abstractions',
     )
+    tlp_classification = models.CharField(max_length=20, choices=TLP_CHOICES, default='AMBER+STRICT')
     abstraction_layer = models.CharField(max_length=32, choices=AbstractionLayer.choices)
     component_artifact = models.CharField(max_length=255)
     adversary_purpose = models.TextField(blank=True)
@@ -855,6 +856,16 @@ class PlaybookGraph(models.Model):
         if self.opentide_yaml:
             self.auto_update_opentide_yaml()
         super().save(*args, **kwargs)
+        if kwargs.get('update_fields') is None or 'tlp_classification' in kwargs['update_fields']:
+            # Keep stored rule snapshots in sync; the owning graph takes precedence.
+            from rules.models import DetectionRule
+            from django.db.models import Q
+            from playbooks.utils.tlp import normalize_tlp
+            DetectionRule.objects.filter(
+                Q(playbook_id=self.pk) | Q(playbook__isnull=True, attached_workbench_id=self.pk)
+            ).exclude(tlp_classification=normalize_tlp(self.tlp_classification)).update(
+                tlp_classification=normalize_tlp(self.tlp_classification)
+            )
 
     def __str__(self):
         return self.title

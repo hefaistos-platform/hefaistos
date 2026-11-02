@@ -26,13 +26,28 @@ A preview expires after 15 minutes and is tied to the user, rule content, destin
 
 ## Link an alternative to a Workbench
 
-Use **Add to Workbench** from the editor or **Linked Rules → Add existing rule** in Workbench. Linking references the same saved Rule Hub rule; edits are visible when reopened from either location. Its metadata stays independent. Unlinking retains the rule in Rule Hub.
+Use **Add to Workbench** from the editor or **Linked Rules → Add existing rule** in Workbench. Linking references the same saved Rule Hub rule; edits are visible when reopened from either location. Its authoring metadata stays independent except for TLP, which inherits from the Workbench. Unlinking retains the rule in Rule Hub.
 
 A rule can have one additional Workbench association. Unlink before moving it to another Workbench. Multiple independent rules in the same language can attach to one Workbench without replacing its primary rule.
 
 Additional links are separate from the legacy Workbench-owned rule relationship. Workbench's primary editor, review, export, and deployment continue to use the existing rules. Additional links are reference material and are not automatically included in those actions. Publish them independently from Rule Hub.
 
 Analysts and administrators can create drafts. Only a rule author or administrator can edit/publish their rule. Link changes also require Workbench author/admin permissions. All rule, repository, and Workbench operations are restricted to the user's organization.
+
+## TLP inheritance and sharing
+
+Rule Hub cards and detail headers display TLP. Rules inherit from their owning
+Workbench, otherwise their additional Workbench association; an owner takes
+precedence. Change TLP on the Workbench. Unlinked rules retain their stored
+classification, with UNCLEAR as the new standalone default. Unlinking retains
+the last inherited snapshot. Canonical editor and Git publishing metadata use
+the effective lowercase TLP value. Native rule text is retained.
+
+Instance Sharing applies the inbound key’s TLP maximum in addition to existing
+Workbench status, opt-in, and tag checks. Additional Rule Hub associations alone
+do not make standalone rules exportable. See [Instance Sharing TLP](instance-sharing-tlp.md)
+for the policy, transport behavior, and migration details. The additive
+`rules.0030_detectionrule_tlp_classification` migration backfills linked rules.
 
 ## Upgrade existing installations
 
@@ -61,5 +76,5 @@ For a non-Docker installation, activate its existing Python environment, run `py
 - `workbenchRuleLinks(workbenchId: UUID!)` lists additional rules.
 - `previewRulePublish(ruleId: ID!, repositoryId: ID!, branch: String!, path: String!)` returns YAML, diff, unchanged flag, and a signed preview token.
 - `publishRuleToGit(previewToken: String!, commitMessage: String)` returns commit SHA and file URL.
-- Rule fields include `editorDocument`, `canEdit`, `workbenchOwned`, `workbenchId`, and `workbenchTitle`.
+- Rule fields include `tlpClassification`, `editorDocument`, `canEdit`, `workbenchOwned`, `workbenchId`, and `workbenchTitle`.
 - `startGenerateRuleTask` and `recommendReusableRuleFromRag` accept optional standalone description and telemetry context when no Workbench ID is supplied. Existing Workbench callers remain supported.

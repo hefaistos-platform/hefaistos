@@ -49,6 +49,7 @@ def sharing_instance_info(request):
         'allowed_scopes': list(share_key.allowed_scopes or []),
         'enforce_tag_filter': bool(share_key.enforce_tag_filter),
         'required_tags': effective_required_tags(share_key),
+        'required_tlp_classification': share_key.required_tlp_classification,
         'server_time': timezone.now().isoformat(),
         'mode': 'PULL_READ_ONLY',
     })
@@ -81,5 +82,6 @@ def sharing_export(request):
         'allowed_scopes': list(share_key.allowed_scopes or []),
         'enforce_tag_filter': bool(share_key.enforce_tag_filter),
         'required_tags': effective_required_tags(share_key),
+        'required_tlp_classification': share_key.required_tlp_classification,
     }
     return JsonResponse(payload)

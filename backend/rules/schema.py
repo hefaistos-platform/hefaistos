@@ -397,6 +397,11 @@ class RuleRepositoryRAGFileType(DjangoObjectType):
         )
 
 class RuleType(DjangoObjectType):
+    tlp_classification = graphene.String()
+
+    def resolve_tlp_classification(self, info):
+        return self.effective_tlp_classification
+
     tags = graphene.List(graphene.String)
     editor_document = graphene.JSONString()
     workbench_id = graphene.UUID()

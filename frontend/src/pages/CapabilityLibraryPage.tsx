@@ -18,6 +18,8 @@ import {
   UPDATE_CAPABILITY_ABSTRACTION_MUTATION,
 } from '../components/playbook/capabilityAbstractionShared';
 
+import { TlpBadge } from '../components/ui/TlpBadge';
+
 const { Paragraph, Text, Title } = Typography;
 
 const CAPABILITY_LIBRARY_PAGE_QUERY = gql`
@@ -32,6 +34,7 @@ const CAPABILITY_LIBRARY_PAGE_QUERY = gql`
       applicableTelemetry
       detectionValue
       robustnessLevel
+      tlpClassification
       column
       sourceKind
       reviewStatus
@@ -334,6 +337,11 @@ export const CapabilityLibraryPage: React.FC = () => {
         render: (_value: unknown, row: CapabilityLibraryRow) => <Tag>{row.reviewStatus || 'DRAFT'}</Tag>,
       },
       {
+        title: 'TLP',
+        key: 'tlpClassification',
+        render: (_: unknown, entry: CapabilityAbstractionEntry) => <TlpBadge classification={entry.tlpClassification || 'AMBER+STRICT'} />,
+      },
+      {
         title: 'Owner',
         key: 'owner',
         width: 180,
@@ -515,6 +523,7 @@ export const CapabilityLibraryPage: React.FC = () => {
             <Space wrap>
               <Tag color="geekblue">{getLayerLabel(selectedEntry.abstractionLayer)}</Tag>
               {selectedEntry.column && <Tag color="purple">{getColumnLabel(selectedEntry.column)}</Tag>}
+              <TlpBadge classification={selectedEntry.tlpClassification || 'AMBER+STRICT'} />
               <Tag>{selectedEntry.reviewStatus || 'DRAFT'}</Tag>
               <Tag>{selectedEntry.organizationName || 'Unknown'}</Tag>
               <Tag>Version {selectedEntry.version || 1}</Tag>

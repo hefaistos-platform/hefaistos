@@ -1,4 +1,5 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { TlpBadge } from '../components/ui/TlpBadge';
 import React, { useState, useEffect } from 'react';
 import { gql } from '@apollo/client';
 import { useLazyQuery, useMutation } from '@apollo/client/react';
@@ -13,7 +14,7 @@ const RULES_CONNECTION_QUERY = gql`
       pageInfo { hasNextPage endCursor }
       edges {
         cursor
-        node { id title description status tags author }
+        node { id title description status tlpClassification tags author }
       }
     }
   }
@@ -54,6 +55,7 @@ interface Rule {
   title: string;
   description: string | null;
   status: string | null;
+  tlpClassification?: string;
   author?: string | null;
 }
 
@@ -374,6 +376,7 @@ export const RuleSearchPage: React.FC = () => {
                   </div>
                 }
               >
+                <TlpBadge classification={rule.tlpClassification} />
                 <Tag color="blue" style={{ marginBottom: 8 }}>Status: {rule.status || 'N/A'}</Tag>
                 {rule.author && (
                   <Tag style={{ marginBottom: 8 }}>Author: {rule.author}</Tag>

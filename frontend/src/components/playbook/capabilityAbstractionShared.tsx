@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { gql } from '@apollo/client';
 import { Form, Input, Modal, Select, Switch } from 'antd';
 
+import { TlpSelect } from '../ui/TlpSelect';
+
 const { TextArea } = Input;
 
 export const CAPABILITY_ABSTRACTIONS_QUERY = gql`
@@ -16,6 +18,7 @@ export const CAPABILITY_ABSTRACTIONS_QUERY = gql`
       applicableTelemetry
       detectionValue
       robustnessLevel
+      tlpClassification
       column
       sourceKind
       reviewStatus
@@ -55,6 +58,7 @@ export const CREATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
     $applicableTelemetry: String
     $detectionValue: String
     $robustnessLevel: Int
+    $tlpClassification: String
     $column: String
     $reviewStatus: String
     $allowRemotePull: Boolean
@@ -69,6 +73,7 @@ export const CREATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
       applicableTelemetry: $applicableTelemetry
       detectionValue: $detectionValue
       robustnessLevel: $robustnessLevel
+      tlpClassification: $tlpClassification
       column: $column
       reviewStatus: $reviewStatus
       allowRemotePull: $allowRemotePull
@@ -92,6 +97,7 @@ export const UPDATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
     $applicableTelemetry: String
     $detectionValue: String
     $robustnessLevel: Int
+    $tlpClassification: String
     $column: String
     $reviewStatus: String
     $allowRemotePull: Boolean
@@ -106,6 +112,7 @@ export const UPDATE_CAPABILITY_ABSTRACTION_MUTATION = gql`
       applicableTelemetry: $applicableTelemetry
       detectionValue: $detectionValue
       robustnessLevel: $robustnessLevel
+      tlpClassification: $tlpClassification
       column: $column
       reviewStatus: $reviewStatus
       allowRemotePull: $allowRemotePull
@@ -167,6 +174,7 @@ export type CapabilityAbstractionEntry = {
   applicableTelemetry?: string;
   detectionValue?: string;
   robustnessLevel?: number;
+  tlpClassification?: string;
   column?: string;
   sourceKind?: string;
   reviewStatus?: string;
@@ -199,6 +207,7 @@ export type CapabilityAbstractionFormValues = {
   applicableTelemetry?: string;
   detectionValue?: string;
   robustnessLevel?: number;
+  tlpClassification?: string;
   column?: string;
   reviewStatus?: string;
   allowRemotePull?: boolean;
@@ -254,6 +263,7 @@ export const CapabilityAbstractionFormModal: React.FC<CapabilityAbstractionFormM
         applicableTelemetry: editingEntry.applicableTelemetry,
         detectionValue: editingEntry.detectionValue,
         robustnessLevel: editingEntry.robustnessLevel,
+        tlpClassification: editingEntry.tlpClassification || 'AMBER+STRICT',
         column: editingEntry.column,
         reviewStatus: editingEntry.reviewStatus,
         allowRemotePull: Boolean(editingEntry.allowRemotePull),
@@ -264,6 +274,7 @@ export const CapabilityAbstractionFormModal: React.FC<CapabilityAbstractionFormM
     form.resetFields();
     form.setFieldsValue({
       reviewStatus: 'DRAFT',
+      tlpClassification: 'AMBER+STRICT',
       allowRemotePull: false,
       techniqueId: defaultTechniqueId,
     });
@@ -325,6 +336,7 @@ export const CapabilityAbstractionFormModal: React.FC<CapabilityAbstractionFormM
         <Form.Item name="robustnessLevel" label="Robustness level">
           <Select options={ROBUSTNESS_LEVEL_OPTIONS} />
         </Form.Item>
+        <Form.Item name="tlpClassification" label="TLP Classification" rules={[{ required: true }]}><TlpSelect /></Form.Item>
         <Form.Item name="column" label="Column">
           <Select allowClear options={COLUMN_OPTIONS} />
         </Form.Item>

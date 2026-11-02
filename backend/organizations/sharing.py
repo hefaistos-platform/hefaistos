@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 import hashlib
 import logging
-from playbooks.utils.tlp import normalize_tlp
+from playbooks.utils.tlp import normalize_tlp, allowed_tlp_classifications
 from copy import deepcopy
 from time import monotonic
 import os
@@ -162,6 +162,14 @@ def item_matches_required_tags(
     return all(required.casefold() in normalized_item_tags for required in required_tags)
 
 
+def item_matches_required_tlp(classification, share_key) -> bool:
+    if share_key is None:
+        return True
+    return normalize_tlp(classification) in allowed_tlp_classifications(
+        getattr(share_key, 'required_tlp_classification', 'RED')
+    )
+
+
 def _normalized_name(value: str | None) -> str:
     return ' '.join(str(value or '').strip().split()).casefold()
 
@@ -269,6 +277,8 @@ def _workbench_payload_for_org(
     payload = []
     seen_names: set[str] = set()
     for graph in graphs:
+        if not item_matches_required_tlp(graph.tlp_classification, share_key):
+            continue
         graph_tags = list(graph.tags.names())
         if not item_matches_required_tags(graph_tags, share_key):
             continue
@@ -302,6 +312,8 @@ def _rules_payload_for_org(
     payload = []
     seen_names: set[str] = set()
     for rule in rules:
+        if not item_matches_required_tlp(rule.effective_tlp_classification, share_key):
+            continue
         playbook_tags = list(rule.playbook.tags.names()) if getattr(rule, 'playbook', None) else []
         if not item_matches_required_tags(playbook_tags, share_key):
             continue
@@ -325,13 +337,14 @@ def _rules_payload_for_org(
             'playbook_title': getattr(rule.playbook, 'title', '') or '',
             'playbook_status': getattr(rule.playbook, 'status', '') or '',
             'playbook_tags': playbook_tags,
+            'tlp_classification': rule.effective_tlp_classification,
             'created_at': rule.created_at.isoformat() if rule.created_at else '',
             'updated_at': rule.updated_at.isoformat() if rule.updated_at else '',
         })
     return payload
 
 
-def _ach_payload_for_org(organization) -> list[dict[str, Any]]:
+def _ach_payload_for_org(organization, share_key=None) -> list[dict[str, Any]]:
     from ach.models import ACHAnalysis, MatrixCell
 
     analyses = ACHAnalysis.objects.filter(
@@ -346,6 +359,8 @@ def _ach_payload_for_org(organization) -> list[dict[str, Any]]:
     payload = []
     seen_names: set[str] = set()
     for analysis in analyses:
+        if not item_matches_required_tlp(analysis.tlp_classification, share_key):
+            continue
         key = _normalized_name(analysis.title)
         if not key or key in seen_names:
             continue
@@ -397,7 +412,7 @@ def _ach_payload_for_org(organization) -> list[dict[str, Any]]:
     return payload
 
 
-def _advops_payload_for_org(organization) -> list[dict[str, Any]]:
+def _advops_payload_for_org(organization, share_key=None) -> list[dict[str, Any]]:
     from advops.models import ADVOPSReport
 
     reports = ADVOPSReport.objects.filter(
@@ -409,6 +424,8 @@ def _advops_payload_for_org(organization) -> list[dict[str, Any]]:
     payload = []
     seen_ids: set[str] = set()
     for report in reports:
+        if not item_matches_required_tlp(report.tlp_classification, share_key):
+            continue
         hunt_id = str(report.hunt_id or '').strip()
         normalized_hunt_id = hunt_id.casefold()
         if not normalized_hunt_id or normalized_hunt_id in seen_ids:
@@ -439,7 +456,7 @@ CAPABILITY_CONTENT_FIELDS = (
 )
 
 
-def _capability_payload_for_org(organization) -> list[dict[str, Any]]:
+def _capability_payload_for_org(organization, share_key=None) -> list[dict[str, Any]]:
     from playbooks.models import CapabilityAbstraction
 
     entries = CapabilityAbstraction.objects.filter(
@@ -453,6 +470,8 @@ def _capability_payload_for_org(organization) -> list[dict[str, Any]]:
     payload = []
     seen: set[tuple[str, str, str]] = set()
     for entry in entries:
+        if not item_matches_required_tlp(entry.tlp_classification, share_key):
+            continue
         identity = (entry.technique.technique_id, entry.abstraction_layer, _normalized_name(entry.component_artifact))
         if identity in seen:
             continue
@@ -467,6 +486,7 @@ def _capability_payload_for_org(organization) -> list[dict[str, Any]]:
             'column': entry.column,
             'review_status': entry.review_status,
             'version': entry.version,
+            'tlp_classification': normalize_tlp(entry.tlp_classification),
         })
     return payload
 
@@ -501,11 +521,11 @@ def export_org_payload(
     if 'RULES' in include_scopes:
         payload['rules'] = _rules_payload_for_org(organization, share_key=share_key)
     if 'ACH' in include_scopes:
-        payload['ach'] = _ach_payload_for_org(organization)
+        payload['ach'] = _ach_payload_for_org(organization, share_key=share_key)
     if 'ADVOPS' in include_scopes:
-        payload['advops'] = _advops_payload_for_org(organization)
+        payload['advops'] = _advops_payload_for_org(organization, share_key=share_key)
     if 'CAPABILITY' in include_scopes:
-        payload['capability_abstractions'] = _capability_payload_for_org(organization)
+        payload['capability_abstractions'] = _capability_payload_for_org(organization, share_key=share_key)
 
     from playbooks.models import PlaybookGraph, CapabilityAbstraction
     from rules.models import DetectionRule
@@ -526,18 +546,24 @@ def export_org_payload(
         eligible_status = queryset.filter(**status_filter)
         opted_in = eligible_status.filter(**opt_in_filter)
         before_tags = opted_in.count()
-        if scope_name in ('WORKBENCH', 'RULES'):
-            after_tags = sum(item_matches_required_tags(
+        after_tags = 0
+        after_tlp = 0
+        for item in opted_in.select_related('playbook') if scope_name == 'RULES' else opted_in:
+            if scope_name in ('WORKBENCH', 'RULES') and not item_matches_required_tags(
                 list((item if scope_name == 'WORKBENCH' else item.playbook).tags.names()), share_key,
-            ) for item in opted_in)
-        else:
-            after_tags = before_tags
+            ):
+                continue
+            after_tags += 1
+            classification = item.effective_tlp_classification if scope_name == 'RULES' else item.tlp_classification
+            if item_matches_required_tlp(classification, share_key):
+                after_tlp += 1
         diagnostics[collection] = {
             'total': queryset.count(),
             'excluded_by_status': queryset.count() - eligible_status.count(),
             'excluded_by_remote_pull_disabled': eligible_status.count() - before_tags,
             'excluded_by_tags': before_tags - after_tags,
-            'deduplicated': after_tags - len(payload[collection]),
+            'excluded_by_tlp': after_tags - after_tlp,
+            'deduplicated': after_tlp - len(payload[collection]),
             'exported': len(payload[collection]),
         }
     payload['diagnostics'] = diagnostics
@@ -658,6 +684,7 @@ def _import_rules(
                 'description': str(rule_data.get('description') or '').strip() or None,
                 'author': str(rule_data.get('author') or '').strip() or None,
                 'raw_content': str(rule_data.get('raw_content') or ''),
+                'tlp_classification': normalize_tlp(rule_data.get('tlp_classification')),
             }
             with transaction.atomic():
                 existing, remote_key = _shared_lookup(
@@ -686,6 +713,8 @@ def _import_rules(
                     existing.description = defaults['description']
                     existing.author = defaults['author']
                     existing.raw_content = defaults['raw_content']
+                    if 'tlp_classification' in rule_data:
+                        existing.tlp_classification = defaults['tlp_classification']
                     existing.save(update_fields=['playbook', 'format', 'status', 'description', 'author', 'raw_content', 'updated_at'])
                 else:
                     existing = DetectionRule.objects.create(
@@ -698,6 +727,7 @@ def _import_rules(
                         description=defaults['description'],
                         author=defaults['author'],
                         raw_content=defaults['raw_content'],
+                        tlp_classification=defaults['tlp_classification'],
                     )
                 _remember_shared(organization, peer, 'rules', remote_key, existing)
             summary['rules']['created' if created else 'updated'] += 1
@@ -951,6 +981,7 @@ def _import_capabilities(
                 'column': column,
                 'review_status': status,
                 'updated_by': actor,
+                'tlp_classification': normalize_tlp(data.get('tlp_classification', 'AMBER+STRICT')),
             }
             with transaction.atomic():
                 fallback_key = f'{technique.technique_id}:{layer}:{_normalized_name(name)}'
@@ -973,6 +1004,8 @@ def _import_capabilities(
                     )
                 else:
                     for field, value in defaults.items():
+                        if field == 'tlp_classification' and field not in data:
+                            continue
                         setattr(existing, field, value)
                     existing.version += 1
                     existing.save()
@@ -1139,7 +1172,7 @@ def pull_from_remote_peer(
         info_payload = info_response.json()
         if not isinstance(info_payload, dict):
             raise ValueError('Remote instance info must be a JSON object.')
-        diagnostics['permissions'] = {key: info_payload.get(key) for key in ('allowed_scopes', 'enforce_tag_filter', 'required_tags')}
+        diagnostics['permissions'] = {key: info_payload.get(key) for key in ('allowed_scopes', 'enforce_tag_filter', 'required_tags', 'required_tlp_classification')}
         remote_instance_id = str(info_payload.get('instance_id') or '').strip()
         if not remote_instance_id:
             raise ValueError('Remote instance did not return an instance_id.')

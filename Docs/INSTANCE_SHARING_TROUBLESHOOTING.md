@@ -35,11 +35,16 @@ exportable. An empty export explains that no eligible items were returned:
   be non-baseline entries, and have remote PULL enabled.
 - If the key enforces tag filtering, Workbenches and their rules must match all
   required tags (case-insensitive).
+- Every item must fit the key’s Required TLP Classification maximum. GREEN
+  permits GREEN, CLEAR, and UNCLEAR; AMBER and above are excluded. UNCLEAR is
+  included at every maximum. See [the full TLP policy](instance-sharing-tlp.md).
 - The key must allow the requested scope; ALL requires authorization for all
   scopes. The configured origin instance UUID must match the responding server.
 
 Origin diagnostics distinguish exclusions by status, disabled sharing, tags,
-and deduplication. Upgrade the origin backend as well to receive these counts
+TLP (`excluded_by_tlp`), and deduplication, in that order. Items counted under tags
+are not counted again under TLP. Inspect the origin key’s maximum in its key table
+and the policy reported with the job. Existing keys default to RED until edited. Upgrade the origin backend as well to receive these counts
 and stable source IDs. If older origin responses omit these diagnostics, check
 origin eligibility directly. Malformed or incompatible exports produce explicit
 errors rather than a successful zero-item import.

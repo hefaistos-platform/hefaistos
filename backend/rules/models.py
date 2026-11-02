@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from playbooks.utils.tlp import TLP_CHOICES, normalize_tlp
 from organizations.models import Organization
 """
 Avoid importing PlaybookGraph directly to prevent circular imports with
@@ -229,6 +230,7 @@ class DetectionRule(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="detection_rules")
     repository = models.ForeignKey(RuleRepository, on_delete=models.CASCADE, related_name="rules")
     title = models.CharField(max_length=255)
+    tlp_classification = models.CharField(max_length=20, choices=TLP_CHOICES, default='UNCLEAR')
     sigma_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     status = models.CharField(max_length=50, null=True, blank=True)
     FORMAT_CHOICES = (
@@ -267,6 +269,17 @@ class DetectionRule(models.Model):
         'playbooks.PlaybookGraph', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='attached_rules',
     )
+
+    @property
+    def effective_tlp_classification(self):
+        graph = self.playbook or self.attached_workbench
+        return normalize_tlp(graph.tlp_classification if graph else self.tlp_classification)
+
+    def save(self, *args, **kwargs):
+        self.tlp_classification = self.effective_tlp_classification
+        if kwargs.get('update_fields') is not None:
+            kwargs['update_fields'] = set(kwargs['update_fields']) | {'tlp_classification'}
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.title

@@ -1,6 +1,6 @@
 # TLP classification
 
-Workbench, ACH, AdvOps, and MVE support CLEAR, GREEN, AMBER, AMBER+STRICT, RED,
+Workbench, ACH, AdvOps, MVE, Rules, and Capability Abstractions support CLEAR, GREEN, AMBER, AMBER+STRICT, RED,
 and **TLP:UNCLEAR**, from the community amendment proposal at
 [tlp-unclear.org](https://tlp-unclear.org/). The proposal describes using UNCLEAR
 when the sender is unsure which TLP label is appropriate. The application
@@ -10,7 +10,9 @@ Use UNCLEAR when the source is unavailable or unknown, the source's sharing
 model is unclear or unknown, or the source does not use a sharing model.
 UNCLEAR does not imply permission to share publicly.
 
-New records and missing or unrecognized classifications default to UNCLEAR.
+Workbench, ACH, AdvOps, MVE, and standalone rule records default to UNCLEAR.
+Capability Abstractions default to AMBER+STRICT. Missing or unrecognized item
+classifications normalize to UNCLEAR.
 Existing Workbench classifications are retained. Existing ACH analyses,
 ACH templates, AdvOps reports, and MVE drafts receive UNCLEAR when their new
 classification fields are added.
@@ -27,6 +29,11 @@ classification fields are added.
 - MVE: edit TLP in the selected draft's overview card, independently of modeling
   completeness. View badges in the draft selector and overview card. Existing
   organization and role permissions apply; exported drafts remain locked.
+- Rules: Rule Hub cards and rule detail headers show TLP inherited from the
+  owning Workbench, otherwise the attached Workbench. Unlinked rules use a stored
+  snapshot. Workbench changes update linked rule classifications.
+- Capability Abstractions: select TLP in the Library or Workbench capability form;
+  the default is AMBER+STRICT. View library columns, cards, and detail badges.
 - Kanban: Workbench, ACH, AdvOps, and MVE show TLP in cards, compact list rows,
   and the details drawer.
 
@@ -49,10 +56,18 @@ AMBER+STRICT, RED, and UNCLEAR use organization-only distribution. Sharing
 restricted events with specific recipients or clients requires a separately
 configured MISP sharing group. Events are created unpublished.
 
+## Instance Sharing
+
+Inbound keys use a Required TLP Classification maximum, combined with existing
+status, remote pull opt-in, and tag checks. GREEN permits CLEAR, GREEN, and UNCLEAR.
+The maximum applies to all five sharing scopes; existing keys default to RED.
+See [the full policy, inheritance, defaults, and deployment instructions](instance-sharing-tlp.md).
+
 ## Database migrations
 
 Apply `ach.0007`, `advops.0004`, and `playbooks.0055` before running the updated
-frontend and backend. For a Compose deployment:
+frontend and backend. Instance Sharing TLP additionally requires
+`organizations.0037`, `playbooks.0056`, and `rules.0030`. For a Compose deployment:
 
 ```sh
 docker compose exec backend python manage.py migrate

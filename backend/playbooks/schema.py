@@ -566,6 +566,7 @@ class MitreMobileTechniqueType(DjangoObjectType):
 
 
 class CapabilityAbstractionType(DjangoObjectType):
+    tlp_classification = graphene.String()
     technique = graphene.Field(MitreAttackTechniqueType)
     is_editable = graphene.Boolean()
     is_shared_baseline = graphene.Boolean()
@@ -587,6 +588,7 @@ class CapabilityAbstractionType(DjangoObjectType):
             "applicable_telemetry",
             "detection_value",
             "robustness_level",
+            "tlp_classification",
             "column",
             "source_kind",
             "review_status",
@@ -2434,6 +2436,7 @@ class CreateCapabilityAbstraction(graphene.Mutation):
         column = graphene.String()
         review_status = graphene.String()
         allow_remote_pull = graphene.Boolean()
+        tlp_classification = graphene.String()
 
     capability_abstraction = graphene.Field(CapabilityAbstractionType)
 
@@ -2477,6 +2480,7 @@ class CreateCapabilityAbstraction(graphene.Mutation):
             column=column_value,
             review_status=review_status,
             allow_remote_pull=bool(kwargs.get('allow_remote_pull', False)),
+            tlp_classification=normalize_tlp(kwargs.get('tlp_classification', 'AMBER+STRICT')),
             source_kind=CapabilityAbstraction.SourceKind.CUSTOM,
             is_baseline=False,
         )
@@ -2497,6 +2501,7 @@ class UpdateCapabilityAbstraction(graphene.Mutation):
         column = graphene.String()
         review_status = graphene.String()
         allow_remote_pull = graphene.Boolean()
+        tlp_classification = graphene.String()
 
     capability_abstraction = graphene.Field(CapabilityAbstractionType)
 
@@ -2552,6 +2557,10 @@ class UpdateCapabilityAbstraction(graphene.Mutation):
 
         if 'allow_remote_pull' in kwargs and kwargs['allow_remote_pull'] is not None:
             capability.allow_remote_pull = bool(kwargs['allow_remote_pull'])
+            dirty = True
+
+        if 'tlp_classification' in kwargs and kwargs['tlp_classification'] is not None:
+            capability.tlp_classification = normalize_tlp(kwargs['tlp_classification'])
             dirty = True
 
         if dirty:
