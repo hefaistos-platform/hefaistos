@@ -3,6 +3,8 @@ import { gql } from '@apollo/client';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { Link } from 'react-router-dom';
 import { Card, Button, Input, Form, Typography, Select, Space, Table, Tag, message, Popconfirm } from 'antd';
+import { TlpBadge } from '../components/ui/TlpBadge';
+import { TlpSelect } from '../components/ui/TlpSelect';
 import { markdownToPlainText } from '../components/MarkdownRenderer';
 
 const { Title, Text } = Typography;
@@ -13,6 +15,7 @@ interface ACHAnalysisListItem {
   id: string;
   title: string;
   description: string;
+  tlpClassification: string;
   status: 'RESEARCH' | 'FINISHED' | 'APPROVED';
   updatedAt: string;
   owner: { id: string; username: string };
@@ -22,6 +25,7 @@ interface ACHTemplateListItem {
   id: string;
   title: string;
   description: string;
+  tlpClassification: string;
 }
 
 interface GetACHDataResponse {
@@ -45,6 +49,7 @@ const GET_ACH_DATA = gql`
       id
       title
       description
+      tlpClassification
       status
       updatedAt
       owner { id username }
@@ -53,14 +58,15 @@ const GET_ACH_DATA = gql`
       id
       title
       description
+      tlpClassification
     }
     me { id username }
   }
 `;
 
 const CREATE_ACH_ANALYSIS = gql`
-  mutation CreateACHAnalysis($title: String!, $description: String) {
-    createAchAnalysis(title: $title, description: $description) {
+  mutation CreateACHAnalysis($title: String!, $description: String, $tlpClassification: String) {
+    createAchAnalysis(title: $title, description: $description, tlpClassification: $tlpClassification) {
       analysis {
         id
         title
@@ -106,6 +112,7 @@ export const ACHPage: React.FC<ACHPageProps> = ({ embedded = false }) => {
   
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [newTlp, setNewTlp] = useState('UNCLEAR');
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -178,6 +185,10 @@ export const ACHPage: React.FC<ACHPageProps> = ({ embedded = false }) => {
             {row.description && <Text type="secondary">{markdownToPlainText(row.description)}</Text>}
           </Space>
         )
+      },
+      {
+        title: 'TLP', dataIndex: 'tlpClassification', key: 'tlpClassification',
+        render: (value: string) => <TlpBadge classification={value} />,
       },
       {
         title: 'Actions',
@@ -256,7 +267,7 @@ export const ACHPage: React.FC<ACHPageProps> = ({ embedded = false }) => {
 
   const handleCreate = async () => {
     try {
-      const res = await createAnalysis({ variables: { title: newTitle, description: newDesc } });
+      const res = await createAnalysis({ variables: { title: newTitle, description: newDesc, tlpClassification: newTlp } });
       const analysisId = res.data?.createAchAnalysis.analysis.id;
 
       if (selectedTemplate && analysisId) {
@@ -265,6 +276,7 @@ export const ACHPage: React.FC<ACHPageProps> = ({ embedded = false }) => {
 
       setNewTitle('');
       setNewDesc('');
+      setNewTlp('UNCLEAR');
       setSelectedTemplate('');
       setIsCreating(false);
       refetch();
@@ -342,10 +354,16 @@ export const ACHPage: React.FC<ACHPageProps> = ({ embedded = false }) => {
                 rows={3}
               />
             </Form.Item>
-            <Form.Item label="Use Template (Optional)">
+            <Form.Item label="TLP Classification">
+              <TlpSelect value={newTlp} onChange={setNewTlp} disabled={Boolean(selectedTemplate)} />
+            </Form.Item>
+            <Form.Item label="Use Template (Optional)" extra="The template classification is copied to the new analysis.">
               <Select
                 value={selectedTemplate || undefined}
-                onChange={(value) => setSelectedTemplate(value || '')}
+                onChange={(value) => {
+                  setSelectedTemplate(value || '');
+                  if (value) setNewTlp(data?.achTemplates.find((template) => template.id === value)?.tlpClassification || 'UNCLEAR');
+                }}
                 placeholder="-- None --"
                 allowClear
               >

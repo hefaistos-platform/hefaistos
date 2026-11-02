@@ -1,42 +1,59 @@
 # TLP classification
 
-Workbench supports CLEAR, GREEN, AMBER, AMBER+STRICT, RED, and **TLP:UNCLEAR**,
-from the community amendment proposal at [tlp-unclear.org](https://tlp-unclear.org/).
-The proposal describes using UNCLEAR when the sender is unsure which TLP label
-is appropriate. HEFAISTOS displays it in purple as configured for this application.
+Workbench, ACH, AdvOps, and MVE support CLEAR, GREEN, AMBER, AMBER+STRICT, RED,
+and **TLP:UNCLEAR**, from the community amendment proposal at
+[tlp-unclear.org](https://tlp-unclear.org/). The proposal describes using UNCLEAR
+when the sender is unsure which TLP label is appropriate. The application
+uses purple for UNCLEAR.
 
 Use UNCLEAR when the source is unavailable or unknown, the source's sharing
 model is unclear or unknown, or the source does not use a sharing model.
 UNCLEAR does not imply permission to share publicly.
 
-New Workbenches and missing or unrecognized classifications default to UNCLEAR.
-Existing saved classifications are retained. The SOAR selector, Workbench badge,
-Hub column, AI mapping, and supported Workbench import/export paths use this value.
-OpenTIDE YAML stores it as lowercase `unclear`; external validators must support
-the TLP:UNCLEAR proposal to accept it.
+New records and missing or unrecognized classifications default to UNCLEAR.
+Existing Workbench classifications are retained. Existing ACH analyses,
+ACH templates, AdvOps reports, and MVE drafts receive UNCLEAR when their new
+classification fields are added.
 
-## Planned introduction to ACH, AdvOps, and MVE
+## Editing and visibility
 
-1. Add `tlp_classification` to `ACHAnalysis`, `ADVOPSReport`, and `MveDraft` using
-   the shared backend choices, with UNCLEAR as the default for new and existing
-   records that have no classification. Expose `tlpClassification` through list,
-   detail, create, and update GraphQL operations, using existing edit permissions.
-2. Reuse the shared badge and selector options in each module. Add a TLP column
-   before Actions in table overviews, a badge in detail headers, and an editable
-   classification in creation/settings forms. Include badges on AdvOps Kanban
-   cards and in the MVE draft overview.
-3. ACH: preserve classification when saving/applying templates and copy the
-   analysis classification in `CreatePlaybookGraphFromHypothesis`.
-4. AdvOps: update `ADVOPSForm`, report types, and mutation responses. Preserve TLP
-   in peer-sharing imports/exports. For MISP, use standard TLP tags for official
-   levels and a tag representing the tlp-unclear.org proposal for UNCLEAR. Do not map UNCLEAR
-   to an official TLP level or derive public/community distribution from it.
-   Replace the current hardcoded community distribution with explicit handling.
-5. MVE: update `CreateMveDraft`, `UpdateMveDraft`, and `MveDraftType`; include
-   lowercase TLP in VelocityDetection metadata and copy it in
-   `CreateWorkbenchFromMve`. Preserve classification when appending to a
-   Workbench. Handle conflicting classifications explicitly; UNCLEAR has no
-   position in an ordered disclosure hierarchy and must not be treated as CLEAR.
-6. Verify all six levels, missing/unknown values, permissions, template copying,
-   Workbench conversions, import/export preservation, MISP metadata, and visible
-   badge updates. Include a regression case proving UNCLEAR never maps to CLEAR.
+- Workbench: edit in SOAR Configuration; view the badge below Workbench Layout
+  Defaults and the Hub TLP column before Actions.
+- ACH: select TLP during creation or edit it in the analysis header. The owner
+  can change it. View the header badge and overview TLP column before Actions.
+  Selecting a template copies its TLP to the new analysis.
+- AdvOps: edit TLP in the hunt form; view the form badge and overview TLP column
+  before Actions. Edits use the existing organization permissions.
+- MVE: edit TLP in the selected draft's overview card, independently of modeling
+  completeness. View badges in the draft selector and overview card. Existing
+  organization and role permissions apply; exported drafts remain locked.
+- Kanban: Workbench, ACH, AdvOps, and MVE show TLP in cards, compact list rows,
+  and the details drawer.
+
+## Preservation and exports
+
+ACH templates, analysis copies, and Workbenches created from hypotheses retain
+the source classification. Workbenches created from AdvOps or MVE also retain it.
+ACH and AdvOps peer exports/imports preserve TLP; older peer updates without a
+TLP field retain the existing local value.
+
+OpenTIDE and MVE VelocityDetection YAML store TLP in lowercase. External
+validators must support the TLP:UNCLEAR proposal to accept `unclear`.
+Appending MVE to a Workbench requires matching classifications; a mismatch is
+rejected before either record changes. Attached velocity chains and their TLP
+metadata survive subsequent Workbench metadata refreshes.
+
+MISP events carry `tlp:<level>` tags, including `tlp:unclear`. CLEAR uses all
+communities distribution, GREEN uses connected communities, and AMBER,
+AMBER+STRICT, RED, and UNCLEAR use organization-only distribution. Sharing
+restricted events with specific recipients or clients requires a separately
+configured MISP sharing group. Events are created unpublished.
+
+## Database migrations
+
+Apply `ach.0007`, `advops.0004`, and `playbooks.0055` before running the updated
+frontend and backend. For a Compose deployment:
+
+```sh
+docker compose exec backend python manage.py migrate
+```

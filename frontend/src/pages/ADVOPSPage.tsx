@@ -4,6 +4,7 @@ import { useQuery, useMutation, useLazyQuery } from '@apollo/client/react';
 import { App, Card, Table, Button, Modal, Tag, Space, Typography, Select, Input } from 'antd';
 import { CheckCircleOutlined } from '@ant-design/icons';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { TlpBadge } from '../components/ui/TlpBadge';
 import { ADVOPSReport } from '../types/advops';
 import { ADVOPSForm } from '../components/advops/ADVOPSForm';
 
@@ -19,6 +20,7 @@ const GET_ALL_ADVOPS_REPORTS = gql`
       hypothesis
       status
       priority
+      tlpClassification
       allowRemotePull
       author { username }
       createdAt
@@ -48,6 +50,7 @@ const CREATE_ADVOPS_REPORT = gql`
         hypothesis
         status
         priority
+        tlpClassification
         author { username }
         createdAt
         updatedAt
@@ -71,6 +74,7 @@ const UPDATE_ADVOPS_REPORT = gql`
         hypothesis
         status
         priority
+        tlpClassification
         allowRemotePull
         author { username }
         createdAt
@@ -143,12 +147,14 @@ const UPDATE_PLAYBOOK_DETAILS = gql`
     $goal: String
     $technicalContext: String
     $falsePositives: String
+    $tlpClassification: String
   ) {
     updatePlaybookDetails(
       graphId: $graphId
       goal: $goal
       technicalContext: $technicalContext
       falsePositives: $falsePositives
+      tlpClassification: $tlpClassification
     ) {
       graph {
         id
@@ -329,6 +335,10 @@ export const ADVOPSPage: React.FC<ADVOPSPageProps> = ({ embedded = false }) => {
         render: (_: unknown, record: ADVOPSReport) => record.author?.username || 'N/A',
       },
       {
+        title: 'TLP', dataIndex: 'tlpClassification', key: 'tlpClassification',
+        render: (value: string) => <TlpBadge classification={value} />,
+      },
+      {
         title: 'Actions',
         key: 'actions',
         render: (_: unknown, record: ADVOPSReport) => (
@@ -486,6 +496,7 @@ export const ADVOPSPage: React.FC<ADVOPSPageProps> = ({ embedded = false }) => {
           goal: editing.hypothesis,
           technicalContext: editing.huntId,
           falsePositives: editing.falsePositiveSummary || '',
+          tlpClassification: editing.tlpClassification || 'UNCLEAR',
         },
       });
 
@@ -537,6 +548,7 @@ export const ADVOPSPage: React.FC<ADVOPSPageProps> = ({ embedded = false }) => {
               hypothesis: values.hypothesis || '',
               status: values.status || editing.status,
               priority: values.priority || editing.priority,
+              tlpClassification: values.tlpClassification || editing.tlpClassification || 'UNCLEAR',
               verificationSummary: values.verificationSummary || '',
               infrastructureSummary: values.infrastructureSummary || '',
               pivotSummary: values.pivotSummary || '',
@@ -553,6 +565,7 @@ export const ADVOPSPage: React.FC<ADVOPSPageProps> = ({ embedded = false }) => {
           hypothesis: values.hypothesis || '',
           status: values.status || 'IDEA',
           priority: values.priority || 'MEDIUM',
+          tlpClassification: values.tlpClassification || 'UNCLEAR',
           verificationSummary: values.verificationSummary || '',
           infrastructureSummary: values.infrastructureSummary || '',
           pivotSummary: values.pivotSummary || '',

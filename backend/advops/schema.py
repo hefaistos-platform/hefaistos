@@ -7,6 +7,7 @@ from django.utils import timezone
 import logging
 import re
 from .models import ADVOPSReport
+from playbooks.utils.tlp import normalize_tlp
 from .misp_integration import MISPClient, MISPIntegrationError, parse_infrastructure_summary, extract_mitre_techniques
 from organizations.models import MISPInstance
 from identity.decorators import is_bot_auditor_user
@@ -50,6 +51,7 @@ def generate_next_hunt_id(organization):
 
 
 class ADVOPSReportType(DjangoObjectType):
+    tlp_classification = graphene.String()
     class Meta:
         model = ADVOPSReport
         fields = (
@@ -58,6 +60,7 @@ class ADVOPSReportType(DjangoObjectType):
             "hypothesis",
             "status",
             "priority",
+            "tlp_classification",
             "author",
             "organization",
             "allow_remote_pull",
@@ -73,6 +76,7 @@ class ADVOPSReportType(DjangoObjectType):
 
 
 class ADVOPSReportInput(graphene.InputObjectType):
+    tlp_classification = graphene.String()
     # hunt_id is optional for updates (Kanban drag) but validated on create
     hunt_id = graphene.String(required=False)
     hypothesis = graphene.String()
@@ -139,6 +143,7 @@ class CreateADVOPSReport(graphene.Mutation):
         report = ADVOPSReport.objects.create(
             hunt_id=hunt_id,
             hypothesis=input.hypothesis or "",
+            tlp_classification=normalize_tlp(getattr(input, "tlp_classification", None)),
             status=input.status or ADVOPSReport.Status.IDEA,
             priority=input.priority or ADVOPSReport.Priority.MEDIUM,
             verification_summary=input.verification_summary or "",
@@ -187,6 +192,8 @@ class UpdateADVOPSReport(graphene.Mutation):
             value = getattr(input, field, None)
             if value is not None:
                 setattr(report, field, value)
+        if getattr(input, "tlp_classification", None) is not None:
+            report.tlp_classification = normalize_tlp(input.tlp_classification)
         report.save()
         invalidate_mgmt_cave_stats_cache(getattr(user.organization, 'id', None))
         return UpdateADVOPSReport(report=report)
@@ -301,6 +308,7 @@ class PushADVOPSReportToMISP(graphene.Mutation):
             logger.info("Pushing to MISP...")
             try:
                 result = misp_client.create_event(
+                    tlp_classification=report.tlp_classification,
                     event_name=event_name,
                     mitre_patterns=mitre_techniques,
                     attributes=attributes,

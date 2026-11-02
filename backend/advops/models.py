@@ -1,6 +1,7 @@
 import uuid
 from django.conf import settings
 from django.db import models
+from playbooks.utils.tlp import TLP_CHOICES
 from organizations.models import Organization
 
 
@@ -23,6 +24,7 @@ class ADVOPSReport(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     hunt_id = models.CharField(max_length=64, unique=True)
     hypothesis = models.TextField(blank=True)
+    tlp_classification = models.CharField(max_length=20, choices=TLP_CHOICES, default='UNCLEAR')
     status = models.CharField(max_length=24, choices=Status.choices, default=Status.IDEA)
     priority = models.CharField(max_length=16, choices=Priority.choices, default=Priority.MEDIUM)
     author = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="advops_reports")

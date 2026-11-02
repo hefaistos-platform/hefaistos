@@ -1107,6 +1107,7 @@ class MveValidationRunType(DjangoObjectType):
 
 
 class MveDraftType(DjangoObjectType):
+    tlp_classification = graphene.String()
     nodes = graphene.List(MveNodeType)
     edges = graphene.List(MveEdgeType)
     latest_validation = graphene.Field(MveValidationRunType)
@@ -1119,6 +1120,7 @@ class MveDraftType(DjangoObjectType):
             'organization',
             'author',
             'name',
+            'tlp_classification',
             'status',
             'anchor_entity',
             'max_total_span_ms',
@@ -5851,6 +5853,7 @@ class RefreshOpenTideMetadata(graphene.Mutation):
 class CreateMveDraft(graphene.Mutation):
     class Arguments:
         name = graphene.String(required=False)
+        tlp_classification = graphene.String(required=False)
         anchor_entity = graphene.String(required=False)
         max_total_span_ms = graphene.Int(required=False)
         analytic_family = graphene.String(required=False)
@@ -5872,6 +5875,7 @@ class CreateMveDraft(graphene.Mutation):
         root,
         info,
         name=None,
+        tlp_classification=None,
         anchor_entity=None,
         max_total_span_ms=None,
         analytic_family=None,
@@ -5892,6 +5896,7 @@ class CreateMveDraft(graphene.Mutation):
         draft = MveDraft.objects.create(
             organization=user.organization,
             author=user,
+            tlp_classification=normalize_tlp(tlp_classification),
             name=(name or 'New Velocity Chain').strip() or 'New Velocity Chain',
             anchor_entity=(anchor_entity or 'host.hostname').strip() or 'host.hostname',
             max_total_span_ms=max(1, int(max_total_span_ms or 800)),
@@ -5913,6 +5918,7 @@ class UpdateMveDraft(graphene.Mutation):
     class Arguments:
         draft_id = graphene.UUID(required=True)
         name = graphene.String(required=False)
+        tlp_classification = graphene.String(required=False)
         anchor_entity = graphene.String(required=False)
         max_total_span_ms = graphene.Int(required=False)
         status = graphene.String(required=False)
@@ -5936,6 +5942,7 @@ class UpdateMveDraft(graphene.Mutation):
         info,
         draft_id,
         name=None,
+        tlp_classification=None,
         anchor_entity=None,
         max_total_span_ms=None,
         status=None,
@@ -5963,6 +5970,7 @@ class UpdateMveDraft(graphene.Mutation):
                 value is not None
                 for value in [
                     name,
+                    tlp_classification,
                     anchor_entity,
                     max_total_span_ms,
                     analytic_family,
@@ -5981,6 +5989,8 @@ class UpdateMveDraft(graphene.Mutation):
             if non_status_fields_requested or status_change_requested:
                 raise Exception("EXPORTED MVE drafts are immutable. Continue editing in the target Workbench.")
 
+        if tlp_classification is not None:
+            draft.tlp_classification = normalize_tlp(tlp_classification)
         if name is not None:
             normalized = name.strip()
             if not normalized:
@@ -6498,6 +6508,14 @@ class ExportMveOpenTideYaml(graphene.Mutation):
                     "Target Workbench must exist, be authored by you, and be in DEPLOYED status"
                 )
 
+            draft_tlp = normalize_tlp(draft.tlp_classification)
+            target_tlp = normalize_tlp(target_graph.tlp_classification)
+            if draft_tlp != target_tlp:
+                raise Exception(
+                    f"TLP mismatch: MVE is TLP:{draft_tlp}, Workbench is TLP:{target_tlp}. "
+                    "Set matching classifications before appending."
+                )
+
             existing_doc = target_graph.opentide_yaml
             if isinstance(existing_doc, str):
                 try:
@@ -6605,6 +6623,7 @@ class CreateWorkbenchFromMve(graphene.Mutation):
             title=draft.name,
             organization=user.organization,
             author=user,
+            tlp_classification=normalize_tlp(draft.tlp_classification),
             status='IDEA',
             selected_strategy={
                 'source': 'mve_import',

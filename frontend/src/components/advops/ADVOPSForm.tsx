@@ -3,6 +3,8 @@ import { Form, Input, Select, Button, Space, Row, Col, Upload, message, Badge, T
 import { RobotOutlined, UploadOutlined, LinkOutlined, CloudDownloadOutlined, LockOutlined } from '@ant-design/icons';
 import { gql } from '@apollo/client';
 import { useMutation } from '@apollo/client/react';
+import { TlpBadge } from '../ui/TlpBadge';
+import { TlpSelect } from '../ui/TlpSelect';
 import { ADVOPSReport, ADVOPSPriority, ADVOPSStatus } from '../../types/advops';
 
 const EXTRACT_STRAIN_DATA = gql`
@@ -313,10 +315,12 @@ export const ADVOPSForm: React.FC<ADVOPSFormProps> = ({
       initialValues={{
         status: initial?.status || 'IDEA',
         priority: initial?.priority || 'MEDIUM',
+        tlpClassification: initial?.tlpClassification || 'UNCLEAR',
         ...initial,
       }}
       onFinish={onSubmit}
     >
+      {initial?.id && <div className="mb-4"><TlpBadge classification={initial.tlpClassification} /></div>}
       {/* strAIn Bar */}
       <div className="mb-6 p-4 border border-blue-100 bg-blue-50 rounded-lg">
          <div className="flex items-center gap-3 mb-3">
@@ -418,6 +422,9 @@ export const ADVOPSForm: React.FC<ADVOPSFormProps> = ({
           </Form.Item>
           <Form.Item name="status" label="Status" rules={[{ required: true }]}> 
             <Select options={statusOptions} />
+          </Form.Item>
+          <Form.Item name="tlpClassification" label="TLP Classification">
+            <TlpSelect />
           </Form.Item>
           <Form.Item name="priority" label="Priority" rules={[{ required: true }]}> 
             <Select options={priorityOptions} />

@@ -6,6 +6,7 @@ Handles event creation and attribute pushing to MISP using PyMISP.
 import re
 import json
 import logging
+from advops.tlp import misp_tlp_policy
 from typing import List, Dict, Any, Optional
 from django.conf import settings
 from pymisp import PyMISP, MISPEvent, MISPAttribute, MISPGalaxyCluster
@@ -70,6 +71,7 @@ class MISPClient:
         pivot_summary: Optional[str] = None,
         verification_summary: Optional[str] = None,
         false_positive_analysis: Optional[str] = None,
+        tlp_classification: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Create a new event in MISP with optional attributes and galaxy clusters.
@@ -80,7 +82,9 @@ class MISPClient:
             # Use MISPEvent object to construct the event
             event = MISPEvent()
             event.info = event_name
-            event.distribution = 3  # Community
+            tlp_tag, distribution = misp_tlp_policy(tlp_classification)
+            event.distribution = distribution
+            event.add_tag(tlp_tag)
             event.threat_level_id = 3  # Medium
             event.analysis = 0  # Initial
             event.published = False

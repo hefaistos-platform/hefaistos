@@ -1,4 +1,5 @@
 from django.db import models
+from playbooks.utils.tlp import TLP_CHOICES
 from django.conf import settings
 from data_catalog.models import DataSource
 from platform_data.models import MitreAttackTechnique
@@ -8,6 +9,7 @@ import uuid
 class ACHTemplate(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    tlp_classification = models.CharField(max_length=20, choices=TLP_CHOICES, default='UNCLEAR')
     hypotheses = models.JSONField(default=list, help_text="List of hypothesis strings")
     evidence = models.JSONField(default=list, help_text="List of evidence objects {'content': '...', 'credibility': '...'}")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -19,6 +21,7 @@ class ACHAnalysis(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    tlp_classification = models.CharField(max_length=20, choices=TLP_CHOICES, default='UNCLEAR')
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='ach_analyses')
     STATUS_CHOICES = [
         ('RESEARCH', 'Research'),

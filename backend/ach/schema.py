@@ -10,6 +10,7 @@ from ai_assistant.schema import UserAISettingsType as AIUserSettingsType
 from data_catalog.models import DataSource
 from platform_data.models import MitreAttackTechnique
 from playbooks.models import PlaybookGraph
+from playbooks.utils.tlp import normalize_tlp
 from playbooks.schema import PlaybookGraphType
 
 
@@ -26,6 +27,7 @@ def generate_copy_title(base_title: str, existing_titles) -> str:
         counter += 1
 
 class ACHTemplateType(DjangoObjectType):
+    tlp_classification = graphene.String()
     class Meta:
         model = ACHTemplate
         fields = "__all__"
@@ -55,6 +57,7 @@ class EvidenceInput(graphene.InputObjectType):
     credibility = graphene.String()
 
 class ACHAnalysisType(DjangoObjectType):
+    tlp_classification = graphene.String()
     class Meta:
         model = ACHAnalysis
         fields = "__all__"
@@ -143,10 +146,11 @@ class CreateACHAnalysis(graphene.Mutation):
     class Arguments:
         title = graphene.String(required=True)
         description = graphene.String()
+        tlp_classification = graphene.String()
 
     analysis = graphene.Field(ACHAnalysisType)
 
-    def mutate(self, info, title, description=""):
+    def mutate(self, info, title, description="", tlp_classification=None):
         user = info.context.user
         if user.is_anonymous:
             raise Exception("Not logged in")
@@ -154,9 +158,30 @@ class CreateACHAnalysis(graphene.Mutation):
         analysis = ACHAnalysis.objects.create(
             title=title,
             description=description,
-            owner=user
+            owner=user,
+            tlp_classification=normalize_tlp(tlp_classification)
         )
         return CreateACHAnalysis(analysis=analysis)
+
+class UpdateACHTlpClassification(graphene.Mutation):
+    class Arguments:
+        analysis_id = graphene.UUID(required=True)
+        tlp_classification = graphene.String(required=True)
+
+    analysis = graphene.Field(ACHAnalysisType)
+
+    def mutate(self, info, analysis_id, tlp_classification):
+        user = info.context.user
+        if user.is_anonymous:
+            raise Exception("Not logged in")
+        try:
+            analysis = ACHAnalysis.objects.get(id=analysis_id, owner=user)
+        except ACHAnalysis.DoesNotExist:
+            raise Exception("Analysis not found or access denied")
+        analysis.tlp_classification = normalize_tlp(tlp_classification)
+        analysis.save(update_fields=['tlp_classification', 'updated_at'])
+        return UpdateACHTlpClassification(analysis=analysis)
+
 
 class AddHypothesis(graphene.Mutation):
     class Arguments:
@@ -352,6 +377,9 @@ class ApplyACHTemplate(graphene.Mutation):
         except (ACHAnalysis.DoesNotExist, ACHTemplate.DoesNotExist):
             raise Exception("Analysis or Template not found")
 
+        analysis.tlp_classification = normalize_tlp(template.tlp_classification)
+        analysis.save(update_fields=['tlp_classification', 'updated_at'])
+
         # Apply Hypotheses
         for h_str in template.hypotheses:
             Hypothesis.objects.create(analysis=analysis, content=h_str)
@@ -370,12 +398,13 @@ class CreateACHTemplate(graphene.Mutation):
     class Arguments:
         title = graphene.String(required=True)
         description = graphene.String()
+        tlp_classification = graphene.String()
         hypotheses = graphene.List(graphene.String)
         evidence = graphene.List(EvidenceInput)
 
     template = graphene.Field(ACHTemplateType)
 
-    def mutate(self, info, title, description="", hypotheses=None, evidence=None):
+    def mutate(self, info, title, description="", hypotheses=None, evidence=None, tlp_classification=None):
         # Optional: gate on admin role
         user = info.context.user
         if user.is_anonymous:
@@ -383,6 +412,7 @@ class CreateACHTemplate(graphene.Mutation):
 
         tpl = ACHTemplate.objects.create(
             title=title,
+            tlp_classification=normalize_tlp(tlp_classification),
             description=description or "",
             hypotheses=hypotheses or [],
             evidence=[
@@ -420,6 +450,7 @@ class SaveACHAsTemplate(graphene.Mutation):
 
         tpl = ACHTemplate.objects.create(
             title=title,
+            tlp_classification=normalize_tlp(analysis.tlp_classification),
             description=description or "",
             hypotheses=hyp_list,
             evidence=ev_list
@@ -654,7 +685,8 @@ class CloneACHAnalysis(graphene.Mutation):
             title=new_title,
             description=analysis.description,
             owner=user,
-            status='RESEARCH'
+            status='RESEARCH',
+            tlp_classification=normalize_tlp(analysis.tlp_classification)
         )
 
         hypothesis_map = {}
@@ -721,6 +753,7 @@ class CreatePlaybookGraphFromHypothesis(graphene.Mutation):
             organization=user.organization,
             author=user,
             status='IDEA',
+            tlp_classification=normalize_tlp(hypothesis.analysis.tlp_classification),
             mitre_technique=hypothesis.mitre_technique,
             goal=f"Investigate and detect: {hypothesis.content}"
         )
@@ -731,6 +764,7 @@ class CreatePlaybookGraphFromHypothesis(graphene.Mutation):
 
 class Mutation(graphene.ObjectType):
     create_ach_analysis = CreateACHAnalysis.Field()
+    update_ach_tlp_classification = UpdateACHTlpClassification.Field()
     add_hypothesis = AddHypothesis.Field()
     add_evidence = AddEvidence.Field()
     update_hypothesis = UpdateHypothesis.Field()

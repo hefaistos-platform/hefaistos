@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 import yaml
+from playbooks.utils.tlp import normalize_tlp
 
 
 def _safe_text(value: Any, fallback: str = "") -> str:
@@ -59,6 +60,7 @@ def compile_velocity_detection(draft) -> Dict[str, Any]:
         "version": "opentide/v1.2",
         "kind": "VelocityDetection",
         "metadata": {
+            "tlp": normalize_tlp(getattr(draft, "tlp_classification", None)).lower(),
             "id": f"MVE-CHAIN-{str(draft.id).split('-')[0].upper()}",
             "name": _safe_text(draft.name, "Untitled Velocity Chain"),
             "author": "HEFAISTOS Workbench",

@@ -7,6 +7,7 @@ export interface ADVOPSReport {
   hypothesis: string;
   status: ADVOPSStatus;
   priority: ADVOPSPriority;
+  tlpClassification: string;
   allowRemotePull?: boolean;
   author?: { id?: string; username?: string } | null;
   organization?: { id?: string; name?: string } | null;

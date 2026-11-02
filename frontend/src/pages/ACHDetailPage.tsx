@@ -4,6 +4,8 @@ import { gql } from '@apollo/client';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { Card, Button, Input, Form, Select, Alert, Typography, Space, Modal, message, Popconfirm, Tag, Tooltip } from 'antd';
 import { ArrowLeftOutlined, CloudDownloadOutlined, CopyOutlined, DeleteOutlined, LockOutlined } from '@ant-design/icons';
+import { TlpBadge } from '../components/ui/TlpBadge';
+import { TlpSelect } from '../components/ui/TlpSelect';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 
 const { Title, Text, Paragraph } = Typography;
@@ -51,6 +53,7 @@ interface ACHAnalysisType {
   description: string;
   status: 'RESEARCH' | 'FINISHED' | 'APPROVED';
   savedAsTemplate: boolean;
+  tlpClassification: string;
   allowRemotePull: boolean;
   owner: { id: string; username: string };
   hypotheses: HypothesisType[];
@@ -129,6 +132,7 @@ const GET_ACH_ANALYSIS = gql`
       title
       description
       status
+      tlpClassification
       savedAsTemplate
       allowRemotePull
       owner { id username }
@@ -174,6 +178,14 @@ const GET_ACH_ANALYSIS = gql`
       description
     }
     me { id username }
+  }
+`;
+
+const UPDATE_ACH_TLP = gql`
+  mutation UpdateAchTlpClassification($analysisId: UUID!, $tlpClassification: String!) {
+    updateAchTlpClassification(analysisId: $analysisId, tlpClassification: $tlpClassification) {
+      analysis { id tlpClassification }
+    }
   }
 `;
 
@@ -345,6 +357,7 @@ export const ACHDetailPage: React.FC = () => {
   const { data: aiSettingsData } = useQuery<GetMyAiSettingsData>(GET_MY_AI_SETTINGS, { fetchPolicy: 'cache-and-network' });
   
   const [addHypothesis] = useMutation(ADD_HYPOTHESIS);
+  const [updateTlp, { loading: savingTlp }] = useMutation(UPDATE_ACH_TLP);
   const [addEvidence] = useMutation(ADD_EVIDENCE);
   const [updateHypothesis] = useMutation(UPDATE_HYPOTHESIS);
   const [deleteHypothesis] = useMutation(DELETE_HYPOTHESIS);
@@ -748,11 +761,28 @@ export const ACHDetailPage: React.FC = () => {
             <Button icon={<ArrowLeftOutlined />}>Back</Button>
           </Link>
           <Title level={3} style={{ margin: 0, color: 'var(--hef-text-primary)' }}>{analysis.title}</Title>
+          <TlpBadge classification={analysis.tlpClassification} />
           {analysis.savedAsTemplate && (
             <Tag color="purple" icon={<span>⭐</span>}>Template</Tag>
           )}
         </Space>
         <Space wrap>
+          {data?.me?.id === analysis.owner?.id && (
+            <div style={{ width: 170 }}>
+              <TlpSelect
+                value={analysis.tlpClassification}
+                disabled={savingTlp}
+                onChange={async (tlpClassification) => {
+                  try {
+                    await updateTlp({ variables: { analysisId: analysis.id, tlpClassification } });
+                    message.success('TLP classification saved');
+                  } catch (err: any) {
+                    message.error(err?.message || 'Failed to save TLP classification');
+                  }
+                }}
+              />
+            </div>
+          )}
           {myAiSettings && effectiveModelName && (
             <Tooltip title={myAiSettings.useOrgAi ? 'AI model is managed by your organization settings' : 'AI model is managed by your profile settings'}>
               <Tag color={modelTagColor} style={{ margin: 0, lineHeight: '30px' }}>

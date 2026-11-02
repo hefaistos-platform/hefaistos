@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 import hashlib
 import logging
+from playbooks.utils.tlp import normalize_tlp
 from copy import deepcopy
 from time import monotonic
 import os
@@ -377,6 +378,7 @@ def _ach_payload_for_org(organization) -> list[dict[str, Any]]:
             'description': analysis.description or '',
             'status': analysis.status,
             'saved_as_template': bool(analysis.saved_as_template),
+            'tlp_classification': normalize_tlp(analysis.tlp_classification),
             'hypotheses': [{
                 'content': hyp.content,
                 'is_proven': bool(hyp.is_proven),
@@ -418,6 +420,7 @@ def _advops_payload_for_org(organization) -> list[dict[str, Any]]:
             'hypothesis': report.hypothesis or '',
             'status': report.status or '',
             'priority': report.priority or '',
+            'tlp_classification': normalize_tlp(report.tlp_classification),
             'verification_summary': report.verification_summary or '',
             'infrastructure_summary': report.infrastructure_summary or '',
             'pivot_summary': report.pivot_summary or '',
@@ -741,14 +744,16 @@ def _import_ach(
                         title=title,
                         description=description,
                         owner=actor,
+                        tlp_classification=normalize_tlp(analysis_data.get('tlp_classification')),
                         status=status,
                         saved_as_template=bool(analysis_data.get('saved_as_template')),
                     )
                 else:
+                    analysis.tlp_classification = normalize_tlp(analysis_data.get('tlp_classification', analysis.tlp_classification))
                     analysis.description = description
                     analysis.status = status
                     analysis.saved_as_template = bool(analysis_data.get('saved_as_template'))
-                    analysis.save(update_fields=['description', 'status', 'saved_as_template', 'updated_at'])
+                    analysis.save(update_fields=['description', 'status', 'saved_as_template', 'tlp_classification', 'updated_at'])
                     analysis.hypotheses.all().delete()
                     analysis.evidence_items.all().delete()
 
@@ -847,6 +852,7 @@ def _import_advops(
                 'hypothesis': str(report_data.get('hypothesis') or ''),
                 'status': status,
                 'priority': priority,
+                'tlp_classification': normalize_tlp(report_data.get('tlp_classification')),
                 'verification_summary': str(report_data.get('verification_summary') or ''),
                 'infrastructure_summary': str(report_data.get('infrastructure_summary') or ''),
                 'pivot_summary': str(report_data.get('pivot_summary') or ''),
@@ -873,6 +879,8 @@ def _import_advops(
                     existing.hypothesis = defaults['hypothesis']
                     existing.status = defaults['status']
                     existing.priority = defaults['priority']
+                    if 'tlp_classification' in report_data:
+                        existing.tlp_classification = defaults['tlp_classification']
                     existing.verification_summary = defaults['verification_summary']
                     existing.infrastructure_summary = defaults['infrastructure_summary']
                     existing.pivot_summary = defaults['pivot_summary']
@@ -885,6 +893,7 @@ def _import_advops(
                         'hypothesis',
                         'status',
                         'priority',
+                        'tlp_classification',
                         'verification_summary',
                         'infrastructure_summary',
                         'pivot_summary',

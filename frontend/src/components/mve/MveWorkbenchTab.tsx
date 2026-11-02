@@ -17,6 +17,8 @@ import {
 import { DeleteOutlined, ExportOutlined, PlusOutlined, QuestionCircleOutlined, SearchOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Checkbox, Col, Collapse, Form, Input, InputNumber, Modal, Popconfirm, Radio, Row, Select, Space, Spin, Switch, Tag, Tooltip, Typography, message } from 'antd';
 import DetectionRuleEditorModal, { DetectionMode } from '../DetectionRuleEditorModal';
+import { TlpBadge } from '../ui/TlpBadge';
+import { TlpSelect } from '../ui/TlpSelect';
 import { ReviewWorkflow } from '../playbook/ReviewWorkflow';
 
 const GET_MVE_DRAFTS_QUERY = gql`
@@ -24,6 +26,7 @@ const GET_MVE_DRAFTS_QUERY = gql`
     allMveDrafts {
       id
       name
+      tlpClassification
       status
       anchorEntity
       maxTotalSpanMs
@@ -40,6 +43,7 @@ const GET_MVE_DRAFT_QUERY = gql`
     mveDraft(id: $id) {
       id
       name
+      tlpClassification
       status
       anchorEntity
       maxTotalSpanMs
@@ -133,6 +137,7 @@ const GET_MVE_OPTIONS_QUERY = gql`
     }
     mveAppendTargets {
       id
+      tlpClassification
       title
       status
       updatedAt
@@ -164,6 +169,7 @@ const GET_MVE_VALIDATION_QUERY = gql`
 const CREATE_MVE_DRAFT_MUTATION = gql`
   mutation CreateMveDraft(
     $name: String!
+    $tlpClassification: String
     $anchorEntity: String!
     $maxTotalSpanMs: Int!
     $analyticFamily: String
@@ -179,6 +185,7 @@ const CREATE_MVE_DRAFT_MUTATION = gql`
   ) {
     createMveDraft(
       name: $name
+      tlpClassification: $tlpClassification
       anchorEntity: $anchorEntity
       maxTotalSpanMs: $maxTotalSpanMs
       analyticFamily: $analyticFamily
@@ -203,6 +210,7 @@ const UPDATE_MVE_DRAFT_MUTATION = gql`
   mutation UpdateMveDraft(
     $draftId: UUID!
     $name: String
+    $tlpClassification: String
     $anchorEntity: String
     $maxTotalSpanMs: Int
     $status: String
@@ -220,6 +228,7 @@ const UPDATE_MVE_DRAFT_MUTATION = gql`
     updateMveDraft(
       draftId: $draftId
       name: $name
+      tlpClassification: $tlpClassification
       anchorEntity: $anchorEntity
       maxTotalSpanMs: $maxTotalSpanMs
       status: $status
@@ -505,6 +514,7 @@ const GET_TARGET_WORKBENCH_REVIEW_QUERY = gql`
 type DraftRow = {
   id: string;
   name: string;
+  tlpClassification: string;
   status: string;
   anchorEntity: string;
   maxTotalSpanMs: number;
@@ -1573,7 +1583,7 @@ const MveWorkbenchTab: React.FC = () => {
 
   const draftOptions = (draftsData?.allMveDrafts || []).map((item) => ({
     value: item.id,
-    label: `${item.name} (${item.status})`,
+    label: <Space wrap><span>{item.name} ({item.status})</span><TlpBadge classification={item.tlpClassification} /></Space>,
   }));
 
   const nodeType = Form.useWatch('nodeType', addNodeForm);
@@ -1627,6 +1637,20 @@ const MveWorkbenchTab: React.FC = () => {
                   <Card size="small">
                     <Space direction="vertical" size={6} style={{ width: '100%' }}>
                       <Typography.Text strong>{selectedDraft.name}</Typography.Text>
+                      <TlpBadge classification={selectedDraft.tlpClassification} />
+                      <TlpSelect
+                        value={selectedDraft.tlpClassification}
+                        disabled={isExportedMveDraft || savingConstraints}
+                        onChange={async (tlpClassification) => {
+                          try {
+                            await updateDraft({ variables: { draftId: selectedDraft.id, tlpClassification } });
+                            await Promise.all([refetchDrafts(), refetchSelectedDraft()]);
+                            message.success('TLP classification saved');
+                          } catch (error: any) {
+                            message.error(error?.message || 'Failed to save TLP classification');
+                          }
+                        }}
+                      />
                       <Space size={4}>
                         <Typography.Text type="secondary" style={{ fontSize: 11 }}>
                           Lifecycle
@@ -1942,7 +1966,7 @@ const MveWorkbenchTab: React.FC = () => {
                         allowClear
                         options={appendTargets.map((target: any) => ({
                           value: target.id,
-                          label: `${target.title} (${target.status})`,
+                          label: `${target.title} (${target.status}) — TLP:${target.tlpClassification || 'UNCLEAR'}`,
                         }))}
                         placeholder={preferredHandoffTargetId ? 'Auto-selected from available Workbench targets' : 'No eligible Workbench target available'}
                       />
@@ -2292,7 +2316,7 @@ const MveWorkbenchTab: React.FC = () => {
                   optionFilterProp="label"
                   options={appendTargets.map((target: any) => ({
                     value: target.id,
-                    label: `${target.title} (${target.status})`,
+                    label: `${target.title} (${target.status}) — TLP:${target.tlpClassification || 'UNCLEAR'}`,
                   }))}
                   placeholder="Select Workbench"
                 />

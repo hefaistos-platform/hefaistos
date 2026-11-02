@@ -808,10 +808,13 @@ class PlaybookGraph(models.Model):
         if self.opentide_yaml and isinstance(self.opentide_yaml, dict):
             existing_platforms = self.opentide_yaml.get('platforms', {})
 
+        velocity_chains = self.opentide_yaml.get('mve_velocity_detections') if isinstance(self.opentide_yaml, dict) else None
         free_rule = self.opentide_yaml.get('freeRule') if isinstance(self.opentide_yaml, dict) else None
         self.opentide_yaml = merge_metadata_with_platforms(self, existing_platforms)
         if free_rule is not None:
             self.opentide_yaml['freeRule'] = free_rule
+        if velocity_chains is not None:
+            self.opentide_yaml['mve_velocity_detections'] = velocity_chains
 
         if existing_platforms:
             self.configured_platforms = list(existing_platforms.keys())
@@ -1104,6 +1107,7 @@ class MveDraft(models.Model):
         related_name='mve_drafts',
     )
     name = models.CharField(max_length=255, default='New Velocity Chain')
+    tlp_classification = models.CharField(max_length=20, choices=TLP_CHOICES, default='UNCLEAR')
     status = models.CharField(max_length=20, choices=DraftStatus.choices, default=DraftStatus.DRAFT)
     anchor_entity = models.CharField(max_length=255, default='host.hostname')
     max_total_span_ms = models.PositiveIntegerField(default=800)
