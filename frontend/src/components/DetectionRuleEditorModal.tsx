@@ -1268,7 +1268,6 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
       description: current.description,
       author: current.author,
       tags: current.tags,
-      skipped: false,
     };
     const missing: string[] = [];
     if (!normalized.description) missing.push('description');
@@ -1276,7 +1275,6 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     if (normalized.tags.length === 0) missing.push('tags');
     if (missing.length > 0) {
       message.warning(`Missing metadata (${missing.join(', ')}). Saving with available metadata only.`);
-      return { ...normalized, skipped: true };
     }
     return normalized;
   }, [metadataTitle, metadataDescription, metadataAuthor, metadataTags, playbookData?.title]);
@@ -1354,9 +1352,9 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
           editorLanguage: entry.format === 'FREE' ? finalOpenTideRule.freeRule?.language : undefined,
           customFileExtension: entry.format === 'FREE' ? (finalOpenTideRule.freeRule?.extension || 'txt') : undefined,
           title: metadata.title || playbookData?.title || 'rule',
-          description: metadata.skipped ? '' : metadata.description,
-          author: metadata.skipped ? '' : metadata.author,
-          tags: metadata.skipped ? [] : metadata.tags,
+          description: metadata.description,
+          author: metadata.author,
+          tags: metadata.tags,
           autoCommit,
           commitMessage: commitMessage || undefined,
         },
@@ -1489,9 +1487,9 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
             } : {}),
             ...(item.entry.format === 'FREE' ? { customFormatLabel: finalOpenTideRule.freeRule?.label, editorLanguage: finalOpenTideRule.freeRule?.language, customFileExtension: finalOpenTideRule.freeRule?.extension || 'txt' } : {}) })),
           title: metadata.title || playbookData?.title || 'rule',
-          description: metadata.skipped ? '' : metadata.description,
-          author: metadata.skipped ? '' : metadata.author,
-          tags: metadata.skipped ? [] : metadata.tags,
+          description: metadata.description,
+          author: metadata.author,
+          tags: metadata.tags,
           autoCommit,
           commitMessage: commitMessage || undefined,
         },

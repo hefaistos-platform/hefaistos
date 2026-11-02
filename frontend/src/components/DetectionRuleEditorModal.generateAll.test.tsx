@@ -161,6 +161,32 @@ describe('DetectionRuleEditorModal generate-all overwrite behavior', () => {
     expect(state.platforms.kql?.query ?? '').toBe('');
   });
 
+  test.each(['SAVE KQL', 'SAVE ALL'])('%s retains available metadata when tags are empty', async (button) => {
+    const save = jest.fn().mockResolvedValue({ data: {
+      saveDetectionRule: { success: true },
+      saveAllDetectionRules: { success: true, results: [{ format: 'KQL', status: 'saved' }] },
+    } });
+    (useMutation as jest.Mock).mockImplementation((document) => {
+      const name = document.definitions?.[0]?.name?.value;
+      return [['SaveDetectionRuleWithMetadata', 'SaveAllDetectionRules'].includes(name) ? save : jest.fn(), { loading: false }];
+    });
+    const onSave = jest.fn().mockResolvedValue(undefined);
+    render(<DetectionRuleEditorModal visible onClose={jest.fn()} onSave={onSave}
+      playbookId="11111111-1111-1111-1111-111111111111"
+      initialRule="SecurityEvent | take 1" initialFormat="KQL" initialMode="manual"
+      initialOpenTideRule={{ ...BASE_RULE, metadata: { ...BASE_RULE.metadata, description: 'Process detection', tags: [] },
+        platforms: { kql: { query: 'SecurityEvent | take 1' } } }} />);
+
+    fireEvent.change(screen.getByLabelText('Rule content'), { target: { value: 'SecurityEvent | take 2' } });
+    fireEvent.click(screen.getByRole('button', { name: button }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0][0].variables).toMatchObject({
+      title: 'Rule', description: 'Process detection', author: 'tester', tags: [],
+    });
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
   test('SAVE ALL persists cleared content via onSave even when no non-empty rules remain', async () => {
     const onSave = jest.fn().mockResolvedValue(undefined);
     render(

@@ -5,6 +5,8 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db.backends.postgresql.base import DatabaseWrapper
+from django.db.models.query import QuerySet
 from django.test import TestCase
 from graphql import GraphQLError
 
@@ -84,6 +86,42 @@ class RuleFeedbackTests(TestCase):
         self.assertIn('+ProcessEvents_CL | take 1\n', payload['correction']['diff'])
         self.assertNotEqual(rule.raw_content, feedback.revision.editor_content)
         self.assertEqual(payload['generation']['prompt_provenance']['version'], 'approved-version')
+
+    def test_workbench_manual_save_and_update_use_postgresql_safe_locks(self):
+        # SQLite ignores row locks. Compile the actual locking queries with the
+        # PostgreSQL backend too, so this regression is covered on either DB.
+        postgres = DatabaseWrapper({'ENGINE': 'django.db.backends.postgresql', 'NAME': 'unused'})
+        lineage_locks = []
+        original_get = QuerySet.get
+
+        def get_with_lock_check(queryset, *args, **kwargs):
+            if queryset.model is AIRuleLineage and queryset.query.select_for_update:
+                with patch.object(postgres, 'get_autocommit', return_value=False):
+                    sql, _ = queryset.query.get_compiler(connection=postgres).as_sql()
+                self.assertIn('FOR UPDATE', sql)
+                self.assertNotIn('LEFT OUTER JOIN', sql)
+                lineage_locks.append(sql)
+            return original_get(queryset, *args, **kwargs)
+
+        info = SimpleNamespace(context=SimpleNamespace(user=self.user))
+        with patch.object(QuerySet, 'get', new=get_with_lock_check):
+            first = SaveDetectionRule.mutate(None, info, self.graph.id,
+                'DeviceProcessEvents | take 1', format='KQL', description='Process detection', tags=[])
+            self.assertTrue(first.success)
+            second = SaveDetectionRule.mutate(None, info, self.graph.id,
+                'DeviceProcessEvents | take 2', format='KQL', description='Process detection', tags=[])
+            self.assertTrue(second.success)
+
+        self.assertEqual(len(lineage_locks), 2)
+        self.assertEqual(first.rule.pk, second.rule.pk)
+        saved = DetectionRule.objects.get(pk=first.rule.pk, organization=self.org)
+        self.assertEqual(saved.description, 'Process detection')
+        self.assertIn('DeviceProcessEvents | take 2', saved.raw_content)
+        self.assertEqual(list(AIRuleRevision.objects.filter(rule=saved).order_by('number')
+                              .values_list('number', flat=True)), [1, 2])
+        self.graph.refresh_from_db()
+        self.assertEqual(self.graph.detection_rule, 'DeviceProcessEvents | take 2')
+        self.assertFalse(AIRuleFeedback.objects.exists())
 
     def test_lineage_survives_reopening_and_repeated_saves_do_not_duplicate(self):
         artifact, rule, feedback = self.correction()

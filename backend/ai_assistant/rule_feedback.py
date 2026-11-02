@@ -112,7 +112,9 @@ def record_rule_revision(user, rule, output_format, editor_content, *, artifact_
         return None
     artifact = validate_attribution(user, rule, output_format, artifact_id, detach)
     lineage, _ = AIRuleLineage.objects.get_or_create(rule=rule, output_format=output_format)
-    lineage = AIRuleLineage.objects.select_for_update().select_related('latest_revision').get(pk=lineage.pk)
+    # Lock the lineage before reading its previous revision. Joining the nullable
+    # latest_revision here makes PostgreSQL reject FOR UPDATE on the outer join.
+    lineage = AIRuleLineage.objects.select_for_update().get(pk=lineage.pk)
     artifact = artifact if artifact_id else (None if detach else lineage.active_artifact)
     content = editor_content.replace('\r\n', '\n').strip()
     content_hash = digest(content)
