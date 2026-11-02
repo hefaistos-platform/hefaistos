@@ -178,6 +178,37 @@ describe('CapabilityLibraryPage', () => {
     expect(pageRefetch).toHaveBeenCalled();
   });
 
+  it.each(['pOwErShElL', 't1059.001'])(
+    'filters technique suggestions by "%s" and allows selecting the match',
+    async (search) => {
+      render(
+        <MemoryRouter initialEntries={['/capability-library']}>
+          <CapabilityLibraryPage />
+        </MemoryRouter>
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /Add Capability Abstraction/i }));
+      const modal = (await screen.findAllByRole('dialog')).slice(-1)[0];
+      const techniqueInput = within(modal).getByRole('combobox', { name: 'ATT&CK technique' });
+      fireEvent.mouseDown(techniqueInput);
+      fireEvent.change(techniqueInput, { target: { value: search } });
+
+      const matchingOption = await screen.findByText('T1059.001: PowerShell');
+      expect(screen.queryByText('T1218.005: Mshta')).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(attackTechniquesRefetch).toHaveBeenCalledWith({ search, limit: 50 })
+      );
+
+      fireEvent.change(techniqueInput, { target: { value: '' } });
+      expect(await screen.findByText('T1218.005: Mshta')).toBeInTheDocument();
+      fireEvent.change(techniqueInput, { target: { value: search } });
+      fireEvent.click(matchingOption);
+
+      expect(within(modal).getByText('T1059.001: PowerShell')).toBeInTheDocument();
+      expect(techniqueInput).toHaveValue('');
+    }
+  );
+
   it('edits an existing capability abstraction from the detail drawer', async () => {
     render(
       <MemoryRouter initialEntries={['/capability-library?capabilityId=cap-1']}>

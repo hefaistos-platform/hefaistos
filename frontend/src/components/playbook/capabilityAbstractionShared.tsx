@@ -303,7 +303,9 @@ export const CapabilityAbstractionFormModal: React.FC<CapabilityAbstractionFormM
             <Select
               showSearch
               allowClear
-              filterOption={false}
+              filterOption={(input, option) =>
+                String(option?.label || '').toLowerCase().includes(input.toLowerCase())
+              }
               placeholder="Select ATT&CK technique"
               options={techniqueOptions}
               loading={attackTechniquesLoading}
@@ -333,10 +335,10 @@ export const CapabilityAbstractionFormModal: React.FC<CapabilityAbstractionFormM
         <Form.Item name="detectionValue" label="Detection value">
           <TextArea rows={2} />
         </Form.Item>
+        <Form.Item name="tlpClassification" label="TLP Classification" rules={[{ required: true }]}><TlpSelect /></Form.Item>
         <Form.Item name="robustnessLevel" label="Robustness level">
           <Select options={ROBUSTNESS_LEVEL_OPTIONS} />
         </Form.Item>
-        <Form.Item name="tlpClassification" label="TLP Classification" rules={[{ required: true }]}><TlpSelect /></Form.Item>
         <Form.Item name="column" label="Column">
           <Select allowClear options={COLUMN_OPTIONS} />
         </Form.Item>
