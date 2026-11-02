@@ -5,7 +5,6 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 import { usePlaybookMeta } from '../context/PlaybookMetaContext';
 import { Card, Tag, Progress, message, Select, Space, Typography, Input, Drawer, Button } from 'antd';
 import { ApartmentOutlined, RadarChartOutlined, BranchesOutlined, BookOutlined, ThunderboltOutlined } from '@ant-design/icons';
-import { TlpBadge } from '../components/ui/TlpBadge';
 import { Link } from 'react-router-dom';
 
 // Define the GraphQL query to fetch all legacy playbooks
@@ -38,7 +37,6 @@ const GET_ALL_GRAPHS_QUERY = gql`
       id
       title
       status
-      tlpClassification
       pngSnapshotUrl
       author { username }
       tags
@@ -53,7 +51,6 @@ const GET_ALL_ACH_ANALYSES_QUERY = gql`
       id
       title
       status
-      tlpClassification
       owner { username }
       createdAt
       updatedAt
@@ -68,7 +65,6 @@ const GET_ALL_ADVOPS_REPORTS_QUERY = gql`
       huntId
       hypothesis
       status
-      tlpClassification
       priority
       author { username }
       createdAt
@@ -83,7 +79,6 @@ const GET_ALL_MVE_DRAFTS_QUERY = gql`
       id
       name
       status
-      tlpClassification
       isAdvopsValidated
       updatedAt
       author {
@@ -181,7 +176,6 @@ interface PlaybookCard {
   tags: Array<{ id: string; name: string }>;
   tasks: Array<{ id: string; status: string }>;
   kind: ItemKind;
-  tlpClassification?: string;
   graphImageUrl?: string | null; // For graph snapshots
   mveEngineStatus?: string;
 }
@@ -192,7 +186,6 @@ interface AllPlaybooksData {
 
 interface AllGraphsData {
   allPlaybookGraphs: Array<{ 
-    tlpClassification: string;
     id: string; 
     title: string; 
     status: string; 
@@ -203,7 +196,6 @@ interface AllGraphsData {
 
 interface AllACHAnalysesData {
   achAnalyses: Array<{
-    tlpClassification: string;
     id: string;
     title: string;
     status: string;
@@ -215,7 +207,6 @@ interface AllACHAnalysesData {
 
 interface AllAdvopsReportsData {
   allAdvopsReports: Array<{
-    tlpClassification: string;
     id: string;
     huntId: string;
     hypothesis: string;
@@ -229,7 +220,6 @@ interface AllAdvopsReportsData {
 
 interface AllMveDraftsData {
   allMveDrafts: Array<{
-    tlpClassification: string;
     id: string;
     name: string;
     status: string;
@@ -708,7 +698,6 @@ export const KanbanBoardPage = () => {
       tags: ((g as any).tags || []).map((name: string, idx: number) => ({ id: `${g.id}-t-${idx}`, name })),
       tasks: [],
       kind: 'graph' as const,
-      tlpClassification: g.tlpClassification,
       graphImageUrl: g.pngSnapshotUrl,
     }));
     const ach: PlaybookCard[] = (achData?.achAnalyses || []).map(a => ({
@@ -720,7 +709,6 @@ export const KanbanBoardPage = () => {
       tags: [],
       tasks: [],
       kind: 'ach' as const,
-      tlpClassification: a.tlpClassification,
     }));
     const advops: PlaybookCard[] = (advopsData?.allAdvopsReports || []).map(r => ({
       id: r.id,
@@ -731,7 +719,6 @@ export const KanbanBoardPage = () => {
       tags: [{ id: `${r.id}-priority`, name: `Priority: ${r.priority}` }],
       tasks: [],
       kind: 'advops' as const,
-      tlpClassification: r.tlpClassification,
     }));
     const mve: PlaybookCard[] = (mveData?.allMveDrafts || []).map(d => ({
       id: d.id,
@@ -743,7 +730,6 @@ export const KanbanBoardPage = () => {
       tags: d.isAdvopsValidated ? [{ id: `${d.id}-advops`, name: 'AdvOps Validated' }] : [],
       tasks: [],
       kind: 'mve' as const,
-      tlpClassification: d.tlpClassification,
     }));
     return [...legacy, ...graphs, ...ach, ...advops, ...mve];
   }, [legacyData, graphData, achData, advopsData, mveData]);
@@ -990,7 +976,6 @@ export const KanbanBoardPage = () => {
                                   <Link to={config.url} style={{ color: 'var(--hef-text-primary)', textDecoration: 'none' }} title={playbook.title}>
                                     {playbook.title}
                                   </Link>
-                                  {playbook.kind !== 'legacy' && <TlpBadge classification={playbook.tlpClassification} />}
                                 </div>
                                 <div style={{ marginTop: 2, fontSize: 11, color: 'var(--hef-text-secondary)' }}>
                                   {config.label}
@@ -1065,7 +1050,6 @@ export const KanbanBoardPage = () => {
                               >
                                 {playbook.title}
                               </Link>
-                              {playbook.kind !== 'legacy' && <TlpBadge classification={playbook.tlpClassification} />}
                               <span style={{ fontSize: 10, color: 'var(--hef-text-muted)', marginLeft: 8, whiteSpace: 'nowrap' }}>
                                 {config.label}
                               </span>
@@ -1117,7 +1101,6 @@ export const KanbanBoardPage = () => {
                   {selected.tags.map(t => <Tag key={t.id} style={{ marginBottom: 4 }}>{t.name}</Tag>)}
                 </div>
               )}
-              {selected.kind !== 'legacy' && <div style={{ marginBottom: 12 }}><TlpBadge classification={selected.tlpClassification} /></div>}
               {selected.kind === 'legacy' && selected.tasks && selected.tasks.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
                   <Typography.Text strong>Tasks</Typography.Text>

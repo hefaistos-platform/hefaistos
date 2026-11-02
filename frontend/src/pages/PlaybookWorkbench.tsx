@@ -991,6 +991,7 @@ export const PlaybookWorkbench = () => {
     const g = data.playbookGraph;
     return {
       title: g.title,
+      tlpClassification: g.tlpClassification,
       goal: g.goal,
       author: g.author,
       createdAt: g.createdAt,

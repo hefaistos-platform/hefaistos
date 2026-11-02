@@ -50,6 +50,25 @@ describe('DetectionRuleEditorModal generate-all overwrite behavior', () => {
     (useLazyQuery as jest.Mock).mockReturnValue([jest.fn()]);
   });
 
+  test('Workbench rule editor displays the current inherited TLP', () => {
+    const props = {
+      visible: true, onClose: jest.fn(), onSave: jest.fn(),
+      initialRule: 'index=main', initialFormat: 'SPL' as const, initialMode: 'manual' as const,
+      initialOpenTideRule: { ...BASE_RULE, metadata: { ...BASE_RULE.metadata, tlp: 'clear' } },
+    };
+    const { rerender } = render(<DetectionRuleEditorModal {...props} playbookData={{ title: 'Workbench', tlpClassification: 'AMBER+STRICT' }} />);
+    expect(screen.getByText('TLP:AMBER+STRICT')).toBeInTheDocument();
+    expect(screen.queryByText('TLP:CLEAR')).not.toBeInTheDocument();
+    rerender(<DetectionRuleEditorModal {...props} playbookData={{ title: 'Workbench', tlpClassification: 'GREEN' }} />);
+    expect(screen.getByText('TLP:GREEN')).toBeInTheDocument();
+  });
+
+  test('standalone rule editor displays inherited TLP from its canonical document', () => {
+    render(<DetectionRuleEditorModal visible standalone onClose={jest.fn()} onSave={jest.fn()} initialRule="index=main" initialFormat="SPL" initialMode="manual"
+      initialOpenTideRule={{ ...BASE_RULE, metadata: { ...BASE_RULE.metadata, tlp: 'red' } }} />);
+    expect(screen.getByText('TLP:RED')).toBeInTheDocument();
+  });
+
   test('buildGenerateAllPlan skips non-empty targets when overwrite is OFF', () => {
     const plan = buildGenerateAllPlan(BASE_RULE, 'spl', false);
 

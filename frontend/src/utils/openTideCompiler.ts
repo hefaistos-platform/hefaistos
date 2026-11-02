@@ -6,6 +6,7 @@ import { OpenTideMetadata, OpenTideRule } from '../types/opentide';
  */
 interface PlaybookGraphSnapshot {
   title?: string;
+  tlpClassification?: string;
   goal?: string;
   author?: { username?: string } | null;
   createdAt?: string;
@@ -35,6 +36,7 @@ interface PlaybookGraphSnapshot {
 export function compileMetadataFromWorkbench(playbook: PlaybookGraphSnapshot): OpenTideMetadata {
   return {
     title: playbook.title || 'Untitled Detection',
+    tlp: (playbook.tlpClassification || 'UNCLEAR').toLowerCase(),
     description: playbook.goal || '',
     author: playbook.author?.username || 'Unknown',
     created: playbook.createdAt || new Date().toISOString(),

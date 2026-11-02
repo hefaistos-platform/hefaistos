@@ -1,5 +1,6 @@
 export interface OpenTideMetadata {
   title: string;
+  tlp?: string;
   description: string;
   author: string;
   created: string;

@@ -54,7 +54,8 @@ Rules inherit the current classification from their owning Workbench
 (`playbook`). If no owner exists, they inherit from the additional Rule Hub
 association (`attached_workbench`). The owner takes precedence when both exist.
 There is no independent TLP dropdown for linked rules; change the Workbench's TLP.
-Rule Hub cards and rule detail headers display the inherited classification.
+Rule Hub cards, rule detail headers, and the Detection Rule Editor header display
+the inherited classification, including the editor opened directly from Workbench.
 
 A stored snapshot is updated on rule saves and Workbench classification saves;
 GraphQL and sharing read the effective inherited value. Existing linked rules

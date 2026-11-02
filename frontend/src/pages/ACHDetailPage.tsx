@@ -770,6 +770,7 @@ export const ACHDetailPage: React.FC = () => {
           {data?.me?.id === analysis.owner?.id && (
             <div style={{ width: 170 }}>
               <TlpSelect
+                showUnclearSourceLink={false}
                 value={analysis.tlpClassification}
                 disabled={savingTlp}
                 onChange={async (tlpClassification) => {

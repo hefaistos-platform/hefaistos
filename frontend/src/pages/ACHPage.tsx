@@ -355,7 +355,7 @@ export const ACHPage: React.FC<ACHPageProps> = ({ embedded = false }) => {
               />
             </Form.Item>
             <Form.Item label="TLP Classification">
-              <TlpSelect value={newTlp} onChange={setNewTlp} disabled={Boolean(selectedTemplate)} />
+              <TlpSelect showUnclearSourceLink={false} value={newTlp} onChange={setNewTlp} disabled={Boolean(selectedTemplate)} />
             </Form.Item>
             <Form.Item label="Use Template (Optional)" extra="The template classification is copied to the new analysis.">
               <Select

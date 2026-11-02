@@ -2,7 +2,7 @@ import React from 'react';
 import { Select, SelectProps } from 'antd';
 import { TLP_OPTIONS, TLP_UNCLEAR_SOURCE_URL, TlpBadge } from './TlpBadge';
 
-export const TlpSelect: React.FC<SelectProps<string>> = ({ value, ...props }) => (
+export const TlpSelect: React.FC<SelectProps<string> & { showUnclearSourceLink?: boolean }> = ({ value, showUnclearSourceLink = true, ...props }) => (
   <div>
     <Select
       aria-label="TLP Classification"
@@ -16,7 +16,7 @@ export const TlpSelect: React.FC<SelectProps<string>> = ({ value, ...props }) =>
       }))}
       optionRender={(option) => <span style={{ whiteSpace: 'normal' }}>{option.data.description}</span>}
     />
-    {(!value || value === 'UNCLEAR') && (
+    {showUnclearSourceLink && (!value || value === 'UNCLEAR') && (
       <a href={TLP_UNCLEAR_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="text-xs text-purple-700 underline">
         About TLP:UNCLEAR
       </a>

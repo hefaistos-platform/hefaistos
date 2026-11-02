@@ -21,6 +21,12 @@ test('saves the selected classification through an Ant Design form', async () =>
   expect(screen.queryByRole('link', { name: 'About TLP:UNCLEAR' })).not.toBeInTheDocument();
 });
 
+test('ACH can omit the source link while retaining the purple UNCLEAR badge', () => {
+  render(<TlpSelect value="UNCLEAR" showUnclearSourceLink={false} />);
+  expect(screen.getByText('TLP:UNCLEAR')).toHaveClass('text-purple-700');
+  expect(screen.queryByRole('link')).not.toBeInTheDocument();
+});
+
 test('a locked classification remains visible and cannot be changed', () => {
   render(<TlpSelect value="UNCLEAR" disabled />);
   expect(screen.getByText('TLP:UNCLEAR')).toHaveClass('text-purple-700');

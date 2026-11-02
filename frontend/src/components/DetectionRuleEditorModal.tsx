@@ -13,6 +13,7 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { OpenTideRule } from '../types/opentide';
 import { compileMetadataFromWorkbench, getConfiguredPlatforms } from '../utils/openTideCompiler';
 import { isDirty, normalize } from '../utils/ruleDiff';
+import { TlpBadge } from './ui/TlpBadge';
 import OpenTideMetadataPreview from './OpenTideMetadataPreview';
 import RuleCorrectionFeedback from './RuleCorrectionFeedback';
 import { DETECTION_FORMAT_REGISTRY, getFormatByTab, getFormatByName, buildSaveButtonLabel, FREE_HIGHLIGHT_LANGUAGES, PlatformTab } from './detectionFormatRegistry';
@@ -389,6 +390,7 @@ export type DetectionMode = 'logic' | 'ai' | 'manual';
 
 /** Minimal subset of PlaybookGraph fields needed for metadata compilation. */
 export interface PlaybookDataForMetadata {
+  tlpClassification?: string;
   title?: string;
   goal?: string;
   author?: { username?: string } | null;
@@ -1575,7 +1577,9 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
       destroyOnClose
       title={
         <div className="flex items-center justify-between pr-8">
-          <span className="text-lg font-semibold">Detection Rule Editor</span>
+          <span className="flex items-center gap-3 text-lg font-semibold">Detection Rule Editor
+            <TlpBadge classification={playbookData?.tlpClassification || openTideRule.metadata.tlp} />
+          </span>
           <ModeBadge />
         </div>
       }

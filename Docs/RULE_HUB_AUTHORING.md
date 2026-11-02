@@ -36,7 +36,8 @@ Analysts and administrators can create drafts. Only a rule author or administrat
 
 ## TLP inheritance and sharing
 
-Rule Hub cards and detail headers display TLP. Rules inherit from their owning
+Rule Hub cards, detail headers, and the Detection Rule Editor header display TLP,
+including the editor opened directly from Workbench. Rules inherit from their owning
 Workbench, otherwise their additional Workbench association; an owner takes
 precedence. Change TLP on the Workbench. Unlinked rules retain their stored
 classification, with UNCLEAR as the new standalone default. Unlinking retains

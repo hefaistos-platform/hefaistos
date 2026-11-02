@@ -23,7 +23,9 @@ classification fields are added.
   Defaults and the Hub TLP column before Actions.
 - ACH: select TLP during creation or edit it in the analysis header. The owner
   can change it. View the header badge and overview TLP column before Actions.
-  Selecting a template copies its TLP to the new analysis.
+  Selecting a template copies its TLP to the new analysis. ACH selectors omit
+  the UNCLEAR source link to keep the controls aligned; attribution remains in
+  badge tooltips and this document.
 - AdvOps: edit TLP in the hunt form; view the form badge and overview TLP column
   before Actions. Edits use the existing organization permissions.
 - MVE: edit TLP in the selected draft's overview card, independently of modeling
@@ -31,11 +33,12 @@ classification fields are added.
   organization and role permissions apply; exported drafts remain locked.
 - Rules: Rule Hub cards and rule detail headers show TLP inherited from the
   owning Workbench, otherwise the attached Workbench. Unlinked rules use a stored
-  snapshot. Workbench changes update linked rule classifications.
+  snapshot. Workbench changes update linked rule classifications. The Detection
+  Rule Editor header also shows TLP, including the editor opened from Workbench.
 - Capability Abstractions: select TLP in the Library or Workbench capability form;
   the default is AMBER+STRICT. View library columns, cards, and detail badges.
-- Kanban: Workbench, ACH, AdvOps, and MVE show TLP in cards, compact list rows,
-  and the details drawer.
+- Lifecycle Hub: the overview omits TLP badges in cards, list rows, and the
+  details drawer. Open the individual item to view its classification.
 
 ## Preservation and exports
 
