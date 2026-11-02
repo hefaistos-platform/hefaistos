@@ -635,6 +635,44 @@ code {
   background: var(--hef-bg-accent) !important;
 }
 
+/* Keep TLP badge colors independent of Configuration's inherited text fill. */
+.tlp-maximum-select.ant-select,
+.tlp-maximum-select.ant-select .ant-select-selector {
+  background: var(--hef-bg-subtle) !important;
+  border-color: var(--hef-border) !important;
+  color: var(--hef-text-primary) !important;
+}
+
+.tlp-maximum-select.ant-select .ant-select-arrow {
+  color: var(--hef-text-primary) !important;
+}
+
+.tlp-maximum-select-dropdown.ant-select-dropdown {
+  background: var(--hef-bg-surface) !important;
+  border: 1px solid var(--hef-border) !important;
+}
+
+.tlp-maximum-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background: var(--hef-bg-hover) !important;
+}
+
+.tlp-maximum-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background: var(--hef-bg-accent) !important;
+}
+
+.tlp-maximum-select .tlp-maximum-badge,
+.tlp-maximum-select-dropdown .tlp-maximum-badge {
+  color: var(--tlp-badge-text) !important;
+  -webkit-text-fill-color: var(--tlp-badge-text) !important;
+  background: var(--tlp-badge-background) !important;
+}
+
+.tlp-maximum-badge--clear { --tlp-badge-text: #374151; --tlp-badge-background: #f3f4f6; }
+.tlp-maximum-badge--green { --tlp-badge-text: #15803d; --tlp-badge-background: #dcfce7; }
+.tlp-maximum-badge--amber { --tlp-badge-text: #b45309; --tlp-badge-background: #fef3c7; }
+.tlp-maximum-badge--amber-strict { --tlp-badge-text: #c2410c; --tlp-badge-background: #ffedd5; }
+.tlp-maximum-badge--red { --tlp-badge-text: #b91c1c; --tlp-badge-background: #fee2e2; }
+
 /* Native selects used by Authentication tab for guaranteed visible selected text in dark mode. */
 .configuration-theme .config-auth-native-select {
   background: var(--hef-bg-subtle) !important;
