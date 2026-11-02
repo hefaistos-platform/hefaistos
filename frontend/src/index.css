@@ -667,6 +667,7 @@ code {
   background: var(--tlp-badge-background) !important;
 }
 
+.tlp-maximum-badge--unclear { --tlp-badge-text: #7e22ce; --tlp-badge-background: #f3e8ff; }
 .tlp-maximum-badge--clear { --tlp-badge-text: #374151; --tlp-badge-background: #f3f4f6; }
 .tlp-maximum-badge--green { --tlp-badge-text: #15803d; --tlp-badge-background: #dcfce7; }
 .tlp-maximum-badge--amber { --tlp-badge-text: #b45309; --tlp-badge-background: #fef3c7; }

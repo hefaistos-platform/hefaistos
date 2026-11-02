@@ -21,7 +21,9 @@ class MaximumPolicyTests(SimpleTestCase):
                 self.assertEqual(allowed_tlp_classifications(level), (*TLP_LEVELS[:index + 1], 'UNCLEAR'))
         self.assertEqual(normalize_tlp_maximum(None), 'RED')
         self.assertEqual(normalize_tlp_maximum('tlp:green'), 'GREEN')
-        for value in ('UNCLEAR', 'invalid', ''):
+        self.assertEqual(normalize_tlp_maximum('tlp:unclear'), 'UNCLEAR')
+        self.assertEqual(allowed_tlp_classifications('UNCLEAR'), ('UNCLEAR',))
+        for value in ('invalid', ''):
             with self.assertRaises(ValueError):
                 normalize_tlp_maximum(value)
 
@@ -52,14 +54,14 @@ class SharingTlpTests(TestCase):
                                         hypothesis=level, status='DEPLOYED', allow_remote_pull=True, tlp_classification=level)
             CapabilityAbstraction.objects.create(organization=self.org, technique=self.technique, abstraction_layer='TOOL',
                 component_artifact=level, review_status='APPROVED', allow_remote_pull=True, tlp_classification=level)
-        for maximum_index, maximum in enumerate(TLP_LEVELS):
+        for maximum in (*TLP_LEVELS, 'UNCLEAR'):
             self.key.required_tlp_classification = maximum
             payload = export_org_payload(self.org, 'ALL', share_key=self.key)
             expected = set(allowed_tlp_classifications(maximum))
             for collection in ('workbenches', 'rules', 'ach', 'advops', 'capability_abstractions'):
                 with self.subTest(maximum=maximum, collection=collection):
                     self.assertEqual({PlaybookGraph.objects.get(pk=item['source_id']).tlp_classification if collection == 'workbenches' else item['tlp_classification'] for item in payload[collection]}, expected)
-                    self.assertEqual(payload['diagnostics'][collection]['excluded_by_tlp'], 4 - maximum_index)
+                    self.assertEqual(payload['diagnostics'][collection]['excluded_by_tlp'], 6 - len(expected))
                     self.assertEqual(payload['diagnostics'][collection]['deduplicated'], 0)
 
     def test_tags_and_tlp_combine_before_name_deduplication(self):
@@ -114,8 +116,12 @@ class SharingTlpTests(TestCase):
         self.assertTrue(result.success)
         self.key.refresh_from_db()
         self.assertEqual(self.key.required_tlp_classification, 'CLEAR')
+        result = UpdateHefaistosInboundShareKeyTlp.mutate(None, info, id=self.key.pk, required_tlp_classification='UNCLEAR')
+        self.assertTrue(result.success)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.required_tlp_classification, 'UNCLEAR')
         with self.assertRaises(GraphQLError):
-            UpdateHefaistosInboundShareKeyTlp.mutate(None, info, id=self.key.pk, required_tlp_classification='UNCLEAR')
+            UpdateHefaistosInboundShareKeyTlp.mutate(None, info, id=self.key.pk, required_tlp_classification='invalid')
         self.admin.organization = Organization.objects.create(name='Other tenant')
         with self.assertRaises(GraphQLError):
             UpdateHefaistosInboundShareKeyTlp.mutate(None, info, id=self.key.pk, required_tlp_classification='RED')
@@ -123,6 +129,16 @@ class SharingTlpTests(TestCase):
         self.admin.role = 'ANALYST'
         with self.assertRaises(PermissionDenied):
             UpdateHefaistosInboundShareKeyTlp.mutate(None, info, id=self.key.pk, required_tlp_classification='RED')
+
+    def test_key_creation_accepts_unclear_and_preserves_red_default(self):
+        from organizations.schema import CreateHefaistosInboundShareKey
+        info = SimpleNamespace(context=SimpleNamespace(user=self.admin))
+        for classification in ('UNCLEAR', None):
+            kwargs = {'required_tlp_classification': classification} if classification else {}
+            result = CreateHefaistosInboundShareKey.mutate(None, info, name=f'New policy {classification}', allowed_scopes=['ALL'], **kwargs)
+            self.assertTrue(result.success)
+            result.key.refresh_from_db()
+            self.assertEqual(result.key.required_tlp_classification, classification or 'RED')
 
     def test_endpoints_advertise_maximum_and_enforce_it(self):
         self.graph('Allowed', 'GREEN')

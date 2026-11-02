@@ -15,7 +15,7 @@ export const TlpMaximumSelect: React.FC<SelectProps<string>> = ({ value = 'RED',
         className={`tlp-maximum-select ${className}`}
         classNames={{ popup: { root: 'tlp-maximum-select-dropdown' } }}
         value={value}
-        options={levels.map(option => ({ value: option.value, label: <TlpBadge classification={option.value} className={`tlp-maximum-badge tlp-maximum-badge--${option.value.toLowerCase().replace('+', '-')}`} /> }))}
+        options={TLP_OPTIONS.map(option => ({ value: option.value, label: <TlpBadge classification={option.value} className={`tlp-maximum-badge tlp-maximum-badge--${option.value.toLowerCase().replace('+', '-')}`} /> }))}
       />
       <div className="text-xs" style={{ color: 'var(--hef-text-muted)' }}>Permits {allowed.join(', ')}.</div>
       <a href={TLP_UNCLEAR_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="text-xs underline" style={{ color: 'var(--hef-text-link)' }}>

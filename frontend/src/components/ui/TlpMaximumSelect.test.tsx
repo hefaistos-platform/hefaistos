@@ -9,7 +9,7 @@ test('GREEN shows exactly GREEN, CLEAR, and UNCLEAR as permitted', () => {
   expect(screen.getByRole('link')).toHaveAttribute('href', 'https://tlp-unclear.org/');
 });
 
-test('maximum selection binds to a form and excludes UNCLEAR as an option', async () => {
+test('maximum selection offers all six classifications and saves UNCLEAR', async () => {
   const onFinish = jest.fn();
   render(
     <Form initialValues={{ maximum: 'RED' }} onFinish={onFinish}>
@@ -18,9 +18,11 @@ test('maximum selection binds to a form and excludes UNCLEAR as an option', asyn
     </Form>,
   );
   fireEvent.mouseDown(screen.getByRole('combobox'));
-  expect(screen.queryByText('TLP:UNCLEAR', { selector: 'span' })).not.toBeInTheDocument();
-  fireEvent.click((await screen.findAllByText('TLP:CLEAR')).pop()!);
-  expect(screen.getByText('Permits TLP:CLEAR, TLP:UNCLEAR.')).toBeInTheDocument();
+  for (const level of ['CLEAR', 'GREEN', 'AMBER', 'AMBER+STRICT', 'RED', 'UNCLEAR']) {
+    expect((await screen.findAllByText(`TLP:${level}`)).length).toBeGreaterThan(0);
+  }
+  fireEvent.click((await screen.findAllByText('TLP:UNCLEAR')).pop()!);
+  expect(screen.getByText('Permits TLP:UNCLEAR.')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Save maximum' }));
-  await waitFor(() => expect(onFinish).toHaveBeenCalledWith({ maximum: 'CLEAR' }));
+  await waitFor(() => expect(onFinish).toHaveBeenCalledWith({ maximum: 'UNCLEAR' }));
 });

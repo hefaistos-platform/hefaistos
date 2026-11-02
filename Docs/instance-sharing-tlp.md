@@ -11,6 +11,7 @@ policy on every export request.
 
 | Required maximum | Permitted item classifications |
 | --- | --- |
+| UNCLEAR | UNCLEAR only |
 | CLEAR | CLEAR, UNCLEAR |
 | GREEN | CLEAR, GREEN, UNCLEAR |
 | AMBER | CLEAR, GREEN, AMBER, UNCLEAR |
@@ -18,7 +19,8 @@ policy on every export request.
 | RED | CLEAR, GREEN, AMBER, AMBER+STRICT, RED, UNCLEAR |
 
 The order is CLEAR → GREEN → AMBER → AMBER+STRICT → RED. UNCLEAR is always
-included and is not offered as a maximum. It is the unofficial community
+included by each of those five maximums. The dropdown also offers UNCLEAR;
+selecting it permits only UNCLEAR items. It is the unofficial community
 amendment proposal from [tlp-unclear.org](https://tlp-unclear.org/), displayed in
 purple. Use it when the source is unavailable or unknown, its sharing model is
 unclear or unknown, or no sharing model is used. Including it in this export
@@ -26,8 +28,8 @@ policy does not redefine it as public disclosure.
 
 Existing keys migrate to RED; newly created keys also default to RED. This
 retains existing eligibility until an administrator selects a lower maximum.
-API creation requests that omit the field default to RED. Invalid values,
-including UNCLEAR as a maximum, are rejected. Bare or TLP-prefixed values are
+API creation requests that omit the field default to RED. Invalid values are
+rejected; UNCLEAR is a valid policy selection. Bare or TLP-prefixed values are
 accepted, case-insensitively.
 
 ## Combined eligibility
@@ -104,6 +106,7 @@ tags only. Zero received items can be explained by these origin counts.
 Apply the migrations before serving the updated application:
 
 - `organizations.0037_inbound_share_key_tlp`
+- `organizations.0038_inbound_share_key_unclear_tlp`
 - `playbooks.0056_capabilityabstraction_tlp_classification`
 - `rules.0030_detectionrule_tlp_classification`
 

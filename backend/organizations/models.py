@@ -1377,7 +1377,7 @@ class HefaistosInboundShareKey(models.Model):
     )
     required_tlp_classification = models.CharField(
         max_length=20, choices=TLP_MAXIMUM_CHOICES, default='RED',
-        help_text='Maximum TLP for exported items; lower levels and UNCLEAR are included.',
+        help_text='Maximum TLP includes lower levels and UNCLEAR; selecting UNCLEAR permits only UNCLEAR.',
     )
     is_active = models.BooleanField(default=True)
     expires_at = models.DateTimeField(null=True, blank=True)

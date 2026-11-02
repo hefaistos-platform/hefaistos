@@ -64,13 +64,15 @@ configured MISP sharing group. Events are created unpublished.
 Inbound keys use a Required TLP Classification maximum, combined with existing
 status, remote pull opt-in, and tag checks. GREEN permits CLEAR, GREEN, and UNCLEAR.
 The maximum applies to all five sharing scopes; existing keys default to RED.
+The dropdown includes all six classifications. Selecting UNCLEAR permits only
+UNCLEAR items.
 See [the full policy, inheritance, defaults, and deployment instructions](instance-sharing-tlp.md).
 
 ## Database migrations
 
 Apply `ach.0007`, `advops.0004`, and `playbooks.0055` before running the updated
 frontend and backend. Instance Sharing TLP additionally requires
-`organizations.0037`, `playbooks.0056`, and `rules.0030`. For a Compose deployment:
+`organizations.0037` and `organizations.0038`, `playbooks.0056`, and `rules.0030`. For a Compose deployment:
 
 ```sh
 docker compose exec backend python manage.py migrate
