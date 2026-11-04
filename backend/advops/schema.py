@@ -10,7 +10,7 @@ from .models import ADVOPSReport
 from playbooks.utils.tlp import normalize_tlp
 from .misp_integration import MISPClient, MISPIntegrationError, parse_infrastructure_summary, extract_mitre_techniques
 from organizations.models import MISPInstance
-from identity.decorators import is_bot_auditor_user
+from identity.decorators import is_bot_auditor_user, role_required, Roles
 from mgmt_reports.cache_utils import invalidate_mgmt_cave_stats_cache
 
 logger = logging.getLogger(__name__)
@@ -128,6 +128,7 @@ class CreateADVOPSReport(graphene.Mutation):
     report = graphene.Field(ADVOPSReportType)
 
     @classmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
     @transaction.atomic
     def mutate(cls, root, info, input):
         user = info.context.user
@@ -167,6 +168,7 @@ class UpdateADVOPSReport(graphene.Mutation):
     report = graphene.Field(ADVOPSReportType)
 
     @classmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
     @transaction.atomic
     def mutate(cls, root, info, id, input):
         user = info.context.user
@@ -206,6 +208,7 @@ class DeleteADVOPSReport(graphene.Mutation):
     ok = graphene.Boolean()
 
     @classmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
     @transaction.atomic
     def mutate(cls, root, info, id):
         user = info.context.user
@@ -218,6 +221,13 @@ class DeleteADVOPSReport(graphene.Mutation):
             report = ADVOPSReport.objects.get(**report_filters)
         except ADVOPSReport.DoesNotExist:
             raise GraphQLError("Not found")
+        is_admin = bool(
+            getattr(user, 'role', None) == Roles.ADMIN
+            or getattr(user, 'is_superuser', False)
+            or getattr(user, 'is_staff', False)
+        )
+        if report.author_id != getattr(user, 'id', None) and not is_admin:
+            raise GraphQLError("Only author or admin can delete this report")
         org_id = getattr(report.organization, 'id', None)
         report.delete()
         invalidate_mgmt_cave_stats_cache(org_id)
@@ -236,6 +246,7 @@ class PushADVOPSReportToMISP(graphene.Mutation):
     event_id = graphene.Int()
 
     @classmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
     @transaction.atomic
     def mutate(cls, root, info, id, misp_instance_id=None):
         user = info.context.user
