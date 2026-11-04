@@ -4,7 +4,14 @@ from django.test import TestCase, SimpleTestCase
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from .models import ADVOPSReport
-from .schema import DeleteADVOPSReport, generate_next_hunt_id
+from django.core.exceptions import PermissionDenied
+from .schema import (
+    CreateADVOPSReport,
+    UpdateADVOPSReport,
+    DeleteADVOPSReport,
+    PushADVOPSReportToMISP,
+    generate_next_hunt_id,
+)
 from organizations.models import Organization
 
 
@@ -195,3 +202,52 @@ class DeleteADVOPSReportSuperuserTests(SimpleTestCase):
         self.assertTrue(result.ok)
         mock_get.assert_called_once_with(id="rep-1")
         report.delete.assert_called_once()
+
+
+class ADVOPSMutationRoleCheckTests(SimpleTestCase):
+    """VIEWER and ELONE users must be rejected by write-path AdvOps mutations."""
+
+    def _make_info(self, role):
+        user = SimpleNamespace(
+            is_anonymous=False,
+            is_superuser=False,
+            is_staff=False,
+            is_service_account=False,
+            role=role,
+            username=f"{role.lower()}-user",
+            id=1,
+            organization=None,
+        )
+        return SimpleNamespace(context=SimpleNamespace(user=user), operation=None)
+
+    def test_create_report_rejected_for_restricted_roles(self):
+        for role in ("VIEWER", "ELONE"):
+            with self.subTest(role=role):
+                with self.assertRaises(PermissionDenied):
+                    CreateADVOPSReport.mutate(
+                        None, None, self._make_info(role), input=SimpleNamespace()
+                    )
+
+    def test_update_report_rejected_for_restricted_roles(self):
+        for role in ("VIEWER", "ELONE"):
+            with self.subTest(role=role):
+                with self.assertRaises(PermissionDenied):
+                    UpdateADVOPSReport.mutate(
+                        None, None, self._make_info(role), id="rep-1", input=SimpleNamespace()
+                    )
+
+    def test_delete_report_rejected_for_restricted_roles(self):
+        for role in ("VIEWER", "ELONE"):
+            with self.subTest(role=role):
+                with self.assertRaises(PermissionDenied):
+                    DeleteADVOPSReport.mutate(
+                        None, None, self._make_info(role), id="rep-1"
+                    )
+
+    def test_push_to_misp_rejected_for_restricted_roles(self):
+        for role in ("VIEWER", "ELONE"):
+            with self.subTest(role=role):
+                with self.assertRaises(PermissionDenied):
+                    PushADVOPSReportToMISP.mutate(
+                        None, None, self._make_info(role), id="rep-1"
+                    )
