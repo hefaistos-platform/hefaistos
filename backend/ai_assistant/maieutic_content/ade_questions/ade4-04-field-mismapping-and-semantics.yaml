@@ -1,0 +1,34 @@
+id: ade-q-ade4-04
+ade_id: ADE4-04
+version: 1
+question: Which exact log source and field names will your detection depend on, and how do you know
+  that each of those fields is really filled in on every system you want to cover?
+why_we_ask: A field with the wrong name, or one that is empty in the real logs, causes no error. The
+  detection simply never matches, and silence looks the same as no attacks.
+hints:
+  where_to_look: Use the Log Sources catalog in HEFAISTOS for the index and field names your SIEM
+    really uses. Ask your platform team which fields are collected and how audit settings are configured.
+  how_to_look: Pick a few systems of different kinds. Run a harmless test of the behaviour and open
+    the resulting event. Check that every field you depend on is present, spelled as in your plan
+    and holds the value you expect.
+  worked_example:
+    technique: T1059.001 PowerShell
+    text: An analyst relies on a field named CommandLine from Sysmon. On hosts that only produce Windows
+      Security process-creation events, the command line lives in a differently named field and is
+      only recorded when an audit setting is turned on.
+weak_answer: Those fields are standard.
+strong_answer: Our SIEM calls it process.command_line, not CommandLine. It is filled on hosts with
+  Sysmon and empty on servers without it, so I limit the scope to Sysmon hosts and note the rest as
+  a gap.
+glossary:
+- term: Field
+  meaning: A named piece of information inside a log event, such as user or command line.
+- term: Log source
+  meaning: The system or agent that produces a kind of log events.
+applies_when:
+  type: always
+placeholders: {}
+checklist:
+- Names the log source and the exact fields the design depends on.
+- States how availability of each field was checked, or that it has not been checked.
+- Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

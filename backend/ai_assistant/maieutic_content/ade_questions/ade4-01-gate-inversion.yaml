@@ -1,0 +1,40 @@
+id: ade-q-ade4-01
+ade_id: ADE4-01
+version: 1
+question: Your plan leaves out some activity as harmless ({design_observable}). For each exclusion,
+  who controls the value it relies on, and how do the exclusions combine when more than one applies?
+why_we_ask: Exclusions reduce noise, but an attacker who can set the excluded value can switch the
+  detection off for their own activity. Several exclusions combined the wrong way can also switch
+  off more than you intend.
+hints:
+  where_to_look: 'List every exclusion in the design and look at the field each one uses. Find out
+    who or what can write that field: a normal user, an administrator, a remote system or the attacker''s
+    own tool.'
+  how_to_look: 'For each exclusion write: attacker can set this value, yes, no or unsure. Then write
+    out in plain words what must be true for an event to be kept, for example: not from A and also
+    not from B.'
+  worked_example:
+    technique: T1218.011 Rundll32
+    text: An analyst excludes events whose path contains the text Program Files, to cut noise. Any
+      folder with that text in its name is excluded as well, so the attacker can name a folder to
+      hide their own activity.
+weak_answer: Exclusions only remove known noise.
+strong_answer: The first exclusion relies on the signer name, which the attacker cannot forge without
+  a stolen certificate. The second relies on path text, which they can set. I tighten the second or
+  record it as a gap.
+glossary:
+- term: Exclusion
+  meaning: A condition that removes harmless-looking events before an alert is raised.
+- term: De Morgan's laws
+  meaning: Rules showing that neither A nor B means the same as not (A or B), useful when combining
+    exclusions.
+applies_when:
+  type: design_flags_any
+  flags:
+  - plans_exclusions
+placeholders:
+  design_observable: the activity you plan to exclude
+checklist:
+- Names for each exclusion the field it relies on and who can set that field.
+- Describes in words how the exclusions combine.
+- Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

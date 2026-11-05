@@ -1,0 +1,38 @@
+id: ade-q-ade1-02
+ade_id: ADE1-02
+version: 1
+question: Your plan compares or joins the same piece of information coming from {design_observable}.
+  How is that value written in each place it comes from, and what would have to be done to both so
+  identical values really match?
+why_we_ask: The same user, host or ID can look different in two log sources, for example upper or
+  lower case, with or without a domain, or with extra characters. If one side is cleaned up and the
+  other is not, equal values never match and the activity goes unseen.
+hints:
+  where_to_look: Open a real event from each source involved and put the field values side by side.
+    Check each source's documentation for how it formats names and IDs.
+  how_to_look: Pick one real user or host. Write down exactly how it appears in each source, character
+    by character. Then list the cleanup steps (lower-casing, removing the domain, trimming spaces)
+    needed to make them identical.
+  worked_example:
+    technique: T1078 Valid Accounts
+    text: A sign-in log writes the user as CORP\Alice and a cloud log writes alice@corp.example. A
+      plan that compares them without converting both to one form never finds a match, so the combined
+      activity is not flagged.
+weak_answer: They are the same user, so they will match.
+strong_answer: Source one gives DOMAIN\Alice and source two gives alice@domain.com. I will convert
+  both to lower case and remove the domain before comparing, and I record that conversion in the design.
+glossary:
+- term: Normalization
+  meaning: Converting values to one agreed form before comparing them.
+- term: Join
+  meaning: Combining records from two sources where a field has the same value.
+applies_when:
+  type: design_flags_any
+  flags:
+  - correlates_events_or_fields
+placeholders:
+  design_observable: two or more sources
+checklist:
+- Describes how the value looks in at least two sources.
+- Names the conversion applied so both sides end up in the same form, or says none is known yet.
+- Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

@@ -1,0 +1,36 @@
+id: ade-q-ade2-03
+ade_id: ADE2-03
+version: 1
+question: You plan to look for activity in {design_observable}. Which other locations (folders, registry
+  keys, addresses or regions) could the same activity happen in within your scope, and which of those
+  would your detection still see?
+why_we_ask: Detections often cover the one place the analyst saw in a report. The same activity in
+  another valid location is missed.
+hints:
+  where_to_look: Read the ATT&CK description of your technique for where it can occur, and the vendor
+    documentation of the feature for every place it reads from or writes to.
+  how_to_look: List every location the feature can use, including per-user and per-machine variants,
+    32-bit and 64-bit variants and other operating systems in scope. Mark each one as seen or not
+    seen by your plan.
+  worked_example:
+    technique: T1105 Ingress Tool Transfer
+    text: An analyst watches files written to C:\Users\Public. A tool can equally write to a temporary
+      folder or to ProgramData, so those locations are gaps.
+weak_answer: Attackers use that folder.
+strong_answer: The setting can live in both HKLM and HKCU, and in a second path for 32-bit software.
+  My plan covers HKLM only, so I will add the other two or write them down as limits.
+glossary:
+- term: Registry hive
+  meaning: A top-level section of the Windows registry, such as HKLM or HKCU.
+- term: Environment variable
+  meaning: A named value such as %TEMP% that points to a location that differs per user.
+applies_when:
+  type: design_flags_any
+  flags:
+  - names_specific_location
+placeholders:
+  design_observable: the folders, keys or addresses you chose
+checklist:
+- Names at least one other valid location, or explains why none exists in scope.
+- States for each location whether the planned detection would see it.
+- Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

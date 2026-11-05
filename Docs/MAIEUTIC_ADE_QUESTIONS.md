@@ -1,7 +1,9 @@
 # Maieutic ADE question bank
 
-The questions Maieutic asks about adversarial (ADE) gaps. Status: the format, validator and a
-first batch of four questions exist; the remaining twelve follow the same format.
+The questions Maieutic asks about adversarial (ADE) gaps. Status: the format, validator and all
+16 ADE questions exist (one per upstream subcategory). Questions for the Summiting the Pyramid
+(STP) robustness block are separate and not written yet. Nothing asks these questions yet; the
+planner that derives the design flags and the question flow are later phases.
 
 Maieutic is Socratic. These questions are asked of the **user**, about their **hypothesis and
 planned detection design**. The user types every answer. The AI may rephrase a question or
@@ -19,16 +21,31 @@ files are versioned in the repository and reviewed like any other code change.
 | `backend/ai_assistant/maieutic_questions.py` | Loader, validator, deterministic selection, placeholder rendering |
 | `backend/ai_assistant/tests/test_maieutic_questions.py` | Tests that enforce the rules below |
 
-## Shipped questions (first batch)
+## Shipped questions
 
 | ADE id | Topic | Asked when the design... |
 |---|---|---|
-| ADE2-01 | Method/Binary | names a specific tool, command or API |
+| ADE1-01 | Substring Manipulation | matches exact text the attacker can write (`matches_attacker_controlled_string`) |
+| ADE1-02 | Normalization Asymmetry | compares or joins the same value across sources (`correlates_events_or_fields`) |
+| ADE2-01 | Method/Binary | names a specific tool, command or API (`names_specific_tool`) |
 | ADE2-02 | Versioning | assumes a version or platform, or names a specific tool |
-| ADE3-01 | Process Cloning | identifies behaviour by process or binary name |
-| ADE3-04 | Event Fragmentation | expects several text conditions in one event |
+| ADE2-03 | Locations | names folders, registry keys, URLs or regions (`names_specific_location`) |
+| ADE2-04 | File Types | names file types or extensions (`names_file_types`) |
+| ADE3-01 | Process Cloning | identifies behaviour by process or binary name (`matches_process_name`) |
+| ADE3-02 | Aggregation Hijacking | relies on counts, thresholds or new-item logic (`uses_threshold_or_baseline`) |
+| ADE3-03 | Timing and Scheduling | relies on time windows or frequency (`uses_time_window`) |
+| ADE3-04 | Event Fragmentation | expects several text conditions in one event (`multi_condition_single_event`) |
+| ADE3-05 | Lineage Spoofing | relies on which program started which (`relies_on_parent_process`) |
+| ADE3-06 | Limit Saturation | joins, groups or sorts large volumes (`relies_on_join_or_grouping`) |
+| ADE4-01 | Gate Inversion | excludes activity as harmless (`plans_exclusions`) |
+| ADE4-02 | Conjunction Inversion | has a condition the attacker can set (`uses_attacker_settable_value`) |
+| ADE4-03 | Incorrect Expression | combines several conditions (`combines_multiple_conditions`) |
+| ADE4-04 | Field Mismapping and Semantics | **always**, because every design depends on fields being present |
 
 In Expert mode every question is asked regardless of the design.
+
+A new upstream subcategory has no question until someone adds a file for it. A test fails
+if an upstream id in the list above has no question or has two.
 
 ## A question file
 
@@ -46,8 +63,9 @@ In Expert mode every question is asked regardless of the design.
 | `placeholders` | no | Name to plain-language fallback, used when the user has not given that wording yet |
 | `checklist` | no | What a good answer covers. Used only to flag a vague answer, which is advisory and never blocks |
 
-Design flags the planner can derive from the design answers: `names_specific_tool`,
-`matches_process_name`, `multi_condition_single_event`, `version_or_platform_specific`.
+Design flags the planner can derive from the design answers are listed in `DESIGN_FLAGS` in
+`maieutic_questions.py` and in the table above. A test fails if a flag is defined but no question
+uses it. Deriving the flags from the user's answers is not built yet.
 
 ## Rules the validator enforces
 

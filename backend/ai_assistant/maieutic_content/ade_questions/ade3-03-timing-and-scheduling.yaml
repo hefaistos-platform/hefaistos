@@ -1,0 +1,35 @@
+id: ade-q-ade3-03
+ade_id: ADE3-03
+version: 1
+question: 'Your plan includes timing: {design_observable}. What could an attacker do by slowing down,
+  spreading out or waiting so their steps fall outside those time limits, and would the harm still
+  be achieved?'
+why_we_ask: Time limits are an assumption about how fast an attacker works. Waiting a little longer
+  than the window gives the same result and breaks the link between the steps.
+hints:
+  where_to_look: Check how often your detection will run and how far back each run looks. Read public
+    reports to see how long this kind of attack realistically takes.
+  how_to_look: List every time value in your plan. For each one, write what the attacker gains by
+    waiting just longer or acting just slower than that value.
+  worked_example:
+    technique: T1021.002 SMB/Windows Admin Shares
+    text: An analyst links a file copy to a share with a service creation within one minute. An attacker
+      waits two minutes between the steps, the end result is the same and the link is lost.
+weak_answer: Attackers work quickly.
+strong_answer: My window is one minute. An attacker can wait five minutes without changing the outcome,
+  so I widen the window to one hour and accept more noise, or I record the gap.
+glossary:
+- term: Time window
+  meaning: The period within which events must happen to be linked or counted.
+- term: Lookback
+  meaning: How far back in time a detection looks each time it runs.
+applies_when:
+  type: design_flags_any
+  flags:
+  - uses_time_window
+placeholders:
+  design_observable: the time limits, windows or frequencies you chose
+checklist:
+- Lists the time values used in the plan.
+- States whether waiting longer than a value changes whether the activity is seen.
+- Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

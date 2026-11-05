@@ -1,0 +1,37 @@
+id: ade-q-ade4-03
+ade_id: ADE4-03
+version: 1
+question: Take one concrete event you want to catch and walk it through each condition you plan to
+  combine ({design_observable}), one at a time. Which conditions are true for it, and could all of
+  them ever be true at the same time?
+why_we_ask: Mixing up and with or, or combining conditions that exclude each other, produces a detection
+  that almost never fires. No attacker is needed for that to fail.
+hints:
+  where_to_look: Take a real or documented example of the attack, such as an event recorded in a test
+    or a public write-up, and use its field values.
+  how_to_look: Write the conditions as a short list. Next to each put the value from your example
+    event and true or false. Then do the same with an event that should not be caught. Only the first
+    should be true throughout.
+  worked_example:
+    technique: T1543.003 Windows Service
+    text: An analyst plans to alert when a new Windows service is installed but to exclude all administrator
+      accounts. Installing a service needs administrator rights, so almost every real event is excluded
+      and the detection stays silent.
+weak_answer: I wrote it carefully, so it will work.
+strong_answer: My example event passes conditions one and two but fails condition three because the
+  field holds a different value than I assumed. I fix the design before going further.
+glossary:
+- term: Mutually exclusive
+  meaning: Two conditions that cannot be true at the same time.
+- term: Test event
+  meaning: A sample event created to check that a detection fires.
+applies_when:
+  type: design_flags_any
+  flags:
+  - combines_multiple_conditions
+placeholders:
+  design_observable: the conditions you chose
+checklist:
+- Walks one concrete example event through the conditions.
+- States whether all conditions can be true together for a real event.
+- Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

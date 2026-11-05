@@ -8,7 +8,13 @@ from django.test import SimpleTestCase
 from ai_assistant import maieutic_questions as mq
 from ai_assistant.maieutic_questions import QuestionContentError, validate_question
 
-SHIPPED = ('ADE2-01', 'ADE2-02', 'ADE3-01', 'ADE3-04')
+UPSTREAM_ADE_IDS = (
+    'ADE1-01', 'ADE1-02',
+    'ADE2-01', 'ADE2-02', 'ADE2-03', 'ADE2-04',
+    'ADE3-01', 'ADE3-02', 'ADE3-03', 'ADE3-04', 'ADE3-05', 'ADE3-06',
+    'ADE4-01', 'ADE4-02', 'ADE4-03', 'ADE4-04',
+)
+SHIPPED = UPSTREAM_ADE_IDS
 
 
 def good():
@@ -16,8 +22,25 @@ def good():
 
 
 class ShippedQuestionTests(SimpleTestCase):
-    def test_first_batch_loads_and_validates(self):
-        self.assertEqual(sorted(mq.load_questions()), sorted(SHIPPED))
+    def test_every_upstream_subcategory_has_exactly_one_question(self):
+        self.assertEqual(sorted(mq.load_questions()), sorted(UPSTREAM_ADE_IDS))
+
+    def test_every_design_flag_is_used_and_no_question_is_unreachable(self):
+        used = set()
+        for q in mq.load_questions().values():
+            if q['applies_when']['type'] == 'design_flags_any':
+                used |= set(q['applies_when']['flags'])
+        self.assertEqual(used, set(mq.DESIGN_FLAGS))
+
+    def test_every_checklist_ends_in_a_decision(self):
+        for q in mq.load_questions().values():
+            self.assertIn('decision', q['checklist'][-1].lower(), q['ade_id'])
+
+    def test_each_question_stays_off_the_terms_users_do_not_know_yet(self):
+        # Raw upstream ids belong in metadata, not in user-facing wording.
+        for q in mq.load_questions().values():
+            for field, text in mq._texts(q):
+                self.assertNotRegex(str(text), r'ADE\d-\d\d', f"{q['ade_id']} {field}")
 
     def test_no_user_facing_text_treats_a_rule_as_the_starting_point(self):
         for q in mq.load_questions().values():
@@ -52,14 +75,20 @@ class SelectionTests(SimpleTestCase):
         self.assertEqual([i for i, _ in a], sorted(i for i, _ in a))
 
     def test_flags_trigger_only_their_questions(self):
-        self.assertEqual(self.ids({'multi_condition_single_event'}), [('ADE3-04', 'design:multi_condition_single_event')])
-        self.assertEqual(self.ids({'matches_process_name'}), [('ADE3-01', 'design:matches_process_name')])
-        self.assertEqual(self.ids(set()), [])
+        always = ('ADE4-04', 'always')
+        self.assertEqual(self.ids({'multi_condition_single_event'}),
+                         [('ADE3-04', 'design:multi_condition_single_event'), always])
+        self.assertEqual(self.ids({'matches_process_name'}), [('ADE3-01', 'design:matches_process_name'), always])
+        self.assertEqual(self.ids({'plans_exclusions'}), [('ADE4-01', 'design:plans_exclusions'), always])
+        # ADE4-04 (field availability) applies to every design, so an empty design still gets it.
+        self.assertEqual(self.ids(set()), [('ADE4-04', 'always')])
 
     def test_expert_mode_asks_everything_once_with_a_distinct_reason(self):
         asked = self.ids(set(), expert_all=True)
         self.assertEqual([i for i, _ in asked], sorted(SHIPPED))
-        self.assertTrue(all(r == 'expert_all' for _, r in asked))
+        reasons = {i: r for i, r in asked}
+        self.assertEqual(reasons.pop('ADE4-04'), 'always')
+        self.assertTrue(all(r == 'expert_all' for r in reasons.values()))
         mixed = dict(self.ids({'matches_process_name'}, expert_all=True))
         self.assertEqual(mixed['ADE3-01'], 'design:matches_process_name')
 

@@ -1,0 +1,34 @@
+id: ade-q-ade2-04
+ade_id: ADE2-04
+version: 1
+question: Your plan looks at {design_observable}. Which other file types or extensions could do the
+  same job within your scope, and which of those would your detection still see?
+why_we_ask: 'Many formats do the same thing: different archives, executables, scripts and documents.
+  Covering one extension leaves the others open.'
+hints:
+  where_to_look: Look up which file formats the target program or application accepts for this job,
+    in its documentation and in the ATT&CK Procedure Examples.
+  how_to_look: List every extension that the program handles for the same purpose, including older
+    and macro-enabled variants. Then note which ones your plan covers.
+  worked_example:
+    technique: T1560.001 Archive via Utility
+    text: An analyst watches the creation of .zip and .rar files as a sign of data staging. 7-Zip,
+      tar, gzip and cab archives do the same job and would not be seen.
+weak_answer: Attackers use common formats.
+strong_answer: Macros work in .docm and .xlsm and also in the older .doc and .xls formats. My plan
+  lists only .docm, so I add the others.
+glossary:
+- term: Extension
+  meaning: The ending of a file name, such as .zip, that suggests its type.
+- term: Macro
+  meaning: A small program embedded in a document that runs when the document is opened.
+applies_when:
+  type: design_flags_any
+  flags:
+  - names_file_types
+placeholders:
+  design_observable: the file types you chose
+checklist:
+- Names at least one other file type that does the same job, or explains why none exists in scope.
+- States for each type whether the planned detection would see it.
+- Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

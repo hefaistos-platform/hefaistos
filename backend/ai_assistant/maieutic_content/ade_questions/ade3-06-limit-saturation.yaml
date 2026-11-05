@@ -1,0 +1,39 @@
+id: ade-q-ade3-06
+ade_id: ADE3-06
+version: 1
+question: Your plan may combine or group large amounts of data ({design_observable}). Which limits
+  does your search platform put on that step, and what happens to the activity you care about if the
+  data reaching it exceeds the limit?
+why_we_ask: Searches that join, group or sort keep only a limited number of rows. When the limit is
+  passed, the extra records are dropped without an error, and the activity you want to catch may be
+  among them.
+hints:
+  where_to_look: Read the documentation of your SIEM for the commands you plan to use (join, subsearch,
+    grouping, sort) and note the stated row, group and time limits. Ask your platform team whether
+    they were changed.
+  how_to_look: Estimate how many records reach that step in a busy hour and compare the number with
+    the limit. Then ask what an attacker could do to push that volume up on purpose.
+  worked_example:
+    technique: T1048 Exfiltration Over Alternative Protocol
+    text: An analyst joins DNS lookups to later network connections. The lookup side of the join holds
+      only a fixed number of rows, so on a busy day the interesting lookups are cut off before the
+      join runs and nothing warns the team.
+weak_answer: The search finished without errors.
+strong_answer: For example, if the join side is capped at 50,000 rows and we see about 400,000 events
+  per hour, I must filter much harder before the join, use a different approach, or record the gap
+  and monitor for truncation.
+glossary:
+- term: Subsearch
+  meaning: A search nested inside another whose results feed the outer search.
+- term: Truncation
+  meaning: Silently cutting off results once a limit is reached.
+applies_when:
+  type: design_flags_any
+  flags:
+  - relies_on_join_or_grouping
+placeholders:
+  design_observable: the joins, groups or sorts you chose
+checklist:
+- Names the platform limit that applies to the step, or says it has not been looked up.
+- States what happens to the activity of interest when the limit is exceeded.
+- Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

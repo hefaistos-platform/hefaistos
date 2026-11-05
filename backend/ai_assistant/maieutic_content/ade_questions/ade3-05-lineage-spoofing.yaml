@@ -1,0 +1,37 @@
+id: ade-q-ade3-05
+ade_id: ADE3-05
+version: 1
+question: Your plan relies on which program started which other program ({design_observable}). Where
+  in your logs could you check that the recorded parent is the real one, and what would your plan
+  do if the attacker made the parent look harmless?
+why_we_ask: On Windows a program can start another one and name any parent it likes. The event is
+  still logged, but the parent fields in it can be false.
+hints:
+  where_to_look: Find out which of your log sources record the real creator separately from the stated
+    parent. Read what your endpoint or logging tool documents about this.
+  how_to_look: On a test machine, with permission, start a process with a chosen parent using a known
+    tool, then compare what each log source records as parent and as creator. Note which field stays
+    truthful.
+  worked_example:
+    technique: T1204.002 Malicious File
+    text: An analyst flags a command shell started by a word processor. A tool can start the shell
+      while naming the file explorer as its parent, so the event looks ordinary. A source that records
+      the real creator separately can still expose it.
+weak_answer: The parent field is reliable.
+strong_answer: The caller can set the parent. Our endpoint tool records the real parent in a separate
+  field, so my plan uses that one, and where it is missing I accept the gap.
+glossary:
+- term: Parent process
+  meaning: The program that started another program.
+- term: Spoofing
+  meaning: Making something look as if it came from somewhere else.
+applies_when:
+  type: design_flags_any
+  flags:
+  - relies_on_parent_process
+placeholders:
+  design_observable: the parent and child programs you chose
+checklist:
+- Says which log field or source would show the real creator, or that none is known.
+- States what the plan does when the recorded parent is false.
+- Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

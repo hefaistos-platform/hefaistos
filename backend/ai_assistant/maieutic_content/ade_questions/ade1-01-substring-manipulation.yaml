@@ -1,0 +1,38 @@
+id: ade-q-ade1-01
+ade_id: ADE1-01
+version: 1
+question: Your plan matches on the text {design_observable}. In what ways could an attacker write
+  the same thing differently so that this exact text no longer appears, while the behaviour stays
+  the same?
+why_we_ask: Text is cheap to change. Attackers can alter letter case, add characters, split the text
+  or encode it, and the activity itself does not change.
+hints:
+  where_to_look: 'Read about the program or language involved: which spellings, shortened forms, escape
+    characters and aliases does it accept? Check the documented obfuscation for your technique in
+    the ATT&CK Procedure Examples.'
+  how_to_look: Take the exact text you plan to match. On a test machine write the same action in three
+    other ways (different letter case, a shortened option, extra characters or split text) and check
+    which versions still contain your original text in the logs.
+  worked_example:
+    technique: T1562.001 Impair Defenses
+    text: An analyst plans to match the exact text Set-MpPreference -DisableRealtimeMonitoring. PowerShell
+      ignores letter case and accepts shortened parameter names, so the same change can be written
+      without that exact text appearing.
+weak_answer: Attackers rarely change the text.
+strong_answer: The tool ignores letter case and accepts shortened options. I will match in a way that
+  allows for both and I accept that encoded commands remain a known gap.
+glossary:
+- term: Obfuscation
+  meaning: Changing how something is written so it is harder to match while it still works.
+- term: Alias
+  meaning: A shorter or alternative name for the same command.
+applies_when:
+  type: design_flags_any
+  flags:
+  - matches_attacker_controlled_string
+placeholders:
+  design_observable: the exact text you plan to look for
+checklist:
+- Names at least one concrete way the text could be changed.
+- States whether the planned matching would still see the changed version.
+- Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

@@ -1,0 +1,36 @@
+id: ade-q-ade3-02
+ade_id: ADE3-02
+version: 1
+question: Your plan depends on a count, a threshold or on something being new ({design_observable}).
+  If an attacker knew that number, what could they do to stay just below it, or to make their activity
+  look already known?
+why_we_ask: Counts and first-time-seen logic can be prepared in advance. An attacker who stays under
+  the limit, or who runs a harmless version first, never triggers it.
+hints:
+  where_to_look: 'Find out exactly what is counted: per user, per host or per source address, and
+    over what period. Check what normal activity looks like in your logs for that measure.'
+  how_to_look: Write down the threshold and what is counted. Then describe an attack that does the
+    same harm while staying one below the threshold, or that first makes the item known. Check whether
+    your plan would notice.
+  worked_example:
+    technique: T1018 Remote System Discovery
+    text: An analyst flags a host that contacts more than 20 different hosts in five minutes. An attacker
+      contacts 15 hosts, pauses and repeats, and never crosses the limit.
+weak_answer: Attackers do not know our thresholds.
+strong_answer: A password-guessing run of nine tries per account stays under my limit of ten. I will
+  add a second view per source address across accounts and write down the first as an accepted limit.
+glossary:
+- term: Threshold
+  meaning: A number that must be exceeded before an alert fires.
+- term: Baseline
+  meaning: What counts as normal activity for a user or host.
+applies_when:
+  type: design_flags_any
+  flags:
+  - uses_threshold_or_baseline
+placeholders:
+  design_observable: the number or the new-item logic you chose
+checklist:
+- States what exactly is counted or compared with a baseline.
+- Describes one concrete way to stay under it or to make the activity look known.
+- Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

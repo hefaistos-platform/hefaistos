@@ -1,0 +1,36 @@
+id: ade-q-ade4-02
+ade_id: ADE4-02
+version: 1
+question: Which values or conditions in your plan must be present or absent for an alert to fire ({design_observable}),
+  and which of them could the attacker add to or remove from their own activity to flip the outcome?
+why_we_ask: A harmless-looking marker that the plan expects to be absent, such as a trusted word,
+  can be added by the attacker to their own command and the alert is cancelled.
+hints:
+  where_to_look: 'Go through each condition in the design and ask who can influence it: the text of
+    a command line, a file name or a parameter value. Look for examples in public bypass write-ups
+    for your technique.'
+  how_to_look: For each condition describe a version of the malicious action where that condition
+    is changed in the attacker's favour while the harm remains. Check whether your plan would still
+    fire.
+  worked_example:
+    technique: T1105 Ingress Tool Transfer
+    text: An analyst raises an alert on a suspicious download unless the command contains the word
+      update. The attacker adds the word update as an unused argument and the alert is cancelled.
+weak_answer: Attackers will not know which words we trust.
+strong_answer: The condition not containing the word update is attacker-controlled. I replace it with
+  a check on the signer of the program, which the attacker cannot set freely.
+glossary:
+- term: Conjunction
+  meaning: Several conditions joined with AND, all of which must be true.
+- term: Poisoned data
+  meaning: Values an attacker deliberately places in the data your detection reads.
+applies_when:
+  type: design_flags_any
+  flags:
+  - uses_attacker_settable_value
+placeholders:
+  design_observable: the conditions you chose
+checklist:
+- Names the conditions that decide whether an alert fires.
+- Says for each whether the attacker can change it, and how.
+- Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

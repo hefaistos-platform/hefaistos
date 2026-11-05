@@ -27,10 +27,21 @@ PLACEHOLDER_RE = re.compile(r'\{([a-z_]+)\}')
 
 # Facts the planner can derive from the design answers. A question lists the ones that trigger it.
 DESIGN_FLAGS = frozenset({
-    'names_specific_tool',            # design names a tool, binary, command or API
-    'matches_process_name',           # design identifies behaviour by process / binary name
-    'multi_condition_single_event',   # several text conditions expected inside one event
-    'version_or_platform_specific',   # design assumes an OS, software or API version
+    'names_specific_tool',               # design names a tool, binary, command or API
+    'matches_process_name',              # design identifies behaviour by process / binary name
+    'multi_condition_single_event',      # several text conditions expected inside one event
+    'version_or_platform_specific',      # design assumes an OS, software or API version
+    'matches_attacker_controlled_string',  # design matches exact text the attacker can write
+    'correlates_events_or_fields',       # design compares or joins the same value across sources
+    'names_specific_location',           # design names folders, registry keys, URLs or regions
+    'names_file_types',                  # design names file types or extensions
+    'uses_threshold_or_baseline',        # design relies on counts, thresholds or "new" items
+    'uses_time_window',                  # design relies on timing, windows or frequency
+    'relies_on_parent_process',          # design relies on which program started which
+    'relies_on_join_or_grouping',        # design joins, groups or sorts large volumes
+    'plans_exclusions',                  # design excludes activity as harmless
+    'uses_attacker_settable_value',      # a condition depends on a value the attacker can set
+    'combines_multiple_conditions',      # design combines several conditions with and/or/not
 })
 APPLIES_TYPES = frozenset({'always', 'design_flags_any'})
 
