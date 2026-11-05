@@ -4,9 +4,25 @@
 > [MAIEUTIC_3_SPEC.md](MAIEUTIC_3_SPEC.md)). It will move to the Workbench Hub (new "Maieutics" tab)
 > and replace the behaviour described below. This guide stays accurate for the current release.
 >
-> **Preview available now:** Workbench Hub has a **Maieutics** tab where you can create, list,
-> open (read-only) and delete sessions. The guided question screens are not in it yet, so use the
-> Maieutic Engine inside a Workbench, as described below, until they arrive.
+> **Preview available now:** Workbench Hub has a **Maieutics** tab. You can start a session and
+> work through all six stages (hypothesis, telemetry, design, evasion, response, review). Your
+> answers save automatically and you can resume later. **Creating the Workbench and generating the
+> rule from a session is not available yet**, so use the Maieutic Engine inside a Workbench, as
+> described below, to produce a rule until that arrives.
+>
+> The six stages in short:
+> 1. **Hypothesis**: title, ATT&CK technique (or "none yet"), goal, ways an attacker could do it.
+>    Also choose how demanding the evasion questions should be (Light, Standard, Expert).
+> 2. **Telemetry**: Log Sources first, then the Data Catalog; the fields you would rely on and
+>    whether an attacker can control each; harmless look-alikes.
+> 3. **Design**: in words, what the detection looks for, what it ignores, time window and
+>    thresholds, related events.
+> 4. **Evasion**: questions drawn from the ADE framework, chosen from your own design. You answer
+>    in your own words, can open three hints one at a time, and can say "I do not know yet".
+>    An AI check may point out a vague answer; it never writes or fills in an answer for you.
+> 5. **Response**: triage, response, alert trigger, severity, and how you would test it.
+> 6. **Review**: choose output formats (KQL always; SPL, EQL, Wazuh, AQL optional) and see what you
+>    captured. This is a record of your thinking, not a quality score for the rule.
 
 This document explains what the Maieutic Engine is, how it works, and how to use it effectively inside a Workbench.
 

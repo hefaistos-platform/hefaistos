@@ -192,6 +192,14 @@ class LedgerTests(TestCase):
         self.assertEqual(self.ledger()['ADE2-01']['revision'], 2)
         self.assertEqual(len(self.draft.refresh_from_db() or self.draft.spec['robustness']['ade_ledger']), 1)
 
+    def test_challenge_level_is_validated_and_changes_the_plan(self):
+        self.assertEqual(len(mp.plan(self.draft.spec, expert_all=lc.is_expert(self.draft.spec))), len(PLANNED_FOR_DESIGN))
+        d = lc.update_draft(self.draft.id, self.author, challenge_level='expert')
+        self.assertEqual(d.spec['meta']['challenge_level'], 'EXPERT')
+        self.assertEqual(len(mp.plan(d.spec, expert_all=lc.is_expert(d.spec))), 16)
+        with self.assertRaisesMessage(lc.MaieuticError, 'challenge_level must be one of'):
+            lc.update_draft(self.draft.id, self.author, challenge_level='EASY')
+
     def test_question_not_in_plan_is_rejected(self):
         with self.assertRaisesMessage(lc.MaieuticError, 'not part of this session'):
             self.answer(ade='ADE3-05')  # nothing in the design relies on a parent process
@@ -277,3 +285,18 @@ class GraphqlFlowTests(TestCase):
         r = schema.execute('mutation($i:UUID!){answerMaieuticAdeQuestion(draftId:$i,adeId:"ADE2-01",disposition:"HANDLED_IN_DESIGN",answerText:""){openCount}}',
                            variable_values={'i': str(self.draft.id)}, context_value=SimpleNamespace(user=self.author))
         self.assertIn('own words', r.errors[0].message)
+
+
+class LogFieldQueryTests(TestCase):
+    def test_returns_only_requested_sources_fields(self):
+        from log_catalog.models import LogField, LogSource
+        U = get_user_model()
+        org = Organization.objects.create(name='Org')
+        user = U.objects.create_user(username='u', organization=org, role='ANALYST')
+        a, b = LogSource.objects.create(name='A'), LogSource.objects.create(name='B')
+        LogField.objects.create(log_source=a, standard_name='CommandLine', siem_field_name='x.cmd')
+        LogField.objects.create(log_source=b, standard_name='Image', siem_field_name='x.img')
+        r = schema.execute('query($i:[UUID]!){maieuticLogSourceFields(logSourceIds:$i){standardName siemFieldName}}',
+                           variable_values={'i': [str(a.id)]}, context_value=SimpleNamespace(user=user))
+        self.assertIsNone(r.errors)
+        self.assertEqual(r.data['maieuticLogSourceFields'], [{'standardName': 'CommandLine', 'siemFieldName': 'x.cmd'}])

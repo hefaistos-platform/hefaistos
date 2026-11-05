@@ -130,10 +130,26 @@ def _build_plan(draft):
     )
 
 
+class MaieuticLogFieldType(graphene.ObjectType):
+    log_source_id = graphene.UUID()
+    standard_name = graphene.String()
+    siem_field_name = graphene.String()
+
+
+def _log_fields(log_source_ids):
+    from log_catalog.models import LogField
+    ids = list(log_source_ids or [])[:50]
+    rows = LogField.objects.filter(log_source_id__in=ids).order_by('log_source_id', 'standard_name')
+    return [MaieuticLogFieldType(log_source_id=r.log_source_id, standard_name=r.standard_name,
+                                 siem_field_name=r.siem_field_name) for r in rows]
+
+
 class Query(graphene.ObjectType):
     maieutic_drafts = graphene.List(MaieuticDraftType, status=graphene.String())
     maieutic_draft = graphene.Field(MaieuticDraftType, id=graphene.UUID(required=True))
     maieutic_admin_index = graphene.List(MaieuticAdminRowType)
+    maieutic_log_source_fields = graphene.List(
+        MaieuticLogFieldType, log_source_ids=graphene.List(graphene.UUID, required=True))
     maieutic_ade_plan = graphene.Field(MaieuticAdePlanType, draft_id=graphene.UUID(required=True))
 
     @role_required([Roles.ADMIN, Roles.ANALYST])
@@ -146,6 +162,10 @@ class Query(graphene.ObjectType):
     @role_required([Roles.ADMIN, Roles.ANALYST])
     def resolve_maieutic_draft(self, info, id):
         return lifecycle.get_visible_draft(_user(info), id)
+
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def resolve_maieutic_log_source_fields(self, info, log_source_ids):
+        return _log_fields(log_source_ids)
 
     @role_required([Roles.ADMIN, Roles.ANALYST])
     def resolve_maieutic_ade_plan(self, info, draft_id):
@@ -178,15 +198,17 @@ class UpdateMaieuticDraft(graphene.Mutation):
         current_stage = graphene.Int()
         spec_patch = GenericScalar()
         tlp_classification = graphene.String()
+        challenge_level = graphene.String()
 
     draft = graphene.Field(MaieuticDraftType)
 
     @staticmethod
     @role_required([Roles.ADMIN, Roles.ANALYST])
-    def mutate(root, info, draft_id, name=None, current_stage=None, spec_patch=None, tlp_classification=None):
+    def mutate(root, info, draft_id, name=None, current_stage=None, spec_patch=None, tlp_classification=None,
+               challenge_level=None):
         return UpdateMaieuticDraft(draft=_guard(
             lifecycle.update_draft, draft_id, _user(info), name=name, current_stage=current_stage,
-            spec_patch=spec_patch, tlp=tlp_classification))
+            spec_patch=spec_patch, tlp=tlp_classification, challenge_level=challenge_level))
 
 
 class SetMaieuticDraftSharing(graphene.Mutation):

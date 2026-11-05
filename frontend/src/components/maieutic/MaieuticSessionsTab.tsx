@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { gql, useMutation, useQuery } from '@apollo/client';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Alert, Button, Collapse, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Space, Switch, Table, Tag,
   Tooltip, Typography, message,
@@ -106,6 +106,7 @@ const fmt = (value?: string | null) => (value ? new Date(value).toLocaleString()
 
 export const MaieuticSessionsTab: React.FC = () => {
   const [messageApi, contextHolder] = message.useMessage();
+  const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [form] = Form.useForm();
@@ -140,11 +141,12 @@ export const MaieuticSessionsTab: React.FC = () => {
 
   const onCreate = async (values: { name?: string; tlp?: string }) => {
     try {
-      await createDraft({ variables: { name: values.name || null, tlp: values.tlp || 'UNCLEAR' } });
+      const res = await createDraft({ variables: { name: values.name || null, tlp: values.tlp || 'UNCLEAR' } });
       setCreateOpen(false);
       form.resetFields();
+      const id = res.data?.createMaieuticDraft?.draft?.id;
+      if (id) { navigate(`/maieutics/${id}`); return; }
       refreshAll();
-      messageApi.success('Session created.');
     } catch (err: any) {
       messageApi.error(err?.message ?? 'Could not create session');
     }
@@ -231,7 +233,11 @@ export const MaieuticSessionsTab: React.FC = () => {
       key: 'actions',
       render: (_: unknown, r: DraftRow) => (
         <Space>
-          <Button size="small" icon={<EyeOutlined />} onClick={() => setOpenId(r.id)}>Open</Button>
+          {r.status === 'IN_PROGRESS' ? (
+            <Button size="small" type="primary" onClick={() => navigate(`/maieutics/${r.id}`)}>Continue</Button>
+          ) : (
+            <Button size="small" icon={<EyeOutlined />} onClick={() => setOpenId(r.id)}>Open</Button>
+          )}
           {deleteButton(r.id, r.status === 'FINISHED')}
         </Space>
       ),
@@ -254,8 +260,8 @@ export const MaieuticSessionsTab: React.FC = () => {
               permanently and stays here as the record of how it was designed. Edit the Workbench, not the session.
               <br />
               <Text type="secondary">
-                Preview: this tab lists and manages sessions. The guided question screens are being added in the
-                next release, and the existing Maieutic Engine in the Workbench keeps working until then.
+                Preview: you can work through all six stages here. Creating the Workbench and generating the rule
+                arrive in the next release, so the existing Maieutic Engine in the Workbench keeps working until then.
               </Text>
             </>
           }
@@ -347,7 +353,7 @@ export const MaieuticSessionsTab: React.FC = () => {
                 type="warning"
                 showIcon
                 message="In progress"
-                description="The guided question screens are not available yet in this release. This view is read-only for now."
+                description="Use Continue in the list to keep working on it."
               />
             )}
             <Descriptions column={1} size="small" bordered>

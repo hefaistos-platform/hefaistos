@@ -15,6 +15,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ActivateAccountPage } from './pages/ActivateAccountPage';
 import { PlaybooksHubPage } from './pages/PlaybooksHubPage';
 import PlaybookWorkbenchPage from './pages/PlaybookWorkbench';
+import MaieuticSessionPage from './pages/MaieuticSessionPage';
 import { PlaybookDetailPage } from './pages/PlaybookDetailPage';
 import { RuleHubPage } from './pages/RuleHubPage';
 import { RuleDetailPage } from './pages/RuleDetailPage';
@@ -91,6 +92,7 @@ const AppRoutes = () => {
                 <Route path="/rules/:ruleId/edit" element={<RuleEditorRoute />} />
                 <Route path="/rules/:ruleId" element={<RuleDetailPage />} />
                 <Route path="/playbooks/:playbookId" element={<PlaybookWorkbenchPage />} />
+                <Route path="/maieutics/:draftId" element={<MaieuticSessionPage />} />
                 <Route path="/capability-library" element={<CapabilityLibraryPage />} />
                 <Route path="/catalog" element={<DataCatalogPage />} />
                 <Route path="/catalog/new" element={<CreateDataSourcePage />} />

@@ -13,6 +13,7 @@ from . import maieutic_planner, maieutic_questioner, maieutic_questions
 from .maieutic_models import MaieuticDraft
 
 STAGE_COUNT = 6
+CHALLENGE_LEVELS = ('LIGHT', 'STANDARD', 'EXPERT')
 SPEC_SECTIONS = ('meta', 'hypothesis', 'interrogation', 'design', 'robustness', 'playbook_tests', 'review')
 SPEC_VERSION = 1
 MAX_SPEC_BYTES = 512 * 1024
@@ -92,7 +93,8 @@ def _assert_editable(draft: MaieuticDraft):
 
 
 @transaction.atomic
-def update_draft(draft_id, user, *, name=None, current_stage=None, spec_patch=None, tlp=None) -> MaieuticDraft:
+def update_draft(draft_id, user, *, name=None, current_stage=None, spec_patch=None, tlp=None,
+                 challenge_level=None) -> MaieuticDraft:
     """Autosave. spec_patch replaces whole top-level sections it names (no deep merge)."""
     draft = MaieuticDraft.objects.select_for_update().filter(
         id=draft_id, organization=user.organization, author=user,
@@ -131,6 +133,11 @@ def update_draft(draft_id, user, *, name=None, current_stage=None, spec_patch=No
         draft.tlp_classification = normalize_tlp(tlp)
 
     meta = dict((draft.spec or {}).get('meta') or {})
+    if challenge_level is not None:
+        level = str(challenge_level).upper()
+        if level not in CHALLENGE_LEVELS:
+            raise MaieuticError(f'challenge_level must be one of {", ".join(CHALLENGE_LEVELS)}.')
+        meta['challenge_level'] = level
     meta.update({'spec_version': SPEC_VERSION, 'tlp': draft.tlp_classification, 'current_stage': draft.current_stage})
     draft.spec = {**(draft.spec or {}), 'meta': meta}
     draft.save()
