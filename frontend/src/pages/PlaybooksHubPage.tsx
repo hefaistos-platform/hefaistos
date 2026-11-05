@@ -17,6 +17,7 @@ import { TlpBadge } from '../components/ui/TlpBadge';
 const AchPageLazy = React.lazy(() => import('./ACHPage').then(m => ({ default: m.ACHPage })));
 const AdvopsPageLazy = React.lazy(() => import('./ADVOPSPage').then(m => ({ default: m.ADVOPSPage ?? m.default })));
 const MveWorkbenchTabLazy = React.lazy(() => import('../components/mve/MveWorkbenchTab'));
+const MaieuticSessionsTabLazy = React.lazy(() => import('../components/maieutic/MaieuticSessionsTab'));
 
 const GET_ALL_GRAPHS_QUERY = gql`
   query GetAllPlaybookGraphs {
@@ -152,7 +153,7 @@ export const PlaybooksHubPage: React.FC = () => {
   const [sortByGraphs, setSortByGraphs] = useState('date_desc');
   const [activeTab, setActiveTab] = useState(() => {
     const tab = searchParams.get('tab');
-    return tab === 'ach' ? 'ach' : tab === 'advops' ? 'advops' : tab === 'mve' ? 'mve' : 'graphs';
+    return tab === 'ach' ? 'ach' : tab === 'advops' ? 'advops' : tab === 'mve' ? 'mve' : tab === 'maieutics' ? 'maieutics' : 'graphs';
   });
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [importHefModalVisible, setImportHefModalVisible] = useState(false);
@@ -167,7 +168,7 @@ export const PlaybooksHubPage: React.FC = () => {
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab && tab !== activeTab) {
-      setActiveTab(tab === 'ach' ? 'ach' : tab === 'advops' ? 'advops' : tab === 'mve' ? 'mve' : 'graphs');
+      setActiveTab(tab === 'ach' ? 'ach' : tab === 'advops' ? 'advops' : tab === 'mve' ? 'mve' : tab === 'maieutics' ? 'maieutics' : 'graphs');
     }
   }, [searchParams, activeTab]);
 
@@ -558,6 +559,15 @@ export const PlaybooksHubPage: React.FC = () => {
             children: (
               <Suspense fallback={<div style={{ padding: 16 }}>Loading MVE…</div>}>
                 <MveWorkbenchTabLazy />
+              </Suspense>
+            )
+          },
+          {
+            key: 'maieutics',
+            label: 'Maieutics',
+            children: (
+              <Suspense fallback={<div style={{ padding: 16 }}>Loading Maieutics…</div>}>
+                <MaieuticSessionsTabLazy />
               </Suspense>
             )
           }

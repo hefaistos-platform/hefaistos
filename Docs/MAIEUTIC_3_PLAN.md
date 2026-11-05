@@ -190,11 +190,13 @@ is useful. The MAJOR bump should happen at the phase that actually removes behav
 
 ## Phases
 
-1. Spec and docs written first (done: `MAIEUTIC_3_SPEC.md`, this file).
-2. ADE on Framework Updates (independent).
-3. Question bank: questions, hint kits, STP rules. First batch (ADE2-01, ADE2-02, ADE3-01, ADE3-04) is in `backend/ai_assistant/maieutic_content/ade_questions/`; the rest follows the same format.
-4. Backend: planner, questioner, evaluator, ledger, `MaieuticDraft`, prompts into the Registry.
-5. Frontend: Maieutics tab on the Hub, six stages, dropdowns, help, three exits.
+Status legend: DONE, PARTIAL, TODO.
+
+1. DONE. Spec and docs (`MAIEUTIC_3_SPEC.md`, this file).
+2. DONE. ADE on Framework Updates (`README_ADE.md`).
+3. PARTIAL. Question bank: all 16 ADE questions are in `backend/ai_assistant/maieutic_content/ade_questions/` (`MAIEUTIC_ADE_QUESTIONS.md`). STP robustness questions are still TODO.
+4. PARTIAL. Backend: `MaieuticDraft` with author-only access, finish lock, sharing toggle, delete rights and the metadata-only admin view are DONE. Planner (design answers to design flags), questioner, evaluator, ledger and Prompt Registry keys are TODO.
+5. PARTIAL. Frontend: the **Maieutics tab on the Workbench Hub** is DONE as a preview (list, create, open read-only, delete, share toggle, admin metadata view). The six stage screens, dropdowns, help and the three exits are TODO.
 6. Generation chain and Workbench mapping, per-format tasks, traceability. Locking of finished sessions (server-enforced) and the `MAIEUTIC` Instance Sharing scope, including the `ALL`-scope compatibility safeguard.
 7. Remove Maieutic from the Workbench. MAJOR bump.
 

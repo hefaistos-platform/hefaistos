@@ -3,6 +3,10 @@
 > **Note:** Maieutic Engine 3.0 is being built (see [MAIEUTIC_3_PLAN.md](MAIEUTIC_3_PLAN.md) and
 > [MAIEUTIC_3_SPEC.md](MAIEUTIC_3_SPEC.md)). It will move to the Workbench Hub (new "Maieutics" tab)
 > and replace the behaviour described below. This guide stays accurate for the current release.
+>
+> **Preview available now:** Workbench Hub has a **Maieutics** tab where you can create, list,
+> open (read-only) and delete sessions. The guided question screens are not in it yet, so use the
+> Maieutic Engine inside a Workbench, as described below, until they arrive.
 
 This document explains what the Maieutic Engine is, how it works, and how to use it effectively inside a Workbench.
 
