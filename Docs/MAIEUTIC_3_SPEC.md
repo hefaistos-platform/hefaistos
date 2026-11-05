@@ -291,8 +291,7 @@ IN_PROGRESS  --(Create Workbench ...)-->  FINISHED  (locked, read-only, permanen
   delete but still cannot open or read another user's session (author-only visibility, section 9).
   So the Maieutics list for them shows only their own sessions; deleting someone else's session
   needs an explicit management path (for example by id from an admin view that shows metadata
-  only: title, author, status, dates, no spec content). **[VERIFY with owner: confirm this
-  metadata-only admin view is acceptable]** Deleting a session also removes it from future shares;
+  only: title, author, status, dates, no spec content). (Confirmed by owner.) Deleting a session also removes it from future shares;
   copies already pulled by peers are not recalled.
 - Drafts remain author-only (section 9). Finishing does not change visibility; sharing does not
   either (9c shares a copy through Instance Sharing, it does not make local sessions visible to
@@ -380,5 +379,5 @@ The traceability result is AI-assisted and must be labelled as a check, not a gu
 3. (Resolved, see 9a.)
 4. Whether the KQL to AQL pass-through converter (`rules/conversion_service.py`) is fixed or
    removed. Maieutic will not use it either way.
-5. (Resolved: TLP locked after finish, delete by author/admin/superuser, transcript not shared.) Remaining: confirm the metadata-only admin view for deleting other users' sessions (9b).
+5. (Resolved: TLP locked after finish, delete by author/admin/superuser, transcript not shared.) The metadata-only admin view is confirmed.
 6. STP rules in section 5 reviewed by a detection engineer familiar with Summiting the Pyramid.
