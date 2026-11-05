@@ -222,7 +222,7 @@ export const MaieuticSessionsTab: React.FC = () => {
           );
         }
         return (
-          <Tooltip title="Allow peers to pull this finished session through Instance Sharing (scope MAIEUTIC).">
+          <Tooltip title="Let trusted peers pull this finished session through Instance Sharing. They need a key that allows Maieutic sessions (or All) and your TLP limit must allow it. Your design and answers are sent; the Workbench is not.">
             <Switch size="small" checked={r.allowRemotePull} onChange={(v) => onShare(r.id, v)} />
           </Tooltip>
         );

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import hashlib
+import json
 import logging
 from playbooks.utils.tlp import normalize_tlp, allowed_tlp_classifications
 from copy import deepcopy
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 SCOPE_COLLECTIONS = {
     'WORKBENCH': 'workbenches', 'RULES': 'rules', 'ACH': 'ach',
     'ADVOPS': 'advops', 'CAPABILITY': 'capability_abstractions',
+    'MAIEUTIC': 'maieutic_sessions',
 }
 
 
@@ -55,8 +57,12 @@ def _remember_shared(organization, peer, kind, remote_key, obj):
     )
 
 
-ATOMIC_SCOPES = ('WORKBENCH', 'RULES', 'ACH', 'ADVOPS', 'CAPABILITY')
+# The five scopes that existed before MAIEUTIC. A key listing all of them explicitly keeps working for
+# an ALL pull and is never silently granted newer scopes (see key_allows_scope / scopes_granted_by_key).
+LEGACY_ATOMIC_SCOPES = ('WORKBENCH', 'RULES', 'ACH', 'ADVOPS', 'CAPABILITY')
+ATOMIC_SCOPES = LEGACY_ATOMIC_SCOPES + ('MAIEUTIC',)
 WORKBENCH_REQUIRED_STATUS = 'DEPLOYED'
+MAIEUTIC_EXPORT_STATUS = 'FINISHED'
 ACH_EXPORT_STATUSES = ('FINISHED', 'APPROVED')
 ADVOPS_REQUIRED_STATUS = 'DEPLOYED'
 DEFAULT_REQUIRED_EXPORT_TAGS = ('PULL',)
@@ -99,8 +105,20 @@ def key_allows_scope(allowed_scopes: list[str] | None, requested_scope: str) -> 
     if 'ALL' in allowed:
         return True
     if requested == 'ALL':
-        return set(ATOMIC_SCOPES).issubset(allowed)
+        return set(LEGACY_ATOMIC_SCOPES).issubset(allowed)
     return requested in allowed
+
+
+def scopes_granted_by_key(allowed_scopes: list[str] | None) -> set[str]:
+    """Atomic scopes an ALL pull may export for this key.
+
+    The ALL marker grants everything. Otherwise only the scopes the key lists explicitly, so a key created
+    before MAIEUTIC existed (five scopes, no ALL marker) can still pull ALL but never receives sessions.
+    """
+    allowed = {str(scope).strip().upper() for scope in (allowed_scopes or []) if str(scope).strip()}
+    if 'ALL' in allowed:
+        return set(ATOMIC_SCOPES)
+    return {scope for scope in ATOMIC_SCOPES if scope in allowed}
 
 
 def hash_api_key(raw_key: str) -> str:
@@ -491,6 +509,79 @@ def _capability_payload_for_org(organization, share_key=None) -> list[dict[str, 
     return payload
 
 
+def _clean_maieutic_spec(spec: Any) -> dict[str, Any]:
+    """Shareable copy of a session spec. Used on export and again on import (peer data is untrusted).
+
+    Keeps only the known sections, refuses oversize or newer-format specs, and blanks the ledger's local
+    ADE snapshot id, which means nothing on another instance (the snapshot identity travels as `ade_source`).
+    """
+    from ai_assistant.maieutic_lifecycle import MAX_SPEC_BYTES, SPEC_SECTIONS, SPEC_VERSION
+
+    if not isinstance(spec, dict):
+        raise ValueError('Maieutic session spec must be an object.')
+    cleaned: dict[str, Any] = {}
+    for name in SPEC_SECTIONS:
+        section = spec.get(name)
+        if section is None:
+            continue
+        if not isinstance(section, dict):
+            raise ValueError(f'Maieutic session section {name} must be an object.')
+        cleaned[name] = deepcopy(section)
+    version = (cleaned.get('meta') or {}).get('spec_version', SPEC_VERSION)
+    if not isinstance(version, int) or isinstance(version, bool) or version > SPEC_VERSION:
+        raise ValueError('Maieutic session was written by a newer format than this instance understands.')
+    ledger = (cleaned.get('robustness') or {}).get('ade_ledger')
+    if ledger is not None:
+        if not isinstance(ledger, list) or not all(isinstance(entry, dict) for entry in ledger):
+            raise ValueError('Maieutic session ADE ledger must be a list of objects.')
+        for entry in ledger:
+            entry['snapshot_id'] = None
+    if len(json.dumps(cleaned, default=str)) > MAX_SPEC_BYTES:
+        raise ValueError('Maieutic session is too large.')
+    return cleaned
+
+
+def _maieutic_payload_for_org(organization, share_key=None) -> list[dict[str, Any]]:
+    """Finished, opted-in, original (never imported) sessions. The Workbench and its conversation are not sent."""
+    from ai_assistant.maieutic_models import MaieuticDraft
+
+    drafts = MaieuticDraft.objects.filter(
+        organization=organization,
+        status=MAIEUTIC_EXPORT_STATUS,
+        allow_remote_pull=True,
+        imported_from='',
+    ).select_related('ade_snapshot').order_by('-updated_at', '-created_at', '-id')
+
+    payload = []
+    seen_names: set[str] = set()
+    for draft in drafts:
+        if not item_matches_required_tlp(draft.tlp_classification, share_key):
+            continue
+        key = _normalized_name(draft.name)
+        if not key or key in seen_names:
+            continue
+        try:
+            spec = _clean_maieutic_spec(draft.spec)
+        except ValueError:
+            logger.warning('Sharing export skipped Maieutic session %s: spec not shareable', draft.pk)
+            continue
+        seen_names.add(key)
+        snapshot = draft.ade_snapshot
+        payload.append({
+            'source_id': str(draft.pk),
+            'title': draft.name,
+            'status': draft.status,
+            'outcome': draft.outcome,
+            'tlp_classification': normalize_tlp(draft.tlp_classification),
+            'finished_at': draft.finished_at.isoformat() if draft.finished_at else None,
+            'spec': spec,
+            'ade_source': {
+                'repo': snapshot.source_repo, 'ref': snapshot.source_ref, 'sha': snapshot.source_sha,
+            } if snapshot else None,
+        })
+    return payload
+
+
 def export_org_payload(
     organization,
     requested_scope: str,
@@ -499,6 +590,9 @@ def export_org_payload(
 ) -> dict[str, Any]:
     scope = normalize_scope(requested_scope)
     include_scopes = expand_scope(scope)
+    if scope == 'ALL' and share_key is not None:
+        # An ALL pull exports only what the key grants, so keys that predate MAIEUTIC never receive sessions.
+        include_scopes &= scopes_granted_by_key(share_key.allowed_scopes)
     instance_identity = get_or_create_instance_identity(
         organization=organization,
         create_if_missing=create_identity_if_missing,
@@ -514,6 +608,7 @@ def export_org_payload(
         'ach': [],
         'advops': [],
         'capability_abstractions': [],
+        'maieutic_sessions': [],
     }
 
     if 'WORKBENCH' in include_scopes:
@@ -526,7 +621,10 @@ def export_org_payload(
         payload['advops'] = _advops_payload_for_org(organization, share_key=share_key)
     if 'CAPABILITY' in include_scopes:
         payload['capability_abstractions'] = _capability_payload_for_org(organization, share_key=share_key)
+    if 'MAIEUTIC' in include_scopes:
+        payload['maieutic_sessions'] = _maieutic_payload_for_org(organization, share_key=share_key)
 
+    from ai_assistant.maieutic_models import MaieuticDraft
     from playbooks.models import PlaybookGraph, CapabilityAbstraction
     from rules.models import DetectionRule
     from ach.models import ACHAnalysis
@@ -538,6 +636,7 @@ def export_org_payload(
         'ACH': (ACHAnalysis.objects.filter(owner__organization=organization), {'status__in': ACH_EXPORT_STATUSES}, {'allow_remote_pull': True}),
         'ADVOPS': (ADVOPSReport.objects.filter(organization=organization), {'status__iexact': ADVOPS_REQUIRED_STATUS}, {'allow_remote_pull': True}),
         'CAPABILITY': (CapabilityAbstraction.objects.filter(organization=organization, is_baseline=False), {'review_status': 'APPROVED'}, {'allow_remote_pull': True}),
+        'MAIEUTIC': (MaieuticDraft.objects.filter(organization=organization, imported_from=''), {'status': MAIEUTIC_EXPORT_STATUS}, {'allow_remote_pull': True}),
     }
     diagnostics = {}
     for scope_name in sorted(include_scopes):
@@ -1017,6 +1116,87 @@ def _import_capabilities(
             logger.exception('Sharing import failed: Capability abstraction index=%s', idx + 1)
 
 
+def _import_maieutic(
+    maieutic_payload: list[dict[str, Any]],
+    actor,
+    organization,
+    peer,
+    summary: dict[str, dict[str, int]],
+    errors: list[str],
+) -> None:
+    """Create or refresh read-only copies of finished sessions. Copies are never re-shareable and have no Workbench."""
+    from ai_assistant.maieutic_models import MaieuticDraft
+
+    valid_outcomes = {value for value, _label in MaieuticDraft.Outcome.choices}
+
+    for idx, data in enumerate(maieutic_payload or []):
+        try:
+            if not isinstance(data, dict):
+                raise ValueError('Invalid Maieutic payload')
+            title = str(data.get('title') or '').strip()[:255]
+            if not title:
+                raise ValueError('Maieutic session title is required')
+            if str(data.get('status') or '').upper().strip() != MAIEUTIC_EXPORT_STATUS:
+                raise ValueError('Only FINISHED Maieutic sessions are allowed for PULL.')
+            spec = _clean_maieutic_spec(data.get('spec'))
+            tlp = normalize_tlp(data.get('tlp_classification'))
+            meta = dict(spec.get('meta') or {})
+            meta.update({'tlp': tlp, 'current_stage': 6})
+            spec['meta'] = meta
+
+            source = data.get('ade_source')
+            if isinstance(source, dict):
+                robustness = dict(spec.get('robustness') or {})
+                robustness['ade_source'] = {
+                    'repo': str(source.get('repo') or '')[:200],
+                    'ref': str(source.get('ref') or '')[:128],
+                    'sha': str(source.get('sha') or '')[:64],
+                }
+                spec['robustness'] = robustness
+
+            outcome = str(data.get('outcome') or '')
+            if outcome not in valid_outcomes:
+                outcome = ''
+            finished_at = None
+            raw_finished = data.get('finished_at')
+            if isinstance(raw_finished, str):
+                from django.utils.dateparse import parse_datetime
+                finished_at = parse_datetime(raw_finished)
+            finished_at = finished_at or timezone.now()
+            if timezone.is_naive(finished_at):
+                finished_at = timezone.make_aware(finished_at)
+
+            with transaction.atomic():
+                existing, remote_key = _shared_lookup(
+                    MaieuticDraft, organization, peer, 'maieutic_sessions', data.get('source_id') or title,
+                )
+                if existing is not None and not existing.imported_from:
+                    raise ValueError('Refusing to overwrite a session that was created on this instance.')
+                created = existing is None
+                if existing is None:
+                    existing = MaieuticDraft.objects.create(
+                        organization=organization, author=actor, name=title,
+                        status=MaieuticDraft.Status.FINISHED, current_stage=6, spec=spec,
+                        outcome=outcome, finished_at=finished_at, tlp_classification=tlp,
+                        allow_remote_pull=False, imported_from=str(peer.name)[:255],
+                    )
+                else:
+                    existing.name = title
+                    existing.spec = spec
+                    existing.outcome = outcome
+                    existing.finished_at = finished_at
+                    existing.tlp_classification = tlp
+                    existing.save(update_fields=[
+                        'name', 'spec', 'outcome', 'finished_at', 'tlp_classification', 'updated_at',
+                    ])
+                _remember_shared(organization, peer, 'maieutic_sessions', remote_key, existing)
+            summary['maieutic_sessions']['created' if created else 'updated'] += 1
+        except Exception as exc:
+            summary['maieutic_sessions']['failed'] += 1
+            errors.append(f'Maieutic session #{idx + 1}: {exc}')
+            logger.exception('Sharing import failed: Maieutic session index=%s', idx + 1)
+
+
 def import_payload_into_org(
     payload: dict[str, Any],
     organization,
@@ -1033,6 +1213,7 @@ def import_payload_into_org(
         'ach': {'created': 0, 'updated': 0, 'failed': 0},
         'advops': {'created': 0, 'updated': 0, 'failed': 0},
         'capability_abstractions': {'created': 0, 'updated': 0, 'failed': 0},
+        'maieutic_sessions': {'created': 0, 'updated': 0, 'failed': 0},
     }
     errors: list[str] = []
     if not isinstance(payload, dict):
@@ -1085,6 +1266,16 @@ def import_payload_into_org(
             payload.get('capability_abstractions') or [],
             organization=organization,
             actor=actor,
+            peer=peer,
+            summary=summary,
+            errors=errors,
+        )
+
+    if 'MAIEUTIC' in include_scopes:
+        _import_maieutic(
+            payload.get('maieutic_sessions') or [],
+            actor=actor,
+            organization=organization,
             peer=peer,
             summary=summary,
             errors=errors,
@@ -1202,6 +1393,8 @@ def pull_from_remote_peer(
             raise ValueError('Remote export scope does not match the requested scope.')
         for scope_name in expand_scope(scope):
             collection = SCOPE_COLLECTIONS[scope_name]
+            if collection not in payload and scope == 'ALL' and scope_name not in LEGACY_ATOMIC_SCOPES:
+                continue  # an older peer does not know this collection yet; nothing to import from it
             if not isinstance(payload.get(collection), list):
                 raise ValueError(f'Remote export must contain a list for {collection}.')
         diagnostics['export'] = payload.get('diagnostics', {})

@@ -317,7 +317,7 @@ section, and a UI option in `InstanceSharing.tsx`. ACH is the closest precedent:
 | TLP | Applies, using the session's own `tlp_classification` |
 | De-duplication | By normalized title, as other scopes |
 | Payload | `spec`, ADE ledger, outcome, TLP, ADE snapshot identity (repo, ref, commit SHA) The conversation transcript is **excluded** (decided). |
-| Not in payload | The local Workbench FK, author identity beyond what other scopes export **[VERIFY]**, any rule text (rules travel with the Workbench scope) |
+| Not in payload | The local Workbench FK, the author (resolved in implementation: no scope exports a person's identity, and imports are owned by whoever runs the pull), any rule text (rules travel with the Workbench scope) |
 | On import | Created as FINISHED and read-only in the receiving org, `allow_remote_pull` false (re-sharing requires a local opt-in, as for imported Workbenches), `created_workbench` null, TLP preserved, mapped through `HefaistosSharedObject` like other kinds so re-pulls update instead of duplicating. Shown in the Maieutics tab with an "imported" marker and its source |
 | ADE history on import | The ledger keeps the ADE snapshot identity it was answered against, even if the receiving instance has never imported that snapshot. It is shown as history, not re-evaluated |
 

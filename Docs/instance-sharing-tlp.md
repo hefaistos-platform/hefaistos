@@ -34,15 +34,15 @@ accepted, case-insensitively.
 
 ## Combined eligibility
 
-TLP applies to **Workbench, Rules, ACH, AdvOps, and Capability Abstraction**,
-including these collections in ALL exports. MVE has TLP but is not currently an
+TLP applies to **Workbench, Rules, ACH, AdvOps, Capability Abstraction, and
+Maieutic sessions**, including these collections in ALL exports. MVE has TLP but is not currently an
 Instance Sharing scope.
 
 Every item must still satisfy its existing organization, status, and remote
 pull opt-in checks. When a key enforces Required Tags, Workbench and Rules must
 also match all required tags, case-insensitively. TLP and tags combine with AND;
-passing either alone is insufficient. Tags do not apply to ACH, AdvOps, or
-Capability Abstraction.
+passing either alone is insufficient. Tags do not apply to ACH, AdvOps,
+Capability Abstraction, or Maieutic sessions.
 
 For example, a GREEN key with required tag PULL exports only enabled, deployed
 Workbenches tagged PULL whose TLP is GREEN, CLEAR, or UNCLEAR. An AMBER Workbench
@@ -69,6 +69,42 @@ lowercase. Existing native rule text is retained.
 Instance Sharing still exports only rules owned by a deployed Workbench with
 remote pull enabled. An additional Rule Hub association alone does not opt a
 rule into sharing.
+
+## Maieutic sessions (scope `MAIEUTIC`)
+
+Finished [Maieutic](README_MAIEUTIC.md) sessions can be pulled by trusted peers.
+
+**What leaves.** A session leaves only when all of these hold: it is `FINISHED`, its author switched
+sharing on in Workbench Hub > Maieutics (default off), it was created on this instance (copies you
+pulled are never passed on), and its own TLP is within the key's maximum. Sessions are de-duplicated
+by title.
+
+**What is sent.** The design record: hypothesis, telemetry choices, design, your evasion answers
+(the ADE ledger), response and test notes, outcome and TLP, plus the identity of the ADE snapshot the
+answers were given against (repository, ref, commit). **Not sent:** the Workbench created from the
+session, its rule, its conversation history, the author, and any local identifiers. Sharing a session
+and sharing its Workbench are independent; a peer can have either without the other.
+
+**What the receiver gets.** A finished, locked, read-only copy that belongs to the person who ran the
+pull, shown in the Maieutics tab as "Imported from <peer>". The TLP is preserved, there is no
+Workbench, and sharing is off and cannot be switched on. A later pull updates the copy instead of
+duplicating it. The ADE snapshot identity is kept as history; the receiver does not need to have
+imported that snapshot. Deleting the copy does not affect the source; a later pull recreates it.
+Incoming data is validated: only known sections are kept, oversize or newer-format sessions are
+rejected, and one bad session does not stop the others.
+
+### Keys created before this scope existed
+
+An `ALL` pull used to need all five original scopes. Keys that list those five explicitly (without the
+`ALL` marker) **keep working for `ALL` and do not receive sessions.** They can never request
+`MAIEUTIC` unless an administrator adds it. A key with the `ALL` marker grants everything, so it now
+includes sessions; this is still limited to sessions whose author switched sharing on. A key listing
+only `MAIEUTIC` can pull sessions and nothing else.
+
+### Mixed versions
+
+Pulling `ALL` from a peer that does not know sessions yet works; that collection is simply absent. An
+explicit `MAIEUTIC` pull from such a peer fails with a clear message, because the peer rejects the scope.
 
 ## Capability Abstraction
 

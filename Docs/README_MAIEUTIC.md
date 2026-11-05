@@ -90,7 +90,11 @@ robustness against an attacker changing their behaviour, and the two are never m
   before you finish. The Workbench has its own TLP, which you can still change.
 - The author, an organization admin or a superuser can delete a session. Deleting it never deletes
   the Workbench it created. Admins see only metadata (who, when, status) for other people's sessions.
-- The transcript of your questions and answers is not part of anything shared from a session.
+- **Sharing.** On a finished session you can switch on sharing in the Maieutics tab (off by default).
+  Trusted peers with a suitable key can then pull the design record and your evasion answers, within
+  your TLP limit. The Workbench, its rule and its conversation history are not part of it. Copies
+  you pull from a peer appear as "Imported from ...", read-only, and cannot be shared further. Details,
+  key behaviour and version compatibility: [instance-sharing-tlp.md](instance-sharing-tlp.md).
 
 ## What was removed
 

@@ -189,7 +189,7 @@ interface RemotePeer {
   name: string;
   remoteUrl: string;
   remoteInstanceId: string;
-  defaultScope: 'WORKBENCH' | 'RULES' | 'ACH' | 'ADVOPS' | 'CAPABILITY' | 'ALL';
+  defaultScope: 'WORKBENCH' | 'RULES' | 'ACH' | 'ADVOPS' | 'CAPABILITY' | 'MAIEUTIC' | 'ALL';
   autoPullEnabled: boolean;
   autoPullSchedule: 'DAILY' | 'WEEKLY';
   nextAutoPullAt?: string | null;
@@ -234,6 +234,7 @@ const scopeOptions = [
   { label: 'ACH', value: 'ACH' },
   { label: 'ADVOPS', value: 'ADVOPS' },
   { label: 'Capability Abstraction Library', value: 'CAPABILITY' },
+  { label: 'Maieutic sessions', value: 'MAIEUTIC' },
   { label: 'All', value: 'ALL' },
 ];
 const autoPullScheduleOptions = [
@@ -260,7 +261,7 @@ const parseSummary = (value: PullJob['summary']): Record<string, unknown> => {
 const renderJobDetails = (job: PullJob) => {
   const summary = parseSummary(job.summary);
   const rows = Object.entries(summary).filter(([key]) =>
-    ['workbenches', 'rules', 'ach', 'advops', 'capability_abstractions'].includes(key),
+    ['workbenches', 'rules', 'ach', 'advops', 'capability_abstractions', 'maieutic_sessions'].includes(key),
   ).map(([kind, counts]) => ({ kind, ...(counts as Record<string, number>) }));
   return <Space direction="vertical" style={{ width: '100%' }}>
     <Text copyable>{`Job ID: ${job.id}`}</Text>
