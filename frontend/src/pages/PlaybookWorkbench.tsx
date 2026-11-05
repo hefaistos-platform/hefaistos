@@ -1043,13 +1043,13 @@ export const PlaybookWorkbench = () => {
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [localSectionVisibility, setLocalSectionVisibility] = useState<WorkbenchSectionVisibilityMap>({});
 
-  const modalInitialOpenTideRule = useMemo(() => {
+  function resolveModalInitialOpenTideRule(): OpenTideRule | undefined {
     if (!openTideRule) return undefined;
     if (!editorModalVisible) return openTideRule;
     const formatEntry = getFormatByName(aiFormat);
     if (!formatEntry) return openTideRule;
     return formatEntry.setContent(openTideRule, typeof localRule === 'string' ? localRule : '');
-  }, [openTideRule, aiFormat, localRule, editorModalVisible]);
+  }
 
   useEffect(() => {
     setLocalSectionVisibility({});
@@ -3049,7 +3049,7 @@ export const PlaybookWorkbench = () => {
             errors: res.data?.saveDetectionRule?.errors ?? [],
           };
         }}
-        initialOpenTideRule={modalInitialOpenTideRule}
+        initialOpenTideRule={resolveModalInitialOpenTideRule()}
         playbookData={playbookDataForModal}
       />
 
