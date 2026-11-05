@@ -7,6 +7,7 @@ from graphql import GraphQLError
 from identity.decorators import Roles, role_required
 
 from . import maieutic_lifecycle as lifecycle
+from . import maieutic_planner, maieutic_questioner, maieutic_questions
 from .maieutic_lifecycle import MaieuticError
 from .maieutic_models import MaieuticDraft
 
@@ -71,10 +72,69 @@ class MaieuticAdminRowType(graphene.ObjectType):
         return self.organization.name
 
 
+class AdeQuestionType(graphene.ObjectType):
+    """One planned ADE question for a session, rendered with the user's own design wording."""
+    ade_id = graphene.String()
+    question_id = graphene.String()
+    version = graphene.Int()
+    trigger_reason = graphene.String()
+    design_refs = graphene.List(graphene.String)
+    question_text = graphene.String()
+    why_we_ask = graphene.String()
+    weak_answer = graphene.String()
+    strong_answer = graphene.String()
+    glossary = GenericScalar()
+    hint_rungs_used = graphene.Int()
+    hint_rungs_total = graphene.Int()
+    state = graphene.String(description='OPEN, ANSWERED or STALE (answered against an older question version)')
+    ledger_entry = GenericScalar()
+
+
+class MaieuticAdePlanType(graphene.ObjectType):
+    items = graphene.List(AdeQuestionType)
+    needs_question = graphene.List(graphene.String, description='Upstream ADE subcategories with no question file yet')
+    ade_snapshot_id = graphene.UUID()
+    open_count = graphene.Int()
+
+
+def _build_plan(draft):
+    spec = draft.spec or {}
+    answered = maieutic_planner.ledger_by_ade(spec)
+    help_used = (spec.get('robustness') or {}).get('ade_help') or {}
+    items = []
+    for item in maieutic_planner.plan(spec, expert_all=lifecycle.is_expert(spec)):
+        q = item['question']
+        entry = answered.get(item['ade_id'])
+        if entry is None or not entry.get('disposition'):
+            state = 'OPEN'
+        elif entry.get('question_version') != q['version']:
+            state = 'STALE'
+        else:
+            state = 'ANSWERED'
+        items.append(AdeQuestionType(
+            ade_id=item['ade_id'], question_id=q['id'], version=q['version'],
+            trigger_reason=item['trigger_reason'], design_refs=item['design_refs'],
+            question_text=maieutic_questions.render_text(q['question'], q, item['values']),
+            why_we_ask=maieutic_questions.render_text(q['why_we_ask'], q, item['values']),
+            weak_answer=q['weak_answer'], strong_answer=q['strong_answer'],
+            glossary=q.get('glossary') or [],
+            hint_rungs_used=int(help_used.get(item['ade_id'], 0)), hint_rungs_total=3,
+            state=state, ledger_entry=entry,
+        ))
+    snapshot = draft.ade_snapshot or lifecycle._active_ade_snapshot()
+    return MaieuticAdePlanType(
+        items=items,
+        needs_question=maieutic_planner.questions_missing_for_snapshot(snapshot),
+        ade_snapshot_id=snapshot.id if snapshot else None,
+        open_count=sum(1 for i in items if i.state != 'ANSWERED'),
+    )
+
+
 class Query(graphene.ObjectType):
     maieutic_drafts = graphene.List(MaieuticDraftType, status=graphene.String())
     maieutic_draft = graphene.Field(MaieuticDraftType, id=graphene.UUID(required=True))
     maieutic_admin_index = graphene.List(MaieuticAdminRowType)
+    maieutic_ade_plan = graphene.Field(MaieuticAdePlanType, draft_id=graphene.UUID(required=True))
 
     @role_required([Roles.ADMIN, Roles.ANALYST])
     def resolve_maieutic_drafts(self, info, status=None):
@@ -86,6 +146,11 @@ class Query(graphene.ObjectType):
     @role_required([Roles.ADMIN, Roles.ANALYST])
     def resolve_maieutic_draft(self, info, id):
         return lifecycle.get_visible_draft(_user(info), id)
+
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def resolve_maieutic_ade_plan(self, info, draft_id):
+        draft = lifecycle.get_visible_draft(_user(info), draft_id)
+        return _build_plan(draft) if draft else None
 
     @role_required([Roles.ADMIN])
     def resolve_maieutic_admin_index(self, info):
@@ -151,8 +216,81 @@ class DeleteMaieuticDraft(graphene.Mutation):
         return DeleteMaieuticDraft(ok=True)
 
 
+class RevealMaieuticHint(graphene.Mutation):
+    class Arguments:
+        draft_id = graphene.UUID(required=True)
+        ade_id = graphene.String(required=True)
+        rung = graphene.Int(required=True)
+
+    hint = graphene.String()
+    rung = graphene.Int()
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def mutate(root, info, draft_id, ade_id, rung):
+        text = _guard(lifecycle.reveal_hint, draft_id, _user(info), ade_id=ade_id, rung=rung)
+        return RevealMaieuticHint(hint=text, rung=rung)
+
+
+def _user_ai_settings(user):
+    from .models import UserAISettings
+    return UserAISettings.objects.filter(user=user).first()
+
+
+class AnswerMaieuticAdeQuestion(graphene.Mutation):
+    """Stores the user's own answer. The AI check is advisory: it can ask a follow-up, never blocks."""
+    class Arguments:
+        draft_id = graphene.UUID(required=True)
+        ade_id = graphene.String(required=True)
+        answer_text = graphene.String()
+        disposition = graphene.String(required=True)
+        reference = graphene.String()
+        design_ref = graphene.String()
+
+    ledger_entry = GenericScalar()
+    evaluator_flag = graphene.String()
+    evaluator_source = graphene.String()
+    follow_up = graphene.String()
+    open_count = graphene.Int()
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def mutate(root, info, draft_id, ade_id, disposition, answer_text='', reference=None, design_ref=None):
+        user = _user(info)
+        draft = lifecycle.get_visible_draft(user, draft_id)
+        if draft is None:
+            raise GraphQLError('Maieutic session not found.')
+        if draft.status == MaieuticDraft.Status.FINISHED:
+            raise GraphQLError('This Maieutic session is finished and locked. Edit the Workbench instead.')
+        try:
+            disposition, answer_text, reference = maieutic_questioner.validate_disposition(
+                disposition, answer_text, reference)
+        except ValueError as exc:
+            raise GraphQLError(str(exc))
+        item = next((i for i in maieutic_planner.plan(draft.spec, expert_all=lifecycle.is_expert(draft.spec))
+                     if i['ade_id'] == ade_id), None)
+        if item is None:
+            raise GraphQLError('That question is not part of this session.')
+        q = item['question']
+        evaluation = maieutic_questioner.evaluate_answer(
+            question=q,
+            question_text=maieutic_questions.render_text(q['question'], q, item['values']),
+            answer_text=answer_text, disposition=disposition, spec=draft.spec,
+            user_settings=_user_ai_settings(user), organization_id=user.organization_id,
+        )
+        updated = _guard(
+            lifecycle.record_ade_answer, draft_id, user, ade_id=ade_id, answer_text=answer_text,
+            disposition=disposition, reference=reference, design_ref=design_ref, evaluation=evaluation)
+        entry = maieutic_planner.ledger_by_ade(updated.spec).get(ade_id)
+        return AnswerMaieuticAdeQuestion(
+            ledger_entry=entry, evaluator_flag=evaluation['flag'], evaluator_source=evaluation['source'],
+            follow_up=evaluation['follow_up'], open_count=_build_plan(updated).open_count)
+
+
 class Mutation(graphene.ObjectType):
     create_maieutic_draft = CreateMaieuticDraft.Field()
     update_maieutic_draft = UpdateMaieuticDraft.Field()
     set_maieutic_draft_sharing = SetMaieuticDraftSharing.Field()
     delete_maieutic_draft = DeleteMaieuticDraft.Field()
+    reveal_maieutic_hint = RevealMaieuticHint.Field()
+    answer_maieutic_ade_question = AnswerMaieuticAdeQuestion.Field()

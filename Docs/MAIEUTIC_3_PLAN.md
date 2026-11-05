@@ -195,7 +195,7 @@ Status legend: DONE, PARTIAL, TODO.
 1. DONE. Spec and docs (`MAIEUTIC_3_SPEC.md`, this file).
 2. DONE. ADE on Framework Updates (`README_ADE.md`).
 3. PARTIAL. Question bank: all 16 ADE questions are in `backend/ai_assistant/maieutic_content/ade_questions/` (`MAIEUTIC_ADE_QUESTIONS.md`). STP robustness questions are still TODO.
-4. PARTIAL. Backend: `MaieuticDraft` with author-only access, finish lock, sharing toggle, delete rights and the metadata-only admin view are DONE. Planner (design answers to design flags), questioner, evaluator, ledger and Prompt Registry keys are TODO.
+4. DONE for ADE. Backend: `MaieuticDraft` (author-only, finish lock, sharing toggle, delete rights, admin metadata view); `maieutic_planner.py` (design to design flags to questions, deterministic, no AI); `maieutic_questioner.py` (advisory answer check with a code-level guard against the AI supplying answers); ledger, hint ladder and the `maieutic.evaluate_answer` prompt. GraphQL: `maieuticAdePlan`, `revealMaieuticHint`, `answerMaieuticAdeQuestion`. STP and other stage questioners are TODO.
 5. PARTIAL. Frontend: the **Maieutics tab on the Workbench Hub** is DONE as a preview (list, create, open read-only, delete, share toggle, admin metadata view). The six stage screens, dropdowns, help and the three exits are TODO.
 6. Generation chain and Workbench mapping, per-format tasks, traceability. Locking of finished sessions (server-enforced) and the `MAIEUTIC` Instance Sharing scope, including the `ALL`-scope compatibility safeguard.
 7. Remove Maieutic from the Workbench. MAJOR bump.

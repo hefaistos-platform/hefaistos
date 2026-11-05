@@ -9,9 +9,8 @@ Upstream source:
 Site: `https://adeframework.org/`
 
 > **Status.** The import, staging, diff, promote and rollback pipeline described here is
-> implemented. The consumers of ADE content (Maieutic Engine 3.0 questions and hints) are
-> planned in `Docs/MAIEUTIC_3_PLAN.md` and are not built yet. Until then, promoting a snapshot
-> changes only what is stored and shown on the Framework Updates page.
+> implemented. Maieutic 3.0 uses the promoted snapshot in two ways (see "How Maieutic uses ADE"
+> below). Nothing has to be uploaded by hand.
 
 ## What ADE is
 
@@ -196,7 +195,28 @@ See `Docs/MAIEUTIC_ADE_QUESTIONS.md`.
 
 - The Markdown taxonomy parser depends on upstream heading conventions.
 - Only `github.com` repositories are accepted for remote imports.
-- ADE content is stored and shown, but not yet used by Maieutic or rule review.
+- ADE content is not yet used by rule review (evaluating existing rules is a separate, later feature).
+
+## How Maieutic uses ADE
+
+Do I have to upload or update ADE? **No upload, ever.** An administrator runs the import on
+Framework Updates (or `import_ade_framework`), which downloads the public ADE repository,
+stages it, shows a diff, and promotes it on approval. Updating means running that import again
+when upstream publishes changes.
+
+What the promoted snapshot does in Maieutic:
+
+1. **Provenance.** Each answer in a session records which snapshot was active when it was given.
+2. **Coverage warning.** If upstream adds an ADE subcategory that has no question file yet, the
+   session plan reports it in `needsQuestion` so a maintainer knows a question must be written.
+
+What it does not do: **the question wording is not generated from the snapshot.** The questions
+a user sees are the reviewed YAML files in `backend/ai_assistant/maieutic_content/ade_questions/`.
+Promoting a snapshot therefore never changes what users are asked. This is deliberate: it keeps
+questions reviewable like code (`Docs/MAIEUTIC_ADE_QUESTIONS.md`).
+
+Which questions are asked is decided by `maieutic_planner.py` from the user's own design (no AI),
+and the AI only checks the user's answer afterwards (advisory, never writes the answer).
 
 ## File map
 

@@ -90,6 +90,27 @@ A file that breaks one of these fails the test suite.
 4. Changing wording of an existing question: bump `version`. Sessions record the version the
    user answered, so old answers stay interpretable.
 
+## Planner, answers and the AI check
+
+`maieutic_planner.py` turns the user's structured design (match elements, exclusions,
+thresholds, correlations) into design flags and then into the list of questions, with no AI.
+It is biased toward asking: a surplus question costs the user a "not applicable"; a missing one
+hides a gap. Each planned question carries `design_refs` that point at the user's own design
+items, and `{design_observable}` is filled with the user's own wording.
+
+Answers are stored by `record_ade_answer` in the session ledger with the question version,
+the user's text, a disposition (handled in design, accepted limitation, covered by another rule,
+not applicable, or unknown), the hint rungs used and the snapshot. Only "I do not know yet" may
+have empty text. If a question file is later changed, answers given to the older version show as
+stale and are asked again.
+
+`maieutic_questioner.py` runs the advisory check. The AI may flag an answer as answered, vague
+or contradicting the design, and may ask one follow-up question. It cannot supply answers, and
+this is enforced in code as well as in the prompt (`maieutic.evaluate_answer`): a follow-up must
+be a single open-ended question and may not contain a content word absent from the question,
+checklist, design and the user's own answer, otherwise it is replaced by a fixed neutral one.
+The check never blocks saving, and a provider error just means "not evaluated".
+
 ## How selection works
 
 Selection is plain code, not the AI: `questions_for_design(flags, expert_all=False)` returns the
