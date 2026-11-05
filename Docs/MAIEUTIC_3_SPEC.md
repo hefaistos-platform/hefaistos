@@ -278,17 +278,22 @@ IN_PROGRESS  --(Create Workbench ...)-->  FINISHED  (locked, read-only, permanen
 - `SAVE_DRAFT` does not finish the session; it stays IN_PROGRESS and editable.
 - **Enforced on the server, not only in the UI.** Every mutation that changes a session (answer,
   stage change, spec edit, format selection, create) must reject a FINISHED session. The only
-  mutations allowed on a FINISHED session are: toggle sharing (9c), change TLP (see below), and
-  delete.
+  mutations allowed on a FINISHED session are: toggle sharing (9c) and delete.
 - **What a finished session shows:** the full spec, the ADE ledger with the snapshot each answer
   was given against, the STP block (claimed, evidence-supported, final, override reason), the
   completeness counts, the outcome, and a link to the created Workbench. The collapsible
   transcript is included. No input fields.
-- **TLP stays changeable** after finishing, because sharing eligibility depends on it and it is
-  metadata, not design content. Same rule as `PlaybookGraph`, where TLP is edited independently.
-  **[VERIFY with owner]**
-- **Delete** removes only the session record, never the Workbench. Allowed for the author, with
-  a confirmation. **[VERIFY with owner]**
+- **TLP is locked** with the rest of the session once it is FINISHED (decided). Choose the TLP
+  before creating the Workbench. It decides sharing eligibility, so to share under a different TLP
+  the session must be recreated. The Workbench's own TLP is a separate field and stays editable.
+- **Delete** removes only the session record, never the Workbench. Allowed for the **author, an
+  organization admin and a superuser** (decided), with a confirmation. Admins and superusers can
+  delete but still cannot open or read another user's session (author-only visibility, section 9).
+  So the Maieutics list for them shows only their own sessions; deleting someone else's session
+  needs an explicit management path (for example by id from an admin view that shows metadata
+  only: title, author, status, dates, no spec content). **[VERIFY with owner: confirm this
+  metadata-only admin view is acceptable]** Deleting a session also removes it from future shares;
+  copies already pulled by peers are not recalled.
 - Drafts remain author-only (section 9). Finishing does not change visibility; sharing does not
   either (9c shares a copy through Instance Sharing, it does not make local sessions visible to
   other local users).
@@ -312,7 +317,7 @@ section, and a UI option in `InstanceSharing.tsx`. ACH is the closest precedent:
 | Tags | Not applicable (sessions have no tags), like ACH, AdvOps and Capability |
 | TLP | Applies, using the session's own `tlp_classification` |
 | De-duplication | By normalized title, as other scopes |
-| Payload | `spec`, ADE ledger, outcome, TLP, ADE snapshot identity (repo, ref, commit SHA) **[VERIFY with owner: whether the transcript is included; recommended default is to exclude it]** |
+| Payload | `spec`, ADE ledger, outcome, TLP, ADE snapshot identity (repo, ref, commit SHA) The conversation transcript is **excluded** (decided). |
 | Not in payload | The local Workbench FK, author identity beyond what other scopes export **[VERIFY]**, any rule text (rules travel with the Workbench scope) |
 | On import | Created as FINISHED and read-only in the receiving org, `allow_remote_pull` false (re-sharing requires a local opt-in, as for imported Workbenches), `created_workbench` null, TLP preserved, mapped through `HefaistosSharedObject` like other kinds so re-pulls update instead of duplicating. Shown in the Maieutics tab with an "imported" marker and its source |
 | ADE history on import | The ledger keeps the ADE snapshot identity it was answered against, even if the receiving instance has never imported that snapshot. It is shown as history, not re-evaluated |
@@ -375,5 +380,5 @@ The traceability result is AI-assisted and must be labelled as a check, not a gu
 3. (Resolved, see 9a.)
 4. Whether the KQL to AQL pass-through converter (`rules/conversion_service.py`) is fixed or
    removed. Maieutic will not use it either way.
-5. Owner to confirm the `[VERIFY with owner]` items in 9b and 9c: TLP editable after finish, delete allowed, transcript in the shared payload.
+5. (Resolved: TLP locked after finish, delete by author/admin/superuser, transcript not shared.) Remaining: confirm the metadata-only admin view for deleting other users' sessions (9b).
 6. STP rules in section 5 reviewed by a detection engineer familiar with Summiting the Pyramid.
