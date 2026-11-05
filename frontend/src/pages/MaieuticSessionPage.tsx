@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { gql, useLazyQuery, useMutation, useQuery } from '@apollo/client';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  Alert, Button, Card, Checkbox, Input, InputNumber, Radio, Select, Space, Spin, Steps, Tag, Tooltip, Typography,
+  Alert, Button, Card, Checkbox, Input, InputNumber, Popconfirm, Radio, Select, Space, Spin, Steps, Tag, Typography,
 } from 'antd';
 import { ArrowLeftOutlined, ArrowRightOutlined, LockOutlined } from '@ant-design/icons';
 import { Field, RecordList, StringList, newId } from '../components/maieutic/MaieuticFormParts';
@@ -42,6 +42,12 @@ const SOURCES_QUERY = gql`
   query MaieuticSources {
     allLogSources { id name coverageStatus siemProduct }
     allDataSources { id name platform }
+  }
+`;
+
+const CREATE_WORKBENCH = gql`
+  mutation CreateWorkbenchFromMaieuticDraft($id: UUID!, $exit: String!) {
+    createWorkbenchFromMaieuticDraft(draftId: $id, exit: $exit) { workbenchId queuedFormats }
   }
 `;
 
@@ -85,6 +91,8 @@ export const MaieuticSessionPage: React.FC = () => {
   const navigate = useNavigate();
   const { data, loading, error } = useQuery(DRAFT_QUERY, { variables: { id: draftId }, fetchPolicy: 'network-only' });
   const [updateDraft] = useMutation(UPDATE_MUTATION);
+  const [createWorkbench, { loading: creating }] = useMutation(CREATE_WORKBENCH);
+  const [createError, setCreateError] = useState('');
   const [searchTech, { data: techData, loading: techLoading }] = useLazyQuery(TECHNIQUE_QUERY);
   const { data: srcData } = useQuery(SOURCES_QUERY);
   const [loadFields, { data: fieldData }] = useLazyQuery(FIELDS_QUERY, { fetchPolicy: 'network-only' });
@@ -156,6 +164,18 @@ export const MaieuticSessionPage: React.FC = () => {
     setSpec(merged);
     dirty.current[key] = next;
     queueSave();
+  };
+
+  const create = async (exitMode: 'CREATE_AND_GENERATE' | 'CREATE_WITHOUT_RULE') => {
+    setCreateError('');
+    try {
+      await flush();
+      const res = await createWorkbench({ variables: { id: draftId, exit: exitMode } });
+      const id = res.data?.createWorkbenchFromMaieuticDraft?.workbenchId;
+      if (id) navigate(`/playbooks/${id}`);
+    } catch (err: any) {
+      setCreateError(err?.message ?? 'Could not create the Workbench');
+    }
   };
 
   const goTo = async (n: number) => {
@@ -454,14 +474,26 @@ export const MaieuticSessionPage: React.FC = () => {
               This is a record of how much of your own thinking was captured. It is not a quality score for the future rule.
             </Paragraph>
           </Field>
-          <Alert type="warning" showIcon style={{ marginBottom: 12 }}
-            message="Creating the Workbench and generating the rule arrive in the next release."
-            description="Your session is saved and you can come back to it from the Maieutics tab. The Maieutic Engine inside a Workbench still works meanwhile." />
-          <Space>
-            <Tooltip title="Available in the next release"><Button type="primary" disabled>Create Workbench and generate rule</Button></Tooltip>
-            <Tooltip title="Available in the next release"><Button disabled>Create Workbench without a rule</Button></Tooltip>
+          {missing.length > 0 && (
+            <Alert type="warning" showIcon style={{ marginBottom: 12 }}
+              message={`To create a Workbench you still need ${missing.join(', ')} (stage 1).`}
+              description="You can save and close at any time and come back later." />
+          )}
+          <Alert type="info" showIcon style={{ marginBottom: 12 }}
+            message="Creating the Workbench closes this session."
+            description="It stays in the Maieutics tab as a read-only record, and you keep working in the Workbench. The rule is generated with the usual checks, using your design and your answers. Evasion points you accepted as limitations are listed as blind spots, not hidden." />
+          <Space wrap>
+            <Popconfirm title="Create the Workbench and generate the rule?" description="This locks the session." okText="Create"
+              disabled={missing.length > 0} onConfirm={() => create('CREATE_AND_GENERATE')}>
+              <Button type="primary" disabled={missing.length > 0} loading={creating}>Create Workbench and generate rule</Button>
+            </Popconfirm>
+            <Popconfirm title="Create the Workbench without a rule?" description="This locks the session." okText="Create"
+              disabled={missing.length > 0} onConfirm={() => create('CREATE_WITHOUT_RULE')}>
+              <Button disabled={missing.length > 0} loading={creating}>Create Workbench without a rule</Button>
+            </Popconfirm>
             <Button onClick={async () => { await flush(); navigate('/playbooks?tab=maieutics'); }}>Save and close</Button>
           </Space>
+          {createError && <Alert type="error" showIcon style={{ marginTop: 12 }} message={createError} />}
         </>
       );
     }

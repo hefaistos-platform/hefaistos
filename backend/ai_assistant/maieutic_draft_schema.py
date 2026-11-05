@@ -7,7 +7,7 @@ from graphql import GraphQLError
 from identity.decorators import Roles, role_required
 
 from . import maieutic_lifecycle as lifecycle
-from . import maieutic_planner, maieutic_questioner, maieutic_questions
+from . import maieutic_planner, maieutic_questioner, maieutic_questions, maieutic_workbench
 from .maieutic_lifecycle import MaieuticError
 from .maieutic_models import MaieuticDraft
 
@@ -144,12 +144,22 @@ def _log_fields(log_source_ids):
                                  siem_field_name=r.siem_field_name) for r in rows]
 
 
+class MaieuticGenerationStatusType(graphene.ObjectType):
+    task_id = graphene.UUID()
+    output_format = graphene.String()
+    status = graphene.String()
+    validation_status = graphene.String()
+    has_rule = graphene.Boolean()
+    error = graphene.String()
+
+
 class Query(graphene.ObjectType):
     maieutic_drafts = graphene.List(MaieuticDraftType, status=graphene.String())
     maieutic_draft = graphene.Field(MaieuticDraftType, id=graphene.UUID(required=True))
     maieutic_admin_index = graphene.List(MaieuticAdminRowType)
     maieutic_log_source_fields = graphene.List(
         MaieuticLogFieldType, log_source_ids=graphene.List(graphene.UUID, required=True))
+    maieutic_generation_status = graphene.List(MaieuticGenerationStatusType, workbench_id=graphene.UUID(required=True))
     maieutic_ade_plan = graphene.Field(MaieuticAdePlanType, draft_id=graphene.UUID(required=True))
 
     @role_required([Roles.ADMIN, Roles.ANALYST])
@@ -166,6 +176,10 @@ class Query(graphene.ObjectType):
     @role_required([Roles.ADMIN, Roles.ANALYST])
     def resolve_maieutic_log_source_fields(self, info, log_source_ids):
         return _log_fields(log_source_ids)
+
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def resolve_maieutic_generation_status(self, info, workbench_id):
+        return [MaieuticGenerationStatusType(**row) for row in maieutic_workbench.generation_status(workbench_id, _user(info))]
 
     @role_required([Roles.ADMIN, Roles.ANALYST])
     def resolve_maieutic_ade_plan(self, info, draft_id):
@@ -309,6 +323,27 @@ class AnswerMaieuticAdeQuestion(graphene.Mutation):
             follow_up=evaluation['follow_up'], open_count=_build_plan(updated).open_count)
 
 
+class CreateWorkbenchFromMaieuticDraft(graphene.Mutation):
+    """Creates the Workbench, locks the session and, if asked, queues rule generation per chosen format."""
+    class Arguments:
+        draft_id = graphene.UUID(required=True)
+        exit = graphene.String(required=True, description='CREATE_AND_GENERATE or CREATE_WITHOUT_RULE')
+
+    workbench_id = graphene.UUID()
+    draft = graphene.Field(MaieuticDraftType)
+    queued_formats = graphene.List(graphene.String)
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def mutate(root, info, draft_id, exit):
+        user = _user(info)
+        workbench, tasks = _guard(maieutic_workbench.create_workbench_from_draft, draft_id, user, exit_mode=exit)
+        draft = lifecycle.get_visible_draft(user, draft_id)
+        return CreateWorkbenchFromMaieuticDraft(
+            workbench_id=workbench.id, draft=draft,
+            queued_formats=[(t.input_data or {}).get('output_format') for t in tasks])
+
+
 class Mutation(graphene.ObjectType):
     create_maieutic_draft = CreateMaieuticDraft.Field()
     update_maieutic_draft = UpdateMaieuticDraft.Field()
@@ -316,3 +351,4 @@ class Mutation(graphene.ObjectType):
     delete_maieutic_draft = DeleteMaieuticDraft.Field()
     reveal_maieutic_hint = RevealMaieuticHint.Field()
     answer_maieutic_ade_question = AnswerMaieuticAdeQuestion.Field()
+    create_workbench_from_maieutic_draft = CreateWorkbenchFromMaieuticDraft.Field()

@@ -260,8 +260,8 @@ export const MaieuticSessionsTab: React.FC = () => {
               permanently and stays here as the record of how it was designed. Edit the Workbench, not the session.
               <br />
               <Text type="secondary">
-                Preview: you can work through all six stages here. Creating the Workbench and generating the rule
-                arrive in the next release, so the existing Maieutic Engine in the Workbench keeps working until then.
+                You can work through all six stages here and create the Workbench, with or without a generated rule.
+                The older Maieutic Engine inside a Workbench still works alongside it for now.
               </Text>
             </>
           }

@@ -5,6 +5,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 const mockUpdate = jest.fn();
 const mockAnswer = jest.fn();
 const mockHint = jest.fn();
+const mockCreate = jest.fn();
+const mockNavigate = jest.fn();
 let mockDraft: any;
 
 const PLAN = {
@@ -36,10 +38,16 @@ jest.mock('@apollo/client', () => {
       const n = opName(doc);
       if (n === 'UpdateMaieuticDraft') return [mockUpdate, {}];
       if (n === 'AnswerMaieuticAdeQuestion') return [mockAnswer, { loading: false }];
+      if (n === 'CreateWorkbenchFromMaieuticDraft') return [mockCreate, { loading: false }];
       return [mockHint, {}];
     },
   };
 });
+
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useNavigate: () => mockNavigate,
+}));
 
 // eslint-disable-next-line import/first
 import MaieuticSessionPage from './MaieuticSessionPage';
@@ -58,6 +66,8 @@ beforeEach(() => {
   mockAnswer.mockReset().mockResolvedValue({
     data: { answerMaieuticAdeQuestion: { evaluatorFlag: 'VAGUE', evaluatorSource: 'AI', followUp: 'Which of those would you still see?', openCount: 0 } },
   });
+  mockCreate.mockReset().mockResolvedValue({ data: { createWorkbenchFromMaieuticDraft: { workbenchId: 'wb-1', queuedFormats: ['KQL'] } } });
+  mockNavigate.mockReset();
   mockHint.mockReset().mockResolvedValue({ data: { revealMaieuticHint: { hint: 'Look at the ATT&CK page.', rung: 1 } } });
   mockDraft = {
     id: 'd1', name: 'My idea', status: 'IN_PROGRESS', currentStage: 1, isLocked: false, tlpClassification: 'UNCLEAR',
@@ -94,13 +104,35 @@ describe('MaieuticSessionPage', () => {
     expect(screen.queryByText('1. Hypothesis')).not.toBeInTheDocument();
   });
 
-  it('keeps Create Workbench disabled and says why', async () => {
+  it('blocks Create Workbench until the stage 1 minimum is there, and says what is missing', async () => {
     mockDraft = { ...mockDraft, currentStage: 6 };
     renderPage();
     expect(await screen.findByText('6. Review')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Create Workbench and generate rule/ })).toBeDisabled();
-    expect(screen.getByText(/arrive in the next release/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Create Workbench without a rule/ })).toBeDisabled();
+    expect(screen.getByText(/you still need a title, a technique or the choice of none, a goal/i)).toBeInTheDocument();
     expect(screen.getByText(/not a quality score/i)).toBeInTheDocument();
+  });
+
+  it('creates the Workbench after confirmation, saving first, and opens it', async () => {
+    mockDraft = { ...mockDraft, currentStage: 6, spec: { hypothesis: { title: 'T', goal: 'G', technique: { state: 'NONE_CHOSEN' } } } };
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Create Workbench and generate rule/ }));
+    expect(mockCreate).not.toHaveBeenCalled(); // asks first, because it locks the session
+    fireEvent.click(await screen.findByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    expect(mockCreate.mock.calls[0][0].variables).toEqual({ id: 'd1', exit: 'CREATE_AND_GENERATE' });
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/playbooks/wb-1'));
+  });
+
+  it('shows the server error and stays on the page when creation fails', async () => {
+    mockCreate.mockRejectedValue(new Error('Rule generation needs an AI provider.'));
+    mockDraft = { ...mockDraft, currentStage: 6, spec: { hypothesis: { title: 'T', goal: 'G', technique: { state: 'NONE_CHOSEN' } } } };
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Create Workbench and generate rule/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Create' }));
+    expect(await screen.findByText(/needs an AI provider/)).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('asks the planned ADE question, needs a status before saving, and shows the advisory follow-up', async () => {

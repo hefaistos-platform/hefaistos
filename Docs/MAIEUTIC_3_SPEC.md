@@ -228,7 +228,7 @@ Everything else may be UNKNOWN. SAVE_DRAFT has no minimum.
 | triage_guidance, response_playbook, alert_trigger, default_severity, enrichment/containment/notification steps | playbook_tests |
 | time_window, alert_threshold, threshold_operator, aggregation_field, aggregation_function, suppression_window | design.windows_thresholds |
 | downstream_correlation_requirements | design.correlations |
-| telemetry_requirements | interrogation.log_sources (status stays `unverified`, as in `Docs/TELEMETRY_TAGGING.md`) |
+| telemetry_requirements | **Not written** (decided in implementation): this field is a reviewed tag list produced by the Telemetry Tagging step. Log sources and fields travel as text in `technical_context` instead |
 | detection_rule + detection_rule_format | primary KQL result |
 | opentide_yaml + configured_platforms | additional formats (section 9a) |
 | test_scenario, test_expected_output | playbook_tests incl. negative_tests |

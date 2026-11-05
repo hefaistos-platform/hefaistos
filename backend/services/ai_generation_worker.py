@@ -580,6 +580,12 @@ def process_ai_task(task_id: str) -> None:
         task.completed_at = timezone.now()
         task.save(update_fields=['status', 'result_data', 'completed_at'])
         logger.warning("AIGenerationTask %s (%s) completed successfully.", task_id, task.task_type)
+        if (task.input_data or {}).get('maieutic_workbench_id'):
+            try:
+                from ai_assistant.maieutic_workbench import apply_generation_result
+                apply_generation_result(task, result_data)
+            except Exception:  # the rule stays in the task result; never fail the task over the write-back
+                logger.exception("Could not store Maieutic result of task %s in its workbench", task_id)
     except Exception as exc:
         task.status = AIGenerationTask.TaskStatus.FAILED
         task.error_message = str(exc)

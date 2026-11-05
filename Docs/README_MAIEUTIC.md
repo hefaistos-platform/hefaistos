@@ -4,11 +4,11 @@
 > [MAIEUTIC_3_SPEC.md](MAIEUTIC_3_SPEC.md)). It will move to the Workbench Hub (new "Maieutics" tab)
 > and replace the behaviour described below. This guide stays accurate for the current release.
 >
-> **Preview available now:** Workbench Hub has a **Maieutics** tab. You can start a session and
-> work through all six stages (hypothesis, telemetry, design, evasion, response, review). Your
-> answers save automatically and you can resume later. **Creating the Workbench and generating the
-> rule from a session is not available yet**, so use the Maieutic Engine inside a Workbench, as
-> described below, to produce a rule until that arrives.
+> **Preview available now:** Workbench Hub has a **Maieutics** tab. You can start a session, work
+> through all six stages (hypothesis, telemetry, design, evasion, response, review), and finish by
+> creating a Workbench, with or without a generated rule. Your answers save automatically and you
+> can resume later. The older Maieutic Engine inside a Workbench, described below, still works
+> and will be retired in the next MAJOR release.
 >
 > The six stages in short:
 > 1. **Hypothesis**: title, ATT&CK technique (or "none yet"), goal, ways an attacker could do it.
@@ -23,6 +23,46 @@
 > 5. **Response**: triage, response, alert trigger, severity, and how you would test it.
 > 6. **Review**: choose output formats (KQL always; SPL, EQL, Wazuh, AQL optional) and see what you
 >    captured. This is a record of your thinking, not a quality score for the rule.
+>
+> ### Finishing a session
+>
+> On the Review stage you need only the stage 1 minimum (title, technique or "none yet", goal).
+> Everything else may stay empty or "I do not know yet".
+>
+> - **Create Workbench and generate rule** creates the Workbench, locks the session, and queues
+>   one normal rule generation per chosen format. It needs AI Settings in your profile; without
+>   them nothing is created and you are told why.
+> - **Create Workbench without a rule** creates the Workbench only.
+>
+> Either way the session becomes a read-only record in the Maieutics tab, linked to the Workbench.
+> Deleting the session later never deletes the Workbench.
+>
+> What goes where in the Workbench:
+>
+> | Session | Workbench field |
+> |---|---|
+> | title, technique, goal + ways an attacker could do it | title, ATT&CK technique, goal |
+> | scope notes, planned log sources and fields, design in words and its elements | technical context |
+> | harmless look-alikes and planned exclusions | false positives |
+> | evasion points you accepted, left to another detection, or did not know; plus a count of unanswered ones | blind spots |
+> | triage, response, alert trigger, severity, test scenario and expected result | the matching fields |
+> | time window, threshold, count-by field, suppression | the matching tuning fields |
+> | related events | downstream correlation (scope text) |
+> | the questions and your own answers | conversation history |
+> | the session's TLP | TLP |
+>
+> Not filled in by a session: telemetry requirement tags (they come from the separate Telemetry
+> Tagging step and are never guessed), robustness level, capability abstractions and focus layer
+> (those stages are not built yet).
+>
+> **How the rule is generated.** The normal generator runs, with its reference retrieval, validation
+> check and repair attempts. Your session adds a block of design decisions to its prompt: what the
+> rule must implement, which evasion points you say the design already handles (it must make that
+> true), and the limitations you accepted (it must not claim to cover them). The finished rule is
+> stored in the Workbench by the server, so you can leave the page. KQL goes to the detection rule;
+> SPL, EQL, AQL and Wazuh go to the matching platform slots. A result is never written over text you
+> have entered yourself in the meantime. If a draft fails the rule checks it is not stored and the
+> Workbench banner says so.
 
 This document explains what the Maieutic Engine is, how it works, and how to use it effectively inside a Workbench.
 

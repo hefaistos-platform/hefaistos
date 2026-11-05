@@ -1,6 +1,7 @@
 import WorkbenchLinkedRules from '../components/WorkbenchLinkedRules';
 import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { MaieuticGenerationBanner } from '../components/maieutic/MaieuticGenerationBanner';
 import { gql } from '@apollo/client';
 import { useQuery, useMutation, useLazyQuery } from '@apollo/client/react';
 import { 
@@ -2257,6 +2258,7 @@ export const PlaybookWorkbench = () => {
 
   return (
     <div className="workbench-theme flex flex-col h-screen bg-white">
+      <MaieuticGenerationBanner playbookId={playbookId || ''} onStored={() => { refetch(); }} />
       {/* --- Header --- */}
       <div className="border-b border-gray-200 p-4 flex justify-between items-center bg-white shadow-sm z-10">
         <div>
