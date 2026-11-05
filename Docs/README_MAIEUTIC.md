@@ -1,5 +1,9 @@
 # Maieutic Engine in HEFAISTOS
 
+> **Note:** Maieutic Engine 3.0 is being built (see [MAIEUTIC_3_PLAN.md](MAIEUTIC_3_PLAN.md) and
+> [MAIEUTIC_3_SPEC.md](MAIEUTIC_3_SPEC.md)). It will move to the Workbench Hub (new "Maieutics" tab)
+> and replace the behaviour described below. This guide stays accurate for the current release.
+
 This document explains what the Maieutic Engine is, how it works, and how to use it effectively inside a Workbench.
 
 ## What Maieutic Engine Is

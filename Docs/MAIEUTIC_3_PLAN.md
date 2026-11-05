@@ -1,0 +1,181 @@
+# Maieutic Engine 3.0: plan and future guide
+
+> **Planned behaviour, not yet implemented** (branch `feat/maieutic-3`). At Phase 7 this
+> text, updated to what was actually built, replaces `Docs/README_MAIEUTIC.md`. Field-level
+> detail is in `Docs/MAIEUTIC_3_SPEC.md`.
+
+## 1. What it is
+
+Maieutic Engine guides you from a detection idea to a finished Workbench and a generated
+rule by asking questions. It does not hand you answers. The rule is the final product, and
+it is only as good as the thinking you put in.
+
+Three promises:
+
+1. **It asks, you answer.** On adversarial (ADE) questions the AI never writes the answer.
+2. **"I don't know yet" is allowed.** It is recorded, shown, and carried into the Workbench.
+3. **You always leave with a Workbench.** There is no dead end.
+
+## 2. Where to find it
+
+Open **Workbench Hub**. There is a **Maieutics** tab next to Workbench, ACH Matrix, ADVOPS
+and Machina Velocity Engine. It lists your sessions with name, stage, last update and a
+**Continue** button, plus **New session**. The Maieutic Engine is no longer opened from
+inside a Workbench.
+
+Sessions autosave after every answer. Closing the window does not lose work.
+
+## 3. The six stages
+
+| # | Stage | You decide |
+|---|---|---|
+| 1 | Hypothesis | ATT&CK technique, goal, every way an attacker could do it |
+| 2 | Interrogation | Log sources and fields, benign lookalikes, which fields an attacker controls |
+| 3 | Design | What to match, what to exclude and why, windows and thresholds, correlations. Output is a blueprint in words |
+| 4 | Robustness | A. How hard your detection is to evade (STP). B. Adversarial questions (ADE) |
+| 5 | Playbook and tests | Triage, response, SOAR, test scenario, negative tests |
+| 6 | Review and create | Check, pick formats, choose how to finish |
+
+You cannot write code in the engine. You design the detection in words, and the generator
+writes the rule from your design.
+
+## 4. Help for beginners
+
+Every question has a help panel:
+
+- **Why am I asked?**
+- **Where to look:** concrete places such as Event Viewer channels, Sysmon event IDs,
+  Defender tables, and the Log Source and Data Source catalogs.
+- **How to look:** steps, such as running the technique in a lab and watching the logs.
+- **What a good answer looks like:** a weak and a strong example from a *different* technique.
+- **Glossary chips** for terms like parent process or kernel mode.
+
+The **hint ladder** reveals help step by step: a rephrased nudge, then where to look, then a
+worked example. It never reveals your own answer. The challenge level controls how open help
+is: Light shows it expanded, Expert collapses it.
+
+## 5. Robustness: two separate measures
+
+| | Measures | Scale |
+|---|---|---|
+| **STP (Summiting the Pyramid)** | How hard the thing you detect is for an attacker to change | Level 1-5 and a telemetry column A/U/K/P/H |
+| **ADE** | Whether your detection logic really covers the behaviour, and where it can miss | Per-question answers, no score |
+
+They are never merged into one number.
+
+**STP.** You first answer three plain questions: what does the detection look at, can an
+attacker change it without breaking the attack, and where does the log come from. You commit
+a level and column with a reason. The engine then shows evidence from your ADE answers, and
+the AI suggests a level with reasons. You accept, rewrite, or keep yours with a written
+override reason. You see "claimed" and "supported" side by side.
+
+**ADE.** The Adversarial sub-stage asks questions drawn from the Adversarial Detection
+Engineering framework. Which ones you see depends on your design and the challenge level:
+
+- **Light:** only those triggered by your design.
+- **Standard:** adds design-time questions.
+- **Expert:** all.
+
+Each answer gets a disposition: handled in design, accepted limitation, covered by another
+rule, not applicable (with reason), or unknown. Which ones are asked is decided by code,
+not by the AI. The AI only words the question using your design and challenges a vague answer.
+
+## 6. Finishing
+
+| Button | Result |
+|---|---|
+| **Create Workbench and generate rule** | Creates and fills the Workbench, closes the engine, starts one generation per selected format |
+| **Create Workbench without rule** | Creates and fills the Workbench from what you have, no generation |
+| **Save draft and close** | Keeps the session in the Maieutics tab for later |
+
+Minimum to create a Workbench: a title, a technique (or an explicit "no technique"), and a
+goal. Everything else may be Unknown. The Review screen shows what was captured and what is
+unknown before you click.
+
+**Formats.** KQL is always selected. SPL, EQL and Wazuh are optional. AQL is a QRadar
+**query**, not a rule. Each format is generated separately from your design, not translated
+from the KQL rule. The screen shows per format whether it will be validated.
+
+If generation fails, the Workbench still exists and a banner offers a retry.
+
+## 7. Generation
+
+Per format: context from your spec, RAG grounding (status recorded), generation of primary,
+quick-win and robust variants, validation and repair where enabled, confidence scoring, then a
+**traceability table** listing whether each decision appears in the rule. That table is a
+check, not a guarantee.
+
+## 8. What lands in the Workbench
+
+See `Docs/MAIEUTIC_3_SPEC.md` section 8 for the field mapping. The session
+transcript is saved in a collapsible section. The spec and ADE ledger are saved read-only.
+
+## 9. When ADE changes
+
+ADE is a framework on the **Framework Updates** page, like Chokepoints:
+
+1. Admin imports a snapshot from GitHub (staged).
+2. Admin reviews a diff: added, renamed, edited, removed.
+3. Our own question text, hints and rubric (the overlay) are approved separately.
+4. Admin promotes. Rollback is available.
+
+New upstream items without an approved question are listed as "needs a question" and not
+asked yet. After a promotion, existing sessions only show new or changed questions as open.
+
+## 10. Limits
+
+- ADE measures false-negative risk in detection logic. It does not measure false positives,
+  telemetry health or overall quality, and it cannot certify a rule as complete.
+- STP evidence rules are a HEFAISTOS interpretation and need expert review.
+- Evaluator feedback is advisory.
+- EQL, Wazuh and AQL are not validated by default.
+- Checking an existing rule against ADE is a separate, later feature in the rule lifecycle.
+
+---
+
+# Documentation and release plan
+
+## Documents to produce with the implementation
+
+| Document | Action |
+|---|---|
+| `Docs/README_MAIEUTIC.md` | Replace with the final form of this guide |
+| `Docs/MAIEUTIC_CONTENT_AUTHORING.md` | New: how to write question templates, hint kits, rubrics, STP rules |
+| `Docs/README_ADE.md` | New: ADE framework import, staging, diff, promote, rollback, overlay |
+| `Docs/capability-library.md` | Update: how entries feed Maieutic |
+| `Docs/AI_QUALITY.md` | Update: new Prompt Registry keys, `rule-bundle-v2` |
+| `Docs/ENVIRONMENT_VARIABLES.md` | Update if settings are added |
+| `README.md` | Update links (line ~250) and add ADE guide |
+| Decision record | New: what was removed from the Workbench and why |
+
+Rule: a phase is not complete until its documentation is updated in the same change.
+
+## Versioning: MAJOR
+
+Decided by the project owner: this is a **MAJOR** release. Per `Docs/VERSIONING.md`, a breaking commit needs
+`BREAKING CHANGE:` in the body or a `!` marker (`feat!:`). The breaking elements:
+
+- Maieutic Engine removed from the Workbench.
+- The "apply staged output to an existing Workbench" flow removed.
+- Maieutic output model and generator contract change (`rule-bundle-v2`). Whether the GraphQL
+  `maieuticQuestion` mutation is kept compatible must be decided in Phase 4.
+
+Commit subjects must describe the change so the generated `Versions/vX.Y.Z/changelog.md`
+is useful. The MAJOR bump should happen at the phase that actually removes behaviour (7).
+
+## Phases
+
+1. Spec and docs written first (done: `MAIEUTIC_3_SPEC.md`, this file).
+2. ADE on Framework Updates (independent).
+3. Overlay content: questions, hint kits, STP rules, expert-reviewed.
+4. Backend: planner, questioner, evaluator, ledger, `MaieuticDraft`, prompts into the Registry.
+5. Frontend: Maieutics tab on the Hub, six stages, dropdowns, help, three exits.
+6. Generation chain and Workbench mapping, per-format tasks, traceability.
+7. Remove Maieutic from the Workbench. MAJOR bump.
+
+## Maieutics tab: notes for Phase 5
+
+The Hub tab state is mapped in two places in `PlaybooksHubPage.tsx` (the initial `useState` and
+the `useEffect`), and both fall back to `graphs` for unknown keys. A `maieutics` key must be
+added to both, or `?tab=maieutics` silently opens the Workbench tab. The MVE tab uses the same
+pattern and is the model to follow.
