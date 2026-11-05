@@ -1045,10 +1045,11 @@ export const PlaybookWorkbench = () => {
 
   const modalInitialOpenTideRule = useMemo(() => {
     if (!openTideRule) return undefined;
+    if (!editorModalVisible) return openTideRule;
     const formatEntry = getFormatByName(aiFormat);
     if (!formatEntry) return openTideRule;
-    return formatEntry.setContent(openTideRule, localRule);
-  }, [openTideRule, aiFormat, localRule]);
+    return formatEntry.setContent(openTideRule, typeof localRule === 'string' ? localRule : '');
+  }, [openTideRule, aiFormat, localRule, editorModalVisible]);
 
   useEffect(() => {
     setLocalSectionVisibility({});
