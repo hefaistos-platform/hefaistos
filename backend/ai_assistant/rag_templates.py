@@ -147,6 +147,19 @@ def _schema_value_to_text(value) -> str:
     return str(value).strip()[:220]
 
 
+def _coerce_payload_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    lowered = str(value).strip().lower()
+    if lowered in {'true', '1', 'yes', 'y', 'on'}:
+        return True
+    if lowered in {'false', '0', 'no', 'n', 'off'}:
+        return False
+    return bool(value)
+
+
 def summarize_reference_context(reference_context: list[dict]) -> dict:
     if not reference_context:
         return {
@@ -235,6 +248,11 @@ def retrieve_reference_context(
     additional_text: str | None = None,
     language: str = 'KQL',
     organization_id: str | None = None,
+    repository_id: str | None = None,
+    repository_name: str | None = None,
+    source_repo: str | None = None,
+    min_quality_score: int = 70,
+    min_similarity: float = 0.2,
     limit: int = 6,
 ) -> list[dict]:
     normalized_language = normalize_rag_language(language, fallback='')
@@ -255,6 +273,11 @@ def retrieve_reference_context(
             query_text,
             language=normalized_language,
             organization_id=str(organization_id) if organization_id else None,
+            repository_id=str(repository_id) if repository_id else None,
+            repository_name=str(repository_name) if repository_name else None,
+            source_repo=str(source_repo) if source_repo else None,
+            min_quality_score=min_quality_score,
+            min_similarity=min_similarity,
             limit=limit,
         )
     except Exception as exc:
@@ -485,6 +508,11 @@ class QdrantTemplateRetriever:
         *,
         language: str = 'KQL',
         organization_id: str | None = None,
+        repository_id: str | None = None,
+        repository_name: str | None = None,
+        source_repo: str | None = None,
+        min_quality_score: int = 70,
+        min_similarity: float = 0.2,
         limit: int = 5,
     ) -> list[dict]:
         if not (query_text or '').strip():
@@ -500,12 +528,23 @@ class QdrantTemplateRetriever:
         must_filters = [{'key': 'language', 'match': {'value': normalized_language}}]
         if organization_id:
             must_filters.append({'key': 'organization_id', 'match': {'value': str(organization_id)}})
+        if repository_id:
+            must_filters.append({'key': 'repository_id', 'match': {'value': str(repository_id)}})
+        if repository_name:
+            must_filters.append({'key': 'repository_name', 'match': {'value': str(repository_name)}})
+        if source_repo:
+            must_filters.append({'key': 'source_repo', 'match': {'value': str(source_repo)}})
+
+        min_quality = max(0, min(int(min_quality_score or 0), 100))
+        if min_quality > 0:
+            must_filters.append({'key': 'quality_score', 'range': {'gte': min_quality}})
 
         payload = {
             'vector': build_hash_embedding(query_text, self.vector_size),
             'limit': max(1, min(int(limit or 5), 20)),
             'with_payload': True,
             'with_vector': False,
+            'score_threshold': max(0.0, min(float(min_similarity or 0.0), 1.0)),
             'filter': {
                 'must': must_filters,
             },
@@ -523,9 +562,17 @@ class QdrantTemplateRetriever:
             content = (payload_data.get('content') or '').strip()
             if not content:
                 continue
+            try:
+                quality_score = max(0, min(int(float(payload_data.get('quality_score') or 0)), 100))
+            except (TypeError, ValueError):
+                quality_score = 0
+            golden_template = _coerce_payload_bool(payload_data.get('golden_template'))
+            similarity_score = float(hit.get('score') or 0.0)
+            ranking_score = similarity_score + (0.08 if golden_template else 0.0) + ((quality_score / 100.0) * 0.05)
             results.append({
                 'id': str(hit.get('id')),
-                'score': float(hit.get('score') or 0.0),
+                'score': similarity_score,
+                'ranking_score': ranking_score,
                 'repository_id': payload_data.get('repository_id') or '',
                 'title': payload_data.get('title') or 'Untitled',
                 'description': payload_data.get('description') or '',
@@ -536,6 +583,12 @@ class QdrantTemplateRetriever:
                 'source_ref': payload_data.get('source_ref') or '',
                 'source_branch': payload_data.get('source_branch') or '',
                 'schema_context': payload_data.get('schema_context') or {},
+                'golden_template': golden_template,
+                'approved_by': payload_data.get('approved_by') or '',
+                'verified_at': payload_data.get('verified_at') or '',
+                'quality_score': quality_score,
+                'format_version': payload_data.get('format_version') or '',
+                'source_repo': payload_data.get('source_repo') or payload_data.get('repository_name') or '',
             })
 
-        return results
+        return sorted(results, key=lambda item: float(item.get('ranking_score') or 0.0), reverse=True)

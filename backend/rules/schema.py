@@ -13,6 +13,7 @@ from django.db.models.functions import Greatest
 from services.publisher import get_publisher
 from .models import DetectionRule, RuleRepository, RuleRepositoryRAGFileStatus
 from .utils import parse_rule_by_format, detect_rule_format
+from .validation_gateway import validate_rule_content as validate_rule_content_gateway
 from .metadata_injector import inject_metadata
 from .format_registry import FORMAT_REGISTRY, get_format_spec, normalize_rule_format
 from .conversion_service import convert_rule_content
@@ -29,6 +30,11 @@ logger = logging.getLogger(__name__)
 QDRANT_COLLECTION_NAME = os.environ.get('QDRANT_TEMPLATE_COLLECTION', 'hefaistos_rule_templates')
 QDRANT_BASE_URL = os.environ.get('QDRANT_URL', 'http://qdrant:6333').rstrip('/')
 QDRANT_TIMEOUT_SECONDS = float(os.environ.get('QDRANT_TIMEOUT_SECONDS', '8'))
+AI_VALIDATION_GATE_FORMATS = {
+    token.strip().upper()
+    for token in os.environ.get('AI_VALIDATION_GATE_FORMATS', 'KQL,SPL').split(',')
+    if token.strip()
+}
 
 
 def _qdrant_headers():
@@ -97,8 +103,10 @@ class AutocompleteResultType(graphene.ObjectType):
 class ValidationIssueType(graphene.ObjectType):
     line = graphene.Int(required=True)
     column = graphene.Int()
+    code = graphene.String()
     message = graphene.String(required=True)
     severity = graphene.String(required=True)
+    fix_hint = graphene.String()
 
 
 class ValidationResultType(graphene.ObjectType):
@@ -195,48 +203,24 @@ class ValidateRuleContent(graphene.Mutation):
         if user is None or getattr(user, 'is_anonymous', True):
             raise Exception("Authentication required")
 
-        from rules.autocomplete import (
-            AQLAutocompleteEngine,
-            EQLAutocompleteEngine,
-            KQLAutocompleteEngine,
-            SPLAutocompleteEngine,
-            WazuhAutocompleteEngine,
-        )
-
-        fmt = (format or '').upper()
-        engine_map = {
-            'KQL': KQLAutocompleteEngine,
-            'WAZUH': WazuhAutocompleteEngine,
-            'SPL': SPLAutocompleteEngine,
-            'AQL': AQLAutocompleteEngine,
-            'EQL': EQLAutocompleteEngine,
-        }
-        engine_cls = engine_map.get(fmt)
-        if engine_cls is None:
-            return ValidateRuleContent(result=ValidationResultType(issues=[]))
-        engine = engine_cls()
-
         try:
-            validator = getattr(engine, 'validate_content', None)
-            if callable(validator):
-                raw_issues = validator(context or '')
-            else:
-                is_valid, error = engine.validate_syntax(context or '')
-                raw_issues = [] if is_valid else [{
-                    'line': 1,
-                    'column': 1,
-                    'message': error or 'Invalid rule content',
-                    'severity': 'error',
-                }]
+            result = validate_rule_content_gateway(
+                format_name=format,
+                context=context or '',
+                position=position,
+                data_source_id=str(dataSourceId) if dataSourceId else None,
+            )
 
             issues = [
                 ValidationIssueType(
                     line=max(1, int(issue.get('line', 1) or 1)),
                     column=int(issue.get('column', 1) or 1) if issue.get('column') is not None else None,
+                    code=str(issue.get('code') or 'SYNTAX'),
                     message=str(issue.get('message', 'Invalid rule content')),
                     severity=str(issue.get('severity', 'error')),
+                    fix_hint=issue.get('fix_hint'),
                 )
-                for issue in raw_issues
+                for issue in (result.get('issues') or [])
             ]
 
             return ValidateRuleContent(result=ValidationResultType(issues=issues))
@@ -1481,6 +1465,34 @@ class SaveDetectionRule(graphene.Mutation):
 
         # 4) Upsert rule linked to this graph
         fmt_norm = fmt if fmt in ('KQL', 'EQL', 'WAZUH', 'SPL', 'AQL', 'OTHER', 'OPENTIDE', 'FREE') else 'OTHER'
+
+        # AI gate applies only while content is still AI-owned (artifact linked and not detached).
+        if (
+            generation_artifact_id
+            and not detach_ai_generation
+            and fmt_norm in AI_VALIDATION_GATE_FORMATS
+        ):
+            validation = validate_rule_content_gateway(
+                format_name=fmt_norm,
+                context=raw_yaml,
+                position=len(raw_yaml or ''),
+                data_source_id=None,
+            )
+            blocking = [
+                issue for issue in (validation.get('issues') or [])
+                if str(issue.get('severity') or '').lower() == 'error'
+            ]
+            if blocking:
+                return SaveDetectionRule(
+                    success=False,
+                    message="AI-generated rule failed validation. Review errors or run repair.",
+                    rule=None,
+                    commit_sha=None,
+                    errors=[
+                        f"{issue.get('code')}: {issue.get('message')}"
+                        for issue in blocking[:8]
+                    ],
+                )
 
         # Rule title uses the format: "{playbook title}-{format}" (e.g. "mshta-spl")
         extracted_title = (title or '').strip()

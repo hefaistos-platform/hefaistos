@@ -10,6 +10,7 @@ Implemented and supported in production flow:
 - Dataset ingestion from `JSONL`, `.kql`/`.kusto`, `.eql`/`.esql`, and `.spl`
 - Language-aware retrieval by output format (`KQL`/`EQL`/`SPL`/`WAZUH`)
 - Grounded prompt injection for AI rule tasks
+- AI generation quality gate (validate → optional repair loop → confidence gating)
 - Reuse assessment in Workbench for `KQL`, `EQL`, `SPL`, and `WAZUH`
 
 Not yet implemented for template grounding:
@@ -64,12 +65,31 @@ This is strong guidance, not a hard parser-level guarantee.
 4. **Qdrant upsert/delete**
    - Upserts changed templates
    - Deletes stale templates for the same repository
+   - Persists trust metadata per template:
+     - `golden_template`
+     - `approved_by`
+     - `verified_at`
+     - `quality_score`
+     - `schema_context`
+     - `format_version`
+     - `source_repo`
 
 5. **AI task retrieval**
    - During AI generation/improvement/similar/reuse flows, backend queries Qdrant by language + org scope
+   - Retrieval is constrained by repository/language/quality filters and minimum similarity score
+   - Golden templates are ranked above raw examples when scores are close
    - Injects strict grounding context into prompt
 
-6. **Usage tracking**
+6. **AI generation quality gate**
+   - Generate draft rule from grounded context
+   - Run unified backend validation (`validate_rule_content`) for syntax + platform checks
+   - If invalid, run targeted repair prompt with validation diagnostics + top grounding samples
+   - Re-validate (max 2–3 attempts)
+   - Compute confidence score from similarity, template trust, schema match, format match, and validation outcome
+   - Reject output when syntax is invalid or confidence remains below threshold
+   - Rollout is format-gated via `AI_VALIDATION_GATE_FORMATS` (default: `KQL,SPL`)
+
+7. **Usage tracking**
    - Referenced RAG files are marked as used (`usage_count`, `last_used_at`)
 
 ## Supported Inputs and Language Separation

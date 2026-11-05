@@ -782,6 +782,64 @@ def generate_rule(user_settings, playbook_context, output_format: str = 'KQL', *
     return (bundle.get('primary_rule') or bundle.get('quick_win_rule') or '', provider)
 
 
+def repair_rule_with_validation_feedback(
+    user_settings,
+    *,
+    rule_content: str,
+    output_format: str,
+    validation_issues: list[dict] | None = None,
+    reference_context_prompt: str | None = None,
+    attempt_number: int = 1,
+) -> tuple[str, str]:
+    available = build_available(user_settings)
+    if not available:
+        return (rule_content or '', 'NONE')
+
+    provider = _resolve_provider(user_settings, available)
+    fmt = (output_format or 'KQL').upper()
+    issue_lines = []
+    for issue in (validation_issues or [])[:16]:
+        code = str(issue.get('code') or 'VALIDATION').strip()
+        message = str(issue.get('message') or 'Validation error').strip()
+        line = int(issue.get('line') or 1)
+        column = issue.get('column')
+        fix_hint = str(issue.get('fix_hint') or issue.get('fixHint') or '').strip()
+        location = f"L{line}" + (f":C{int(column)}" if column is not None else '')
+        line_text = f"- [{code}] {location} {message}"
+        if fix_hint:
+            line_text += f" | Fix hint: {fix_hint}"
+        issue_lines.append(line_text)
+    issue_block = "\n".join(issue_lines) if issue_lines else "- [VALIDATION] unknown issue"
+    grounding_block = (
+        f"\n\n{reference_context_prompt.strip()}\n"
+        if isinstance(reference_context_prompt, str) and reference_context_prompt.strip()
+        else ""
+    )
+
+    system_prompt = (
+        "You are a senior detection engineering repair assistant.\n"
+        "Repair only the invalid fragments reported by the validator.\n"
+        "Preserve valid sections and original detection intent.\n"
+        "Return only the repaired rule text without markdown fences or commentary."
+    )
+    user_prompt = (
+        f"Repair attempt #{max(1, int(attempt_number))} for a {fmt} rule.\n\n"
+        "VALIDATION ISSUES:\n"
+        f"{issue_block}\n\n"
+        "ORIGINAL RULE:\n"
+        "<rule>\n"
+        f"{rule_content or ''}\n"
+        "</rule>\n"
+        f"{grounding_block}\n"
+        "OUTPUT REQUIREMENTS:\n"
+        f"- Return valid {fmt} syntax only.\n"
+        "- Keep unchanged sections unless necessary to resolve listed issues.\n"
+        "- Do not include explanations."
+    )
+    repaired = _invoke_detection_generation_model(user_settings, provider, system_prompt, user_prompt)
+    return ((repaired or '').strip(), provider)
+
+
 def recommend_reusable_rule(user_settings, playbook_context: dict, output_format: str = 'KQL'):
     """Summarize workbench intent and recommend whether to reuse/adapt/create from retrieved templates."""
     available = build_available(user_settings)

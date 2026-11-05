@@ -159,7 +159,16 @@ def _infer_template_language(
     return _normalize_language(language_hint, fallback='')
 
 
-def _compute_content_hash(*, language: str, title: str, description: str, content: str, tags: list[str], schema_context: dict):
+def _compute_content_hash(
+    *,
+    language: str,
+    title: str,
+    description: str,
+    content: str,
+    tags: list[str],
+    schema_context: dict,
+    metadata: dict | None = None,
+):
     normalized_schema = schema_context if isinstance(schema_context, dict) else {}
     digest_payload = {
         'language': str(language or '').upper(),
@@ -168,6 +177,7 @@ def _compute_content_hash(*, language: str, title: str, description: str, conten
         'content': str(content or '').strip(),
         'tags': [str(tag).strip() for tag in (tags or []) if str(tag).strip()],
         'schema_context': normalized_schema,
+        'metadata': metadata if isinstance(metadata, dict) else {},
     }
     digest_text = json.dumps(digest_payload, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(digest_text.encode('utf-8')).hexdigest()
@@ -203,6 +213,27 @@ def _coerce_tags(raw_tags):
     if isinstance(raw_tags, str):
         return [tag.strip() for tag in raw_tags.split(',') if tag.strip()]
     return [str(raw_tags).strip()] if str(raw_tags).strip() else []
+
+
+def _coerce_bool(raw_value, default: bool = False) -> bool:
+    if isinstance(raw_value, bool):
+        return raw_value
+    if raw_value is None:
+        return default
+    value = str(raw_value).strip().lower()
+    if value in {'1', 'true', 'yes', 'y', 'on'}:
+        return True
+    if value in {'0', 'false', 'no', 'n', 'off'}:
+        return False
+    return default
+
+
+def _coerce_quality_score(raw_value, *, default: int = 85) -> int:
+    try:
+        score = int(float(raw_value))
+    except (TypeError, ValueError):
+        score = default
+    return max(0, min(100, score))
 
 
 def _extract_from_chat_messages(entry: dict):
@@ -325,6 +356,11 @@ def _normalize_jsonl_template(
         return None
 
     source_ref = f"{source_path}:{line_no}"
+    golden_template = _coerce_bool(entry.get('golden_template'), default=True)
+    approved_by = str(entry.get('approved_by') or entry.get('author') or 'hefaistos-rag-sync').strip()
+    verified_at = str(entry.get('verified_at') or '').strip() or datetime.now(timezone.utc).isoformat()
+    format_version = str(entry.get('format_version') or entry.get('schema_version') or '1.0').strip()
+    quality_score = _coerce_quality_score(entry.get('quality_score'), default=90 if golden_template else 80)
 
     schema_context = {
         'mitre': entry.get('mitre'),
@@ -341,6 +377,14 @@ def _normalize_jsonl_template(
         content=content,
         tags=tags,
         schema_context=schema_context,
+        metadata={
+            'golden_template': golden_template,
+            'approved_by': approved_by,
+            'verified_at': verified_at,
+            'quality_score': quality_score,
+            'format_version': format_version,
+            'source_repo': repo_name,
+        },
     )
 
     embedding_text = "\n".join(part for part in [title, description, content, ' '.join(tags)] if part)
@@ -362,6 +406,12 @@ def _normalize_jsonl_template(
             'tags': tags,
             'schema_version': 'rag-template-v1',
             'schema_context': schema_context,
+            'golden_template': golden_template,
+            'approved_by': approved_by,
+            'verified_at': verified_at,
+            'quality_score': quality_score,
+            'format_version': format_version,
+            'source_repo': repo_name,
             'content_hash': content_hash,
             'synced_at': datetime.now(timezone.utc).isoformat(),
         },
@@ -480,6 +530,11 @@ def _normalize_query_template(
 
     source_ref = source_path
     schema_context = {}
+    golden_template = True
+    approved_by = 'hefaistos-rag-sync'
+    verified_at = datetime.now(timezone.utc).isoformat()
+    quality_score = _coerce_quality_score(None, default=88)
+    format_version = '1.0'
     content_hash = _compute_content_hash(
         language=normalized_language,
         title=title,
@@ -487,6 +542,14 @@ def _normalize_query_template(
         content=cleaned,
         tags=tags,
         schema_context=schema_context,
+        metadata={
+            'golden_template': golden_template,
+            'approved_by': approved_by,
+            'verified_at': verified_at,
+            'quality_score': quality_score,
+            'format_version': format_version,
+            'source_repo': repo_name,
+        },
     )
     embedding_text = "\n".join(part for part in [title, description, cleaned, ' '.join(tags)] if part)
 
@@ -507,6 +570,12 @@ def _normalize_query_template(
             'tags': tags,
             'schema_version': 'rag-template-v1',
             'schema_context': schema_context,
+            'golden_template': golden_template,
+            'approved_by': approved_by,
+            'verified_at': verified_at,
+            'quality_score': quality_score,
+            'format_version': format_version,
+            'source_repo': repo_name,
             'content_hash': content_hash,
             'synced_at': datetime.now(timezone.utc).isoformat(),
         },

@@ -34,6 +34,22 @@ RABBITMQ_PORT = int(os.environ.get('RABBITMQ_PORT', '5672'))
 EXCHANGE_NAME = 'hefaistos_events'
 QUEUE_NAME = 'ai_generation_tasks'
 ROUTING_KEY = 'ai.generation.requested'
+AI_RULE_REPAIR_MAX_ATTEMPTS = max(1, min(int(os.environ.get('AI_RULE_REPAIR_MAX_ATTEMPTS', '3')), 4))
+AI_RAG_MIN_QUALITY_SCORE = max(0, min(int(os.environ.get('AI_RAG_MIN_QUALITY_SCORE', '75')), 100))
+AI_RAG_MIN_SIMILARITY = max(0.0, min(float(os.environ.get('AI_RAG_MIN_SIMILARITY', '0.25')), 1.0))
+AI_CONFIDENCE_AUTO_ACCEPT = max(0, min(int(os.environ.get('AI_CONFIDENCE_AUTO_ACCEPT', '90')), 100))
+AI_CONFIDENCE_REVIEW_ACCEPT = max(0, min(int(os.environ.get('AI_CONFIDENCE_REVIEW_ACCEPT', '75')), 100))
+
+
+def _parse_phase_formats(raw_value: str | None, default: str) -> set[str]:
+    tokens = [token.strip().upper() for token in str(raw_value or default).split(',')]
+    return {token for token in tokens if token}
+
+
+AI_VALIDATION_GATE_FORMATS = _parse_phase_formats(
+    os.environ.get('AI_VALIDATION_GATE_FORMATS'),
+    'KQL,SPL',
+)
 
 
 def _read_secret(secret_name: str) -> str | None:
@@ -69,19 +85,90 @@ def _resolve_rag_language(language_hint: str | None, *, rule_content: str | None
             return normalize_rag_language(detected, fallback='')
         except Exception:
             return None
-
     return None
+
+
+def _score_schema_match(rule_content: str, reference_context: list[dict]) -> float:
+    content = str(rule_content or '').lower()
+    if not content or not reference_context:
+        return 0.0
+
+    hints: set[str] = set()
+    for ref in reference_context:
+        schema_context = ref.get('schema_context') if isinstance(ref, dict) else None
+        if not isinstance(schema_context, dict):
+            continue
+        for value in schema_context.values():
+            if isinstance(value, (list, tuple, set)):
+                hints.update(str(item).strip().lower() for item in value if str(item).strip())
+            elif isinstance(value, dict):
+                hints.update(str(item).strip().lower() for item in value.values() if str(item).strip())
+            else:
+                text = str(value or '').strip().lower()
+                if text:
+                    hints.add(text)
+
+    if not hints:
+        return 0.5
+
+    matched = sum(1 for hint in list(hints)[:24] if hint in content)
+    denominator = max(1, min(len(hints), 24))
+    return max(0.0, min(matched / denominator, 1.0))
+
+
+def _compute_confidence_score(*, rule_content: str, output_format: str, reference_context: list[dict], validation_result: dict) -> tuple[int, str]:
+    validation_pass = bool(validation_result.get('is_valid'))
+    syntax_errors = [
+        issue for issue in (validation_result.get('issues') or [])
+        if str(issue.get('severity') or '').lower() == 'error'
+    ]
+    if syntax_errors:
+        return 0, 'REJECT'
+
+    similarities = [float(ref.get('score') or 0.0) for ref in reference_context if isinstance(ref, dict)]
+    avg_similarity = (sum(similarities) / len(similarities)) if similarities else 0.0
+    quality_scores = [int(ref.get('quality_score') or 0) for ref in reference_context if isinstance(ref, dict)]
+    avg_quality = (sum(quality_scores) / len(quality_scores)) if quality_scores else 0.0
+    golden_ratio = (
+        sum(1 for ref in reference_context if bool(ref.get('golden_template'))) / len(reference_context)
+        if reference_context else 0.0
+    )
+
+    try:
+        from rules.utils import detect_rule_format
+        detected_format = detect_rule_format(rule_content or '')
+    except Exception:
+        detected_format = 'OTHER'
+    format_match = 1.0 if detected_format in {'OTHER', str(output_format or '').upper()} else 0.0
+    schema_match = _score_schema_match(rule_content, reference_context)
+
+    score = (
+        (avg_similarity * 100.0) * 0.35
+        + avg_quality * 0.30
+        + (schema_match * 100.0) * 0.15
+        + (100.0 if validation_pass else 0.0) * 0.15
+        + (format_match * 100.0) * 0.05
+    )
+    if reference_context:
+        score += golden_ratio * 4.0
+    confidence = max(0, min(int(round(score)), 100))
+    if confidence >= AI_CONFIDENCE_AUTO_ACCEPT:
+        return confidence, 'AUTO_ACCEPT'
+    if confidence >= AI_CONFIDENCE_REVIEW_ACCEPT:
+        return confidence, 'ACCEPT_WITH_REVIEW'
+    return confidence, 'REJECT'
 
 
 def _run_generate_rule(task) -> dict:
     """Execute generate_rule_bundle for the given task and return a result dict."""
     from ai_assistant.models import UserAISettings
     from ai_assistant.schema import _get_effective_ai_settings
-    from ai_assistant.engine import generate_rule_bundle
+    from ai_assistant.engine import generate_rule_bundle, repair_rule_with_validation_feedback
     from ai_assistant.rag_templates import (
         build_reference_context_prompt,
         retrieve_reference_context,
     )
+    from rules.validation_gateway import validate_rule_content as validate_rule_content_gateway
 
     if task.organization_id != task.user.organization_id:
         raise ValueError('Task organization no longer matches the user. Start a new generation.')
@@ -92,6 +179,8 @@ def _run_generate_rule(task) -> dict:
     context = task.input_data.get('playbook_context', {})
     output_format = task.input_data.get('output_format', 'KQL')
     rag_language = _resolve_rag_language(output_format)
+    repository_id = task.input_data.get('repository_id') or (context.get('repository_id') if isinstance(context, dict) else None)
+    repository_name = task.input_data.get('repository_name') or (context.get('repository_name') if isinstance(context, dict) else None)
 
     reference_context = []
     rag_status = 'UNSUPPORTED_LANGUAGE'
@@ -102,6 +191,11 @@ def _run_generate_rule(task) -> dict:
                 playbook_context=context or {},
                 language=rag_language,
                 organization_id=str(org_id) if org_id else None,
+                repository_id=str(repository_id) if repository_id else None,
+                repository_name=str(repository_name) if repository_name else None,
+                source_repo=str(repository_name) if repository_name else None,
+                min_quality_score=AI_RAG_MIN_QUALITY_SCORE,
+                min_similarity=AI_RAG_MIN_SIMILARITY,
                 limit=6,
             )
             rag_status = 'FOUND' if reference_context else 'NO_MATCHES'
@@ -128,16 +222,70 @@ def _run_generate_rule(task) -> dict:
         organization_id=task.organization_id,
         on_prompt_prepared=record_prompt,
     )
-    from ai_assistant.rule_feedback import capture_generation
-    artifacts = capture_generation(task.user, bundle, output_format.upper(), task.prompt_provenance,
-        task=task, workbench_id=task.input_data.get('playbook_id'),
-        context_kind='workbench' if task.input_data.get('playbook_id') else 'standalone')
-    for variant, key in (('primary', 'primary_rule'), ('quick_win', 'quick_win_rule'), ('robust', 'robust_rule')):
-        if variant in artifacts:
-            bundle[key] = artifacts[variant].content
+
+    gate_enabled = str(output_format or '').upper() in AI_VALIDATION_GATE_FORMATS
+    current_rule = str(bundle.get('primary_rule') or '').strip()
+    validation_result = validate_rule_content_gateway(
+        format_name=output_format,
+        context=current_rule,
+        position=len(current_rule),
+    )
+    repair_attempts = 0
+    for attempt in range(1, AI_RULE_REPAIR_MAX_ATTEMPTS + 1):
+        if not gate_enabled:
+            break
+        if validation_result.get('is_valid'):
+            break
+        if attempt >= AI_RULE_REPAIR_MAX_ATTEMPTS:
+            break
+        repair_attempts = attempt
+        repaired_rule, _repair_provider = repair_rule_with_validation_feedback(
+            effective,
+            rule_content=current_rule,
+            output_format=output_format,
+            validation_issues=validation_result.get('issues') or [],
+            reference_context_prompt=(context or {}).get('reference_context_prompt'),
+            attempt_number=attempt,
+        )
+        if not repaired_rule:
+            break
+        current_rule = repaired_rule.strip()
+        validation_result = validate_rule_content_gateway(
+            format_name=output_format,
+            context=current_rule,
+            position=len(current_rule),
+        )
+
+    bundle['primary_rule'] = current_rule
+    confidence_score, confidence_decision = _compute_confidence_score(
+        rule_content=current_rule,
+        output_format=output_format,
+        reference_context=reference_context,
+        validation_result=validation_result,
+    )
+    accepted = bool(validation_result.get('is_valid')) and confidence_decision != 'REJECT' if gate_enabled else bool(current_rule)
+
+    artifacts = {}
+    if accepted:
+        from ai_assistant.rule_feedback import capture_generation
+        artifacts = capture_generation(task.user, bundle, output_format.upper(), task.prompt_provenance,
+            task=task, workbench_id=task.input_data.get('playbook_id'),
+            context_kind='workbench' if task.input_data.get('playbook_id') else 'standalone')
+        for variant, key in (('primary', 'primary_rule'), ('quick_win', 'quick_win_rule'), ('robust', 'robust_rule')):
+            if variant in artifacts:
+                bundle[key] = artifacts[variant].content
+
     _mark_reference_files_used(reference_context)
+    if gate_enabled:
+        validation_status = 'VALID' if validation_result.get('is_valid') else 'INVALID'
+    else:
+        validation_status = 'SKIPPED_PHASE_ROLLOUT'
+    if gate_enabled and not accepted:
+        validation_status = 'REJECTED'
+
     return {
-        'rule': bundle.get('primary_rule'),
+        'rule': bundle.get('primary_rule') if accepted else None,
+        'rejected_rule_draft': bundle.get('primary_rule') if not accepted else None,
         'quick_win_rule': bundle.get('quick_win_rule'),
         'robust_rule': bundle.get('robust_rule'),
         'generation_summary': bundle.get('generation_summary'),
@@ -147,6 +295,13 @@ def _run_generate_rule(task) -> dict:
         'provider_used': provider,
         'output_format': output_format,
         'reference_context': reference_context,
+        'source': 'ai',
+        'validation_status': validation_status,
+        'validation_issues': validation_result.get('issues') or [],
+        'confidence_score': confidence_score,
+        'confidence_decision': confidence_decision,
+        'grounded_template_ids': [str(item.get('id')) for item in reference_context if isinstance(item, dict)],
+        'repair_attempts': repair_attempts,
         'generation_artifacts': {variant: str(artifact.id) for variant, artifact in artifacts.items()},
     }
 
@@ -171,11 +326,18 @@ def _run_suggest_improvements(task) -> dict:
     if rag_language:
         try:
             org_id = getattr(getattr(task.user, 'organization', None), 'id', None)
+            repository_id = task.input_data.get('repository_id') or playbook_context.get('repository_id')
+            repository_name = task.input_data.get('repository_name') or playbook_context.get('repository_name')
             reference_context = retrieve_reference_context(
                 playbook_context=playbook_context,
                 rule_content=rule_content,
                 language=rag_language,
                 organization_id=str(org_id) if org_id else None,
+                repository_id=str(repository_id) if repository_id else None,
+                repository_name=str(repository_name) if repository_name else None,
+                source_repo=str(repository_name) if repository_name else None,
+                min_quality_score=AI_RAG_MIN_QUALITY_SCORE,
+                min_similarity=AI_RAG_MIN_SIMILARITY,
                 limit=6,
             )
             if reference_context:
@@ -246,12 +408,19 @@ def _run_generate_similar(task) -> dict:
     if rag_language:
         try:
             org_id = getattr(getattr(task.user, 'organization', None), 'id', None)
+            repository_id = task.input_data.get('repository_id') or playbook_context.get('repository_id')
+            repository_name = task.input_data.get('repository_name') or playbook_context.get('repository_name')
             reference_context = retrieve_reference_context(
                 playbook_context=playbook_context,
                 rule_content=rule_content,
                 additional_text=custom_instructions,
                 language=rag_language,
                 organization_id=str(org_id) if org_id else None,
+                repository_id=str(repository_id) if repository_id else None,
+                repository_name=str(repository_name) if repository_name else None,
+                source_repo=str(repository_name) if repository_name else None,
+                min_quality_score=AI_RAG_MIN_QUALITY_SCORE,
+                min_similarity=AI_RAG_MIN_SIMILARITY,
                 limit=6,
             )
             if reference_context:

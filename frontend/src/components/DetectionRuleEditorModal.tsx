@@ -625,6 +625,11 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     expectedBlindSpots?: string;
     testGuidance?: string;
     generationArtifacts?: Record<string, string>;
+    validationStatus?: string;
+    confidenceScore?: number;
+    confidenceDecision?: string;
+    groundedSources?: Array<{ id?: string; title?: string; sourceRef?: string; score?: number }>;
+    repairSuggestions?: string[];
   }>>({});
   const [hasUnseenInsights, setHasUnseenInsights] = useState(false);
   const [lastInsightsPlatform, setLastInsightsPlatform] = useState<PlatformTab | null>(null);
@@ -777,6 +782,17 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
             const targetPlatform = getFormatByName(targetFormat)?.id;
             if (!targetPlatform) { message.error('AI returned an unsupported rule format.'); return; }
             let generated: string | null = result.rule || null;
+            const validationIssues = Array.isArray(result.validation_issues) ? result.validation_issues : [];
+            const validationStatus = result.validation_status || (validationIssues.length ? 'INVALID' : 'VALID');
+            const repairHints = validationIssues
+              .map((issue: any) => issue?.fix_hint || issue?.fixHint)
+              .filter((hint: any) => typeof hint === 'string' && hint.trim().length > 0);
+            const groundedSources = (result.reference_context || []).map((ref: any) => ({
+              id: ref?.id,
+              title: ref?.title,
+              sourceRef: ref?.source_ref || ref?.sourceRef,
+              score: typeof ref?.score === 'number' ? ref.score : undefined,
+            }));
             if (targetFormat === 'AQL' && generated && !isLikelyAql(generated)) {
               message.warning('AI returned non-AQL content for QRadar. Please retry.');
               generated = null;
@@ -796,6 +812,11 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                   expectedBlindSpots: result.expected_blind_spots || '',
                   testGuidance: result.test_guidance || '',
                   generationArtifacts: result.generation_artifacts || {},
+                  validationStatus,
+                  confidenceScore: typeof result.confidence_score === 'number' ? result.confidence_score : undefined,
+                  confidenceDecision: result.confidence_decision || '',
+                  groundedSources,
+                  repairSuggestions: repairHints,
                 },
               }));
               setHasUnseenInsights(true);
@@ -804,6 +825,19 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
               }
               setMode('ai');
               message.success(`AI-generated rule loaded (${result.provider_used})`);
+            } else if (validationStatus === 'REJECTED') {
+              setPlatformGenerationInsights(prev => ({
+                ...prev,
+                [targetPlatform]: {
+                  ...(prev[targetPlatform] || {}),
+                  validationStatus,
+                  confidenceScore: typeof result.confidence_score === 'number' ? result.confidence_score : undefined,
+                  confidenceDecision: result.confidence_decision || '',
+                  groundedSources,
+                  repairSuggestions: repairHints,
+                },
+              }));
+              message.error('AI output was rejected by the quality gate. Review validation hints and retry.');
             } else if (format === 'AQL') {
               message.error('AI did not return valid AQL for QRadar. Please retry or adjust model settings.');
             } else {
@@ -1242,6 +1276,32 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
     () => Object.values(dirtyByFormat).some(Boolean) || metadataChanged,
     [dirtyByFormat, metadataChanged]
   );
+  const activeFormat = useMemo(
+    () => (activePlatformTab !== 'metadata' && activePlatformTab !== 'insights' ? getFormatByTab(activePlatformTab).format : null),
+    [activePlatformTab]
+  );
+  const activeValidationStatus = useMemo(
+    () => (activePlatformTab !== 'metadata' && activePlatformTab !== 'insights'
+      ? platformGenerationInsights[activePlatformTab]?.validationStatus
+      : undefined),
+    [activePlatformTab, platformGenerationInsights]
+  );
+  const activeAiSource = activeFormat ? aiSources[activeFormat] : undefined;
+  const aiGateBlocksActiveSave = Boolean(
+    activeAiSource
+    && activeValidationStatus
+    && !['VALID', 'VALID_WITH_WARNINGS'].includes(String(activeValidationStatus).toUpperCase())
+  );
+  const aiGateBlocksAnySave = useMemo(() => {
+    return Object.entries(aiSources).some(([formatName, sourceId]) => {
+      if (!sourceId) return false;
+      const tab = getFormatByName(formatName)?.id;
+      if (!tab) return false;
+      const status = platformGenerationInsights[tab]?.validationStatus;
+      if (!status) return false;
+      return !['VALID', 'VALID_WITH_WARNINGS'].includes(String(status).toUpperCase());
+    });
+  }, [aiSources, platformGenerationInsights]);
 
   const sourcePlatform = useMemo<PlatformTab | null>(() => {
     const filled = DETECTION_FORMAT_REGISTRY.filter((f) => f.format !== 'FREE' && f.getContent(currentSnapshot).trim());
@@ -1694,12 +1754,12 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                   ghost
                   onClick={() => handleSaveFormat(activePlatformTab)}
                   loading={savingSingle}
-                  disabled={!ruleContent.trim() || !dirtyByFormat[getFormatByTab(activePlatformTab).format]}
+                  disabled={!ruleContent.trim() || !dirtyByFormat[getFormatByTab(activePlatformTab).format] || aiGateBlocksActiveSave}
                 >
                   {buildSaveButtonLabel(getFormatByTab(activePlatformTab))}
                 </Button>
               )}
-              <Button type="primary" onClick={standalone ? () => { void saveStandalone().catch(() => {}); } : handleSaveAll} loading={savingAll} disabled={!anyDirty}>
+              <Button type="primary" onClick={standalone ? () => { void saveStandalone().catch(() => {}); } : handleSaveAll} loading={savingAll} disabled={!anyDirty || aiGateBlocksAnySave}>
                 {savingAll ? 'SAVING...' : standalone ? 'Save Draft' : 'SAVE ALL'}
               </Button>
             </div>
@@ -2273,7 +2333,11 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                 onChange={(val) => {
                   setRuleContent(val);
                   setLastEditedPlatform(activePlatformTab as PlatformTab);
-                  if (mode !== 'manual') setMode('manual');
+                  if (mode !== 'manual') {
+                    setMode('manual');
+                    const currentFormat = platformToFormat(activePlatformTab);
+                    setAiSources(prev => ({ ...prev, [currentFormat]: null }));
+                  }
                 }}
                 format={format as 'KQL' | 'EQL' | 'WAZUH' | 'SPL' | 'AQL' | 'FREE' | 'OTHER'}
                 height="100%"
@@ -2281,6 +2345,10 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                 enableLSP={format !== 'FREE'}
                 enableSemanticValidation={format !== 'FREE'}
                 dataSourceId={selectedDataSource?.id}
+                aiValidationStatus={platformGenerationInsights[activePlatformTab]?.validationStatus}
+                aiConfidenceScore={platformGenerationInsights[activePlatformTab]?.confidenceScore}
+                groundingSources={platformGenerationInsights[activePlatformTab]?.groundedSources || []}
+                repairSuggestions={platformGenerationInsights[activePlatformTab]?.repairSuggestions || []}
               />
             ) : activeTab === 'preview' ? (
               <div className="h-full overflow-auto bg-gray-900">

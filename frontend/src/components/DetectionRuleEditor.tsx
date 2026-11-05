@@ -60,13 +60,23 @@ const VALIDATE_RULE_CONTENT = `
         issues {
           line
           column
+          code
           message
           severity
+          fixHint
         }
       }
     }
   }
 `;
+
+interface GroundingSource {
+  id?: string;
+  title?: string;
+  source_ref?: string;
+  sourceRef?: string;
+  score?: number;
+}
 
 interface DetectionRuleEditorProps {
   value: string;
@@ -78,6 +88,10 @@ interface DetectionRuleEditorProps {
   readOnly?: boolean;
   enableLSP?: boolean;
   enableSemanticValidation?: boolean;
+  aiValidationStatus?: string;
+  aiConfidenceScore?: number | null;
+  groundingSources?: GroundingSource[];
+  repairSuggestions?: string[];
   onBlur?: () => void;
   visualStyle?: 'default' | 'terminal';
 }
@@ -187,6 +201,10 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
   readOnly = false,
   enableLSP = true,
   enableSemanticValidation = true,
+  aiValidationStatus,
+  aiConfidenceScore = null,
+  groundingSources = [],
+  repairSuggestions = [],
   onBlur,
   visualStyle = 'default',
 }) => {
@@ -196,6 +214,14 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
   const validationRequestRef = useRef<number>(0);
   const validationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lspClientRef = useRef<LSPClient | null>(null);
+  const [validationIssues, setValidationIssues] = useState<Array<{
+    line?: number;
+    column?: number;
+    code?: string;
+    message?: string;
+    severity?: string;
+    fixHint?: string;
+  }>>([]);
   const [lspStatus, setLspStatus] = useState<LspStatus>('disabled');
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
@@ -397,6 +423,7 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
       if (model) {
         monacoApi?.editor.setModelMarkers(model, 'rule-validation', []);
       }
+      setValidationIssues([]);
       return;
     }
 
@@ -411,6 +438,7 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
       const text = value || '';
       if (!text.trim()) {
         monacoApi?.editor.setModelMarkers(model, 'rule-validation', []);
+        setValidationIssues([]);
         return;
       }
 
@@ -444,10 +472,12 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
         if (result.errors) {
           console.error('[Validation] GraphQL errors:', result.errors);
           monacoApi?.editor.setModelMarkers(model, 'rule-validation', []);
+          setValidationIssues([]);
           return;
         }
 
         const issues = result.data?.validateRuleContent?.result?.issues || [];
+        setValidationIssues(issues);
         const markers = issues.map((issue: any) => {
           const lineNumber = Math.max(1, Math.min(issue.line || 1, model.getLineCount()));
           return {
@@ -474,6 +504,29 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
       }
     };
   }, [value, format, dataSourceId, enableSemanticValidation, supportsSemanticValidation, monacoApi]);
+
+  const derivedValidationStatus = React.useMemo(() => {
+    if (aiValidationStatus) return aiValidationStatus;
+    const hasErrors = validationIssues.some((issue) => String(issue.severity || '').toLowerCase() === 'error');
+    if (hasErrors) return 'INVALID';
+    if (validationIssues.length > 0) return 'VALID_WITH_WARNINGS';
+    return 'VALID';
+  }, [aiValidationStatus, validationIssues]);
+
+  const derivedRepairSuggestions = React.useMemo(() => {
+    if (repairSuggestions.length > 0) return repairSuggestions.slice(0, 4);
+    const hints = validationIssues
+      .map((issue) => String(issue.fixHint || '').trim())
+      .filter((hint) => hint.length > 0);
+    return Array.from(new Set(hints)).slice(0, 4);
+  }, [repairSuggestions, validationIssues]);
+
+  const showQualityPanel = Boolean(
+    aiValidationStatus
+    || typeof aiConfidenceScore === 'number'
+    || groundingSources.length > 0
+    || derivedRepairSuggestions.length > 0
+  );
 
   return (
     <div className="relative w-full h-full">
@@ -621,6 +674,40 @@ export const DetectionRuleEditor: React.FC<DetectionRuleEditorProps> = ({
           </div>
         }
       />
+      {showQualityPanel && (
+        <div className="absolute left-2 bottom-2 z-10 max-w-[60%] pointer-events-none">
+          <div
+            style={{
+              fontSize: 12,
+              color: isDark ? '#dbeafe' : '#0f172a',
+              background: isDark ? 'rgba(15, 23, 42, 0.9)' : 'rgba(248, 250, 252, 0.95)',
+              border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+              borderRadius: 8,
+              padding: '8px 10px',
+            }}
+          >
+            <div><strong>Validation:</strong> {derivedValidationStatus}</div>
+            {typeof aiConfidenceScore === 'number' && (
+              <div><strong>Confidence:</strong> {aiConfidenceScore}</div>
+            )}
+            {groundingSources.length > 0 && (
+              <div>
+                <strong>Grounding sources:</strong>{' '}
+                {groundingSources.slice(0, 3).map((item, idx) => {
+                  const label = item.title || item.source_ref || item.sourceRef || item.id || `source-${idx + 1}`;
+                  const score = typeof item.score === 'number' ? ` (${item.score.toFixed(2)})` : '';
+                  return `${idx > 0 ? ', ' : ''}${label}${score}`;
+                })}
+              </div>
+            )}
+            {derivedRepairSuggestions.length > 0 && (
+              <div>
+                <strong>Repair suggestions:</strong> {derivedRepairSuggestions.join(' · ')}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
