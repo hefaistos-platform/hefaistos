@@ -247,16 +247,101 @@ Verified in Phase 1: all workbench field names in this table exist on `PlaybookG
 |---|---|
 | id, organization, author | as MveDraft |
 | name | default "New Maieutic session" |
-| status | IN_PROGRESS, READY, CREATED |
+| status | IN_PROGRESS, FINISHED (see section 9b) |
 | current_stage | 1..6 |
 | spec | JSON, the structure above |
 | ade_snapshot | FK to the promoted ADE snapshot used |
 | created_workbench | nullable FK, set when a workbench is created |
-| tlp_classification | as MveDraft |
+| outcome | null while IN_PROGRESS; WORKBENCH_WITH_RULE or WORKBENCH_WITHOUT_RULE once FINISHED |
+| finished_at | set once, when the session is locked |
+| allow_remote_pull | boolean, default false. Opt-in for Instance Sharing (section 9c) |
+| tlp_classification | as MveDraft and `PlaybookGraph` (`TLP_CHOICES`) |
 | created_at, updated_at | |
 
 Autosave after each answered question. **Visibility: author only** (decided). Queries must
 filter by `organization` and `author`; admins do not see other users' drafts.
+
+## 9b. Lifecycle and locking
+
+```
+IN_PROGRESS  --(Create Workbench ...)-->  FINISHED  (locked, read-only, permanent)
+```
+
+- A finished session **stays in the Maieutics tab**. It is not deleted and does not move
+  anywhere else. The Workbench is the editable object; the finished session is the record of
+  how it was designed.
+- **FINISHED is reached when the Workbench is created**, through either "Create Workbench and
+  generate rule" or "Create Workbench without rule". The session locks at that moment, before
+  any async rule generation completes. Otherwise the user could keep editing answers while the
+  generator reads them. `outcome` records which exit was used. Rule generation progress and
+  failures live on the Workbench, not on the session.
+- `SAVE_DRAFT` does not finish the session; it stays IN_PROGRESS and editable.
+- **Enforced on the server, not only in the UI.** Every mutation that changes a session (answer,
+  stage change, spec edit, format selection, create) must reject a FINISHED session. The only
+  mutations allowed on a FINISHED session are: toggle sharing (9c), change TLP (see below), and
+  delete.
+- **What a finished session shows:** the full spec, the ADE ledger with the snapshot each answer
+  was given against, the STP block (claimed, evidence-supported, final, override reason), the
+  completeness counts, the outcome, and a link to the created Workbench. The collapsible
+  transcript is included. No input fields.
+- **TLP stays changeable** after finishing, because sharing eligibility depends on it and it is
+  metadata, not design content. Same rule as `PlaybookGraph`, where TLP is edited independently.
+  **[VERIFY with owner]**
+- **Delete** removes only the session record, never the Workbench. Allowed for the author, with
+  a confirmation. **[VERIFY with owner]**
+- Drafts remain author-only (section 9). Finishing does not change visibility; sharing does not
+  either (9c shares a copy through Instance Sharing, it does not make local sessions visible to
+  other local users).
+
+## 9c. Instance Sharing
+
+Finished sessions can be shared with trusted peers through the existing Instance Sharing
+feature as a new scope.
+
+Verified in `backend/organizations/sharing.py` and `Docs/instance-sharing-tlp.md`. Each scope
+today has: an entry in `ATOMIC_SCOPES` and `SCOPE_COLLECTIONS`, a payload builder, an entry in
+the export `candidates` table (status filter plus opt-in filter), TLP filtering, an import
+section, and a UI option in `InstanceSharing.tsx`. ACH is the closest precedent: status in
+(FINISHED, APPROVED) plus `allow_remote_pull`.
+
+| Item | Decision |
+|---|---|
+| Scope name / collection | `MAIEUTIC` / `maieutic_sessions` |
+| Export eligibility | `status = FINISHED` **and** `allow_remote_pull = true` **and** passes the key's TLP maximum |
+| Opt-in | Per session toggle, default **off**, owner-controlled. Same pattern as `allow_remote_pull` on ACH and Workbench (ACH has a dedicated mutation to toggle it) |
+| Tags | Not applicable (sessions have no tags), like ACH, AdvOps and Capability |
+| TLP | Applies, using the session's own `tlp_classification` |
+| De-duplication | By normalized title, as other scopes |
+| Payload | `spec`, ADE ledger, outcome, TLP, ADE snapshot identity (repo, ref, commit SHA) **[VERIFY with owner: whether the transcript is included; recommended default is to exclude it]** |
+| Not in payload | The local Workbench FK, author identity beyond what other scopes export **[VERIFY]**, any rule text (rules travel with the Workbench scope) |
+| On import | Created as FINISHED and read-only in the receiving org, `allow_remote_pull` false (re-sharing requires a local opt-in, as for imported Workbenches), `created_workbench` null, TLP preserved, mapped through `HefaistosSharedObject` like other kinds so re-pulls update instead of duplicating. Shown in the Maieutics tab with an "imported" marker and its source |
+| ADE history on import | The ledger keeps the ADE snapshot identity it was answered against, even if the receiving instance has never imported that snapshot. It is shown as history, not re-evaluated |
+
+Sharing a session and sharing its Workbench are independent. A peer can receive the design
+record without the Workbench, or the reverse.
+
+### Compatibility safeguard (required)
+
+`key_allows_scope(allowed_scopes, 'ALL')` currently returns true only if the key lists **every**
+scope in `ATOMIC_SCOPES`. Adding `MAIEUTIC` would make existing keys that list the five original
+scopes explicitly (without the `ALL` marker) fail with `PermissionDenied` when pulling `ALL`.
+
+Required handling: an `ALL` pull must keep working for such keys and export only the scopes the
+key permits. Existing keys must **not** be silently granted `MAIEUTIC`. Needs tests for: an
+explicit-five key pulling `ALL`, an `ALL`-marker key pulling `ALL` (now includes sessions), a key
+with only `MAIEUTIC`, and a peer on the older version receiving a payload with the new
+collection.
+
+### Where the code must change (Phase 6)
+
+- `organizations/sharing.py`: `ATOMIC_SCOPES`, `SCOPE_COLLECTIONS`, a `_maieutic_payload_for_org`
+  builder, the `candidates` table, the diagnostics summary, the import section and its summary
+  counters, and `key_allows_scope` as above.
+- `organizations/models.py`: scope validation for `allowed_scopes` (it rejects unsupported
+  scopes).
+- A mutation to toggle `allow_remote_pull` on a finished session (modelled on the ACH one).
+- `frontend/src/pages/settings/InstanceSharing.tsx`: scope option and the collection key list.
+- `Docs/instance-sharing-tlp.md`: add Maieutic to the TLP scope list and to "tags do not apply".
 
 ## 9a. Where generated rules are stored (verified)
 
@@ -286,8 +371,9 @@ The traceability result is AI-assisted and must be labelled as a check, not a gu
 ## 11. Open items
 
 1. Which catalog fields exactly populate the dropdowns (Log Source first, Data Source second).
-2. (Resolved: drafts are author-only.)
+2. (Resolved: drafts are author-only. Finished sessions stay in the tab, locked, shareable: sections 9b and 9c.)
 3. (Resolved, see 9a.)
 4. Whether the KQL to AQL pass-through converter (`rules/conversion_service.py`) is fixed or
    removed. Maieutic will not use it either way.
-5. STP rules in section 5 reviewed by a detection engineer familiar with Summiting the Pyramid.
+5. Owner to confirm the `[VERIFY with owner]` items in 9b and 9c: TLP editable after finish, delete allowed, transcript in the shared payload.
+6. STP rules in section 5 reviewed by a detection engineer familiar with Summiting the Pyramid.

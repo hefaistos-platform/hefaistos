@@ -25,6 +25,16 @@ inside a Workbench.
 
 Sessions autosave after every answer. Closing the window does not lose work.
 
+The tab has two kinds of rows:
+
+- **In progress**: editable, with a **Continue** button.
+- **Finished**: the Workbench has been created. The session is **locked and read-only
+  permanently**. It stays in the tab as the record of how that Workbench was designed, shows
+  its spec, ADE answers and STP decision, and links to the Workbench. It cannot be reopened for
+  editing; the Workbench is the editable object.
+
+Only you see your own sessions.
+
 ## 3. The six stages
 
 | # | Stage | You decide |
@@ -86,7 +96,7 @@ not by the AI. The AI only words the question using your design and challenges a
 |---|---|
 | **Create Workbench and generate rule** | Creates and fills the Workbench, closes the engine, starts one generation per selected format |
 | **Create Workbench without rule** | Creates and fills the Workbench from what you have, no generation |
-| **Save draft and close** | Keeps the session in the Maieutics tab for later |
+| **Save draft and close** | Keeps the session in the Maieutics tab for later (still editable) |
 
 Minimum to create a Workbench: a title, a technique (or an explicit "no technique"), and a
 goal. Everything else may be Unknown. The Review screen shows what was captured and what is
@@ -97,6 +107,19 @@ unknown before you click.
 from the KQL rule. The screen shows per format whether it will be validated.
 
 If generation fails, the Workbench still exists and a banner offers a retry.
+
+## 6b. Finished sessions and sharing
+
+Both "Create Workbench" exits finish the session and lock it at that moment, before rule
+generation completes, so the answers the generator reads cannot change underneath it.
+
+A finished session has a **Share** toggle, off by default. When on (and the session's TLP
+allows it for the peer's key), it is exported through **Configuration → Instance Sharing** under
+a new scope, `MAIEUTIC`. The receiving instance gets a locked read-only copy marked as imported.
+Sharing the session and sharing its Workbench are independent.
+
+Details, including the compatibility safeguard for existing sharing keys: `MAIEUTIC_3_SPEC.md`
+sections 9b and 9c.
 
 ## 7. Generation
 
@@ -145,6 +168,7 @@ asked yet. After a promotion, existing sessions only show new or changed questio
 | `Docs/capability-library.md` | Update: how entries feed Maieutic |
 | `Docs/AI_QUALITY.md` | Update: new Prompt Registry keys, `rule-bundle-v2` |
 | `Docs/ENVIRONMENT_VARIABLES.md` | Update if settings are added |
+| `Docs/instance-sharing-tlp.md` | Update: add Maieutic sessions to the TLP scope list and to "tags do not apply"; describe the `MAIEUTIC` scope |
 | `README.md` | Update links (line ~250) and add ADE guide |
 | Decision record | New: what was removed from the Workbench and why |
 
@@ -170,7 +194,7 @@ is useful. The MAJOR bump should happen at the phase that actually removes behav
 3. Overlay content: questions, hint kits, STP rules, expert-reviewed.
 4. Backend: planner, questioner, evaluator, ledger, `MaieuticDraft`, prompts into the Registry.
 5. Frontend: Maieutics tab on the Hub, six stages, dropdowns, help, three exits.
-6. Generation chain and Workbench mapping, per-format tasks, traceability.
+6. Generation chain and Workbench mapping, per-format tasks, traceability. Locking of finished sessions (server-enforced) and the `MAIEUTIC` Instance Sharing scope, including the `ALL`-scope compatibility safeguard.
 7. Remove Maieutic from the Workbench. MAJOR bump.
 
 ## Maieutics tab: notes for Phase 5
