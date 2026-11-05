@@ -188,9 +188,9 @@ superuser guards, and the stale-job watchdog.
 | YAML `schema_version` changes | Warning on the snapshot |
 | Markdown layout changes | Warnings, or FAILED if no subcategory is found |
 
-Planned, not built: HEFAISTOS-authored question text and hints per ADE ID (the "overlay") will be
-approved separately, so a new upstream subcategory has no question until an admin writes and
-approves one. See `Docs/MAIEUTIC_3_PLAN.md`.
+HEFAISTOS-authored question text and hints per ADE ID live in the repository, not in this import.
+A new upstream subcategory therefore has no question until someone adds a question file for it.
+See `Docs/MAIEUTIC_ADE_QUESTIONS.md`.
 
 ## Current limits
 

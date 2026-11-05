@@ -139,10 +139,10 @@ ADE is a framework on the **Framework Updates** page, like Chokepoints:
 
 1. Admin imports a snapshot from GitHub (staged).
 2. Admin reviews a diff: added, renamed, edited, removed.
-3. Our own question text, hints and rubric (the overlay) are approved separately.
+3. Our own question text, hints and checklist (the question bank) ship as versioned files in the repository and are reviewed like code. There is no runtime approval step.
 4. Admin promotes. Rollback is available.
 
-New upstream items without an approved question are listed as "needs a question" and not
+New upstream items without a question file are listed as "needs a question" and not
 asked yet. After a promotion, existing sessions only show new or changed questions as open.
 
 ## 10. Limits
@@ -164,7 +164,8 @@ asked yet. After a promotion, existing sessions only show new or changed questio
 |---|---|
 | `Docs/README_MAIEUTIC.md` | Replace with the final form of this guide |
 | `Docs/MAIEUTIC_CONTENT_AUTHORING.md` | New: how to write question templates, hint kits, rubrics, STP rules |
-| `Docs/README_ADE.md` | New: ADE framework import, staging, diff, promote, rollback, overlay |
+| `Docs/README_ADE.md` | New: ADE framework import, staging, diff, promote, rollback |
+| `Docs/MAIEUTIC_ADE_QUESTIONS.md` | New: question format, rules, how to add or change a question |
 | `Docs/capability-library.md` | Update: how entries feed Maieutic |
 | `Docs/AI_QUALITY.md` | Update: new Prompt Registry keys, `rule-bundle-v2` |
 | `Docs/ENVIRONMENT_VARIABLES.md` | Update if settings are added |
@@ -191,7 +192,7 @@ is useful. The MAJOR bump should happen at the phase that actually removes behav
 
 1. Spec and docs written first (done: `MAIEUTIC_3_SPEC.md`, this file).
 2. ADE on Framework Updates (independent).
-3. Overlay content: questions, hint kits, STP rules, expert-reviewed.
+3. Question bank: questions, hint kits, STP rules. First batch (ADE2-01, ADE2-02, ADE3-01, ADE3-04) is in `backend/ai_assistant/maieutic_content/ade_questions/`; the rest follows the same format.
 4. Backend: planner, questioner, evaluator, ledger, `MaieuticDraft`, prompts into the Registry.
 5. Frontend: Maieutics tab on the Hub, six stages, dropdowns, help, three exits.
 6. Generation chain and Workbench mapping, per-format tasks, traceability. Locking of finished sessions (server-enforced) and the `MAIEUTIC` Instance Sharing scope, including the `ALL`-scope compatibility safeguard.

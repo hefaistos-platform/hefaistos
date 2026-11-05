@@ -1,0 +1,44 @@
+id: ade-q-ade2-02
+ade_id: ADE2-02
+version: 1
+question: >-
+  Which operating system versions, software versions or API versions are in scope for the
+  environment you want to protect, and what changes between them that could alter what
+  {design_observable} looks like in your logs?
+why_we_ask: >-
+  A design tested on one version often quietly assumes that version. Paths, field values,
+  event formats and API names change between releases, and activity on the other versions
+  then goes unseen.
+hints:
+  where_to_look: >-
+    Ask your asset inventory or IT team which OS builds and software releases actually run in
+    the environment. Check the release notes of the feature you rely on for renamed fields,
+    moved files and deprecated APIs.
+  how_to_look: >-
+    Pick the oldest and the newest version in scope. Run the same harmless test action on
+    both and compare the events side by side: same event ID, same field names, same values?
+  worked_example:
+    technique: T1053.003 Cron
+    text: >-
+      An analyst watches /etc/cron.d because that is where a Debian host stores jobs. On a
+      Red Hat host the same activity lands in /var/spool/cron, so the plan sees nothing there.
+weak_answer: "It should work on all versions."
+strong_answer: >-
+  We run Windows 10 and Server 2019. Field X exists on both, but Server 2019 logs the value
+  in lower case, so my plan has to allow for both spellings. Linux hosts are out of scope.
+glossary:
+  - term: Build
+    meaning: The exact release number of an operating system, such as 19045.
+  - term: Deprecated
+    meaning: Still present for now, but replaced by something newer and due to be removed.
+applies_when:
+  type: design_flags_any
+  flags:
+    - version_or_platform_specific
+    - names_specific_tool
+placeholders:
+  design_observable: the activity you plan to look for
+checklist:
+  - Names the versions or platforms that are in scope, or states that the scope is not yet known.
+  - Names at least one concrete difference between two versions, or says it has not been checked.
+  - Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

@@ -1,0 +1,44 @@
+id: ade-q-ade2-01
+ade_id: ADE2-01
+version: 1
+question: >-
+  You plan to detect this behaviour by looking for {design_observable}. What other tools,
+  commands or methods could an attacker use to get the same result on the same system, and
+  which of those would your detection still see?
+why_we_ask: >-
+  Detections are often built around the one tool the analyst already knows. An attacker who
+  reaches the same goal with a different tool walks straight past it.
+hints:
+  where_to_look: >-
+    Open the ATT&CK page for your technique and read "Procedure Examples" and "Detection".
+    Then read the vendor documentation of the feature the behaviour relies on, and search
+    for other built-in programs that can do the same job.
+  how_to_look: >-
+    Write a list with one row per way of reaching the same result: built-in binaries,
+    scripting languages, APIs and admin tools. Next to each row write "I would see it" or
+    "I would not see it". Rows without an answer are your gaps.
+  worked_example:
+    technique: T1070.001 Clear Windows Event Logs
+    text: >-
+      An analyst plans to look for wevtutil.exe. Listing alternatives shows that PowerShell
+      Clear-EventLog, the .NET EventLog class and the Win32 ClearEventLog API call all clear
+      the same logs. Only one of the four would have been seen, so three rows are gaps.
+weak_answer: "Attackers might use other tools too."
+strong_answer: >-
+  rundll32 and regsvr32 can both load the payload. My plan watches rundll32 only, so
+  regsvr32 is a known gap that I will either add or accept.
+glossary:
+  - term: LOLBin
+    meaning: A legitimate built-in program that attackers reuse for malicious purposes.
+  - term: Telemetry
+    meaning: The log events your security tools actually receive from the system.
+applies_when:
+  type: design_flags_any
+  flags:
+    - names_specific_tool
+placeholders:
+  design_observable: the specific tool, command or method you chose
+checklist:
+  - Names at least one concrete alternative, or explains why none exists in scope.
+  - States for each alternative whether the planned detection would see it.
+  - Ends in a decision (handle it, accept the gap, covered elsewhere, unknown) rather than a general remark.

@@ -1,0 +1,42 @@
+id: ade-q-ade3-04
+ade_id: ADE3-04
+version: 1
+question: >-
+  Your plan needs several pieces of information to be present together, such as {design_observable}.
+  How does the system record a command that is chained or split into steps, and what would
+  your detection do if those pieces ended up in separate events?
+why_we_ask: >-
+  Operators such as the pipe and the ampersand can split one command line into several
+  process events. A design that expects every piece in one event then never completes.
+hints:
+  where_to_look: >-
+    Find out which log source gives you the command line and whether it records the whole line
+    or one event per started process. The documentation of the log source usually says.
+  how_to_look: >-
+    In a test machine run a harmless chained command, for example two echo commands joined by
+    an ampersand. Count how many events you get and write down which text sits in which event.
+  worked_example:
+    technique: T1136.001 Create Local Account
+    text: >-
+      An analyst wants the words net, user and /add together in one event. A chained command
+      produces one event containing net user and another containing the rest, so no single
+      event holds all three words and nothing is flagged.
+weak_answer: "Everything appears in one command line."
+strong_answer: >-
+  Chained commands produce one event per process. My plan therefore needs either a link
+  between events through the parent process or an accepted gap for split commands.
+glossary:
+  - term: Process creation event
+    meaning: A log entry written each time the system starts a program.
+  - term: Command line
+    meaning: The full text typed to start a program, including its options.
+applies_when:
+  type: design_flags_any
+  flags:
+    - multi_condition_single_event
+placeholders:
+  design_observable: several words or conditions that must all appear
+checklist:
+  - Says whether the log source records chained commands as one event or several.
+  - States what the planned detection does when the pieces are split.
+  - Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).

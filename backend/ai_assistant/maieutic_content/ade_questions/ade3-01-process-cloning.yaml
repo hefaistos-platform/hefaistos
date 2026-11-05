@@ -1,0 +1,42 @@
+id: ade-q-ade3-01
+ade_id: ADE3-01
+version: 1
+question: >-
+  You plan to recognise the activity by the name of {design_observable}. What would happen to
+  your detection if an attacker with enough privileges copied that program under a different
+  name or into a different folder and ran it from there?
+why_we_ask: >-
+  A copied program behaves exactly like the original but carries another name. A design that
+  trusts the name alone is blind to the copy.
+hints:
+  where_to_look: >-
+    Look at which fields your logs give you besides the file name: original file name from the
+    program's metadata, file hash, signer, parent process and full path.
+  how_to_look: >-
+    In a test machine, copy the program to a user-writable folder under another name and run it
+    once. Look at the event and note which fields changed and which stayed the same.
+  worked_example:
+    technique: T1105 Ingress Tool Transfer
+    text: >-
+      An analyst plans to spot downloads by the process name wget. After copying wget to
+      /tmp/foo, the name field shows foo, but the original-file-name and hash fields still
+      identify wget. The analyst learns which field is safe to rely on.
+weak_answer: "Attackers would not bother to rename it."
+strong_answer: >-
+  The name field changes, but original file name and hash do not. My plan should use
+  original file name as well. Where the log has no such field, I accept the gap and write it down.
+glossary:
+  - term: Original file name
+    meaning: The name stored inside the program's own metadata, which survives renaming the file.
+  - term: Hash
+    meaning: A fingerprint of the file contents; identical files give the same hash.
+applies_when:
+  type: design_flags_any
+  flags:
+    - matches_process_name
+placeholders:
+  design_observable: the process or program
+checklist:
+  - Says whether the planned identification would still work after a rename or copy.
+  - Names the field or fields that could identify the program independently of its name, or says none are available.
+  - Ends in a decision (handle it, accept the gap, covered elsewhere, unknown).
