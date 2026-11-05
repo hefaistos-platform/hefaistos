@@ -32,10 +32,7 @@ import CoverageGapNode from '../components/CoverageGapNode';
 import DetectionRuleEditorModal, { DetectionMode } from '../components/DetectionRuleEditorModal';
 import DetectionRuleEditor from '../components/DetectionRuleEditor';
 import ExportImportModal from '../components/playbook/ExportImportModal';
-import { MaieuticEngineModal } from '../components/maieutic/MaieuticEngineModal';
 import { ThreatReportPopulateModal } from '../components/playbook/ThreatReportPopulateModal';
-import { MaieuticOutput, MaieuticImportSelections } from '../types/maieutic';
-import { applyMaieuticToWorkbench } from '../utils/maieuticMapping';
 import { OpenTideRule } from '../types/opentide';
 import { compileMetadataFromWorkbench, getConfiguredPlatforms, restoreOpenTideRule } from '../utils/openTideCompiler';
 import { isDirty, normalize } from '../utils/ruleDiff';
@@ -1015,31 +1012,7 @@ export const PlaybookWorkbench = () => {
   const [exportImportModalVisible, setExportImportModalVisible] = useState(false);
   const [exportImportInitialTab, setExportImportInitialTab] = useState<'export' | 'github'>('export');
 
-  // Maieutic Engine Modal State
-  const [maieuticModalVisible, setMaieuticModalVisible] = useState(false);
   const [threatReportModalVisible, setThreatReportModalVisible] = useState(false);
-  const [pendingMaieuticData, setPendingMaieuticData] = useState<{
-    output: MaieuticOutput;
-    selections: MaieuticImportSelections;
-  } | null>(null);
-
-  const maieuticWorkbenchContext = useMemo(() => {
-    const graph = data?.playbookGraph;
-    if (!graph) return undefined;
-    return {
-      techniqueId: graph.mitreTechnique?.techniqueId || '',
-      techniqueName: graph.mitreTechnique?.name || '',
-      detectionFocusLayer: graph.detectionFocusLayer || '',
-      goal: graph.goal || '',
-      technicalContext: graph.technicalContext || '',
-      selectedCapabilityAbstractions: (graph.selectedCapabilityAbstractions || []).slice(0, 8).map((entry) => ({
-        abstractionLayer: entry.abstractionLayer,
-        componentArtifact: entry.componentArtifact,
-        adversaryPurpose: entry.adversaryPurpose || '',
-      })),
-    };
-  }, [data?.playbookGraph]);
-
   // OpenTIDE Preview Modal State (Phase 2)
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [localSectionVisibility, setLocalSectionVisibility] = useState<WorkbenchSectionVisibilityMap>({});
@@ -2062,103 +2035,6 @@ export const PlaybookWorkbench = () => {
     }
   }, [playbookId, data, setPlaybookGraphRemotePull, refetch]);
 
-  // Maieutic Engine handlers
-  const handleMaieuticSubmit = useCallback((output: MaieuticOutput, selections: MaieuticImportSelections) => {
-    // Stage the data in pending state - don't apply yet
-    setPendingMaieuticData({ output, selections });
-    message.success('Maieutic output staged for review. Use the review panel to apply changes.');
-  }, []);
-
-  const handleApplyMaieuticToWorkbench = useCallback(async () => {
-    if (!pendingMaieuticData || !playbookId) return;
-
-    const currentFormState = {
-      goal: data?.playbookGraph?.goal || '',
-      technicalContext: data?.playbookGraph?.technicalContext || '',
-      blindSpots: data?.playbookGraph?.blindSpots || '',
-      falsePositives: data?.playbookGraph?.falsePositives || '',
-      responsePlaybook: data?.playbookGraph?.responsePlaybook || '',
-      detectionRule: data?.playbookGraph?.detectionRule || '',
-      triageGuidance: data?.playbookGraph?.triageGuidance || '',
-      testScenario: data?.playbookGraph?.testScenario || '',
-      testExpectedOutput: data?.playbookGraph?.testExpectedOutput || '',
-      alertTrigger: data?.playbookGraph?.alertTrigger || '',
-      defaultSeverity: data?.playbookGraph?.defaultSeverity || '',
-      enrichmentSteps: data?.playbookGraph?.enrichmentSteps
-        ? JSON.parse(data.playbookGraph.enrichmentSteps)
-        : [],
-      containmentSteps: data?.playbookGraph?.containmentSteps
-        ? JSON.parse(data.playbookGraph.containmentSteps)
-        : [],
-      notificationSteps: data?.playbookGraph?.notificationSteps
-        ? JSON.parse(data.playbookGraph.notificationSteps)
-        : [],
-      downstreamCorrelationRequirements: data?.playbookGraph?.downstreamCorrelationRequirements
-        ? (typeof data.playbookGraph.downstreamCorrelationRequirements === 'string'
-            ? JSON.parse(data.playbookGraph.downstreamCorrelationRequirements)
-            : data.playbookGraph.downstreamCorrelationRequirements)
-        : {},
-    };
-
-    const updatedFormState = applyMaieuticToWorkbench(
-      pendingMaieuticData.output,
-      pendingMaieuticData.selections,
-      currentFormState
-    );
-
-    // Apply updates to backend
-    try {
-      await updatePlaybookDetails({
-        variables: {
-          graphId: playbookId,
-          goal: updatedFormState.goal,
-          technicalContext: updatedFormState.technicalContext,
-          blindSpots: updatedFormState.blindSpots,
-          falsePositives: updatedFormState.falsePositives,
-          responsePlaybook: updatedFormState.responsePlaybook,
-          detectionRule: updatedFormState.detectionRule,
-          triageGuidance: updatedFormState.triageGuidance,
-          testScenario: updatedFormState.testScenario,
-          testExpectedOutput: updatedFormState.testExpectedOutput,
-          alertTrigger: updatedFormState.alertTrigger,
-          defaultSeverity: updatedFormState.defaultSeverity,
-          enrichmentSteps: updatedFormState.enrichmentSteps
-            ? JSON.stringify(updatedFormState.enrichmentSteps)
-            : undefined,
-          containmentSteps: updatedFormState.containmentSteps
-            ? JSON.stringify(updatedFormState.containmentSteps)
-            : undefined,
-          notificationSteps: updatedFormState.notificationSteps
-            ? JSON.stringify(updatedFormState.notificationSteps)
-            : undefined,
-          downstreamCorrelationRequirements: updatedFormState.downstreamCorrelationRequirements
-            ? JSON.stringify(updatedFormState.downstreamCorrelationRequirements)
-            : undefined,
-          robustnessLevel: updatedFormState.robustnessLevel,
-          dataSourceMaturity: updatedFormState.dataSourceMaturity,
-          conversationHistory: JSON.stringify(pendingMaieuticData.output.conversationHistory || []),
-        },
-      });
-      
-      // Update local rule state for instant feedback
-      if (updatedFormState.detectionRule !== undefined) {
-        setLocalRule(updatedFormState.detectionRule);
-      }
-
-      await refetch();
-      setPendingMaieuticData(null); // Clear pending state
-      message.success('Maieutic data successfully applied to workbench');
-    } catch (e: any) {
-      console.error('Failed to apply Maieutic data:', e);
-      message.error(e?.message || 'Failed to apply Maieutic data');
-    }
-  }, [pendingMaieuticData, playbookId, data, updatePlaybookDetails, refetch]);
-
-  const handleDismissMaieuticData = useCallback(() => {
-    setPendingMaieuticData(null);
-    message.info('Maieutic data dismissed');
-  }, []);
-
   useEffect(() => {
     if (data?.playbookGraph) {
       // Transform Backend Data -> React Flow Format
@@ -2360,16 +2236,6 @@ export const PlaybookWorkbench = () => {
             <PixelIcon name="download" className="w-5 h-5" />
           </Button>
 
-          {/* Maieutic Engine Button - Icon only */}
-          <Button 
-            variant="secondary"
-            onClick={() => setMaieuticModalVisible(true)}
-            className="w-10 h-10 p-2 flex items-center justify-center bg-violet-600 hover:bg-violet-700 border-violet-700 text-white"
-            title="Launch hypothesis-driven detection engineering workflow (Maieutic Engine)"
-          >
-            <PixelIcon name="lightbulb" className="w-5 h-5" />
-          </Button>
-
           {/* Threat Report Populate Button - Icon only */}
           <Button
             variant="secondary"
@@ -2483,46 +2349,6 @@ export const PlaybookWorkbench = () => {
               </div>
              )}
 
-             {/* Maieutic Review Panel - Shows when there's pending data */}
-             {pendingMaieuticData && (
-               <div className="w-full flex justify-center bg-yellow-50 border-t border-yellow-200 px-8 py-4 shrink-0">
-                 <div className="w-full max-w-7xl">
-                   <div className="bg-white border-2 border-yellow-300 rounded-lg p-4 shadow-sm">
-                     <div className="flex items-start justify-between">
-                       <div className="flex-1">
-                         <h3 className="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
-                           <PixelIcon name="alert-circle" className="w-5 h-5 text-yellow-600" />
-                           Maieutic Data Ready for Review
-                         </h3>
-                         <p className="text-sm text-gray-600 mb-3">
-                           You have staged Maieutic output. Review the selections and apply to the workbench form below.
-                           {' '}
-                           <strong>Note:</strong> This will merge data into existing fields but won't auto-save.
-                         </p>
-                         <div className="flex gap-2">
-                           <Button 
-                             onClick={handleApplyMaieuticToWorkbench}
-                             variant="primary"
-                             className="flex items-center gap-1"
-                           >
-                             <PixelIcon name="check" className="w-4 h-4" />
-                             Apply to Workbench
-                           </Button>
-                           <Button 
-                             onClick={handleDismissMaieuticData}
-                             variant="secondary"
-                             className="flex items-center gap-1"
-                           >
-                             <PixelIcon name="x" className="w-4 h-4" />
-                             Dismiss
-                           </Button>
-                         </div>
-                       </div>
-                     </div>
-                   </div>
-                 </div>
-               </div>
-             )}
 
              {/* Forms (Bottom Scrollable) */}
              <div className="flex-1 overflow-y-auto px-8 pb-8 bg-gray-50">
@@ -3067,14 +2893,6 @@ export const PlaybookWorkbench = () => {
           // Navigate to the newly imported playbook
           navigate(`/playbooks/${newGraphId}`);
         }}
-      />
-
-      {/* Maieutic Engine Modal */}
-      <MaieuticEngineModal
-        isOpen={maieuticModalVisible}
-        onClose={() => setMaieuticModalVisible(false)}
-        onSubmit={handleMaieuticSubmit}
-        workbenchContext={maieuticWorkbenchContext}
       />
 
       {/* Threat Report Populate Modal */}

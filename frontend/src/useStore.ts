@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { MaieuticOutput, MaieuticStep, MaieuticImportSelections } from './types/maieutic';
 
 // --- 1. Define the TypeScript interface for the node's data payload ---
 // This matches the dcg420DetectionTemplate from your prompt
@@ -57,42 +56,10 @@ export interface AbstractionNodeData {
 interface AppState {
   selectedNode: AbstractionNodeData | null;
   setSelectedNode: (nodeData: AbstractionNodeData | null) => void;
-
-  // Maieutic Engine draft state
-  maieuticDraft: MaieuticOutput | null;
-  maieuticCurrentStep: MaieuticStep;
-  maieuticSelections: MaieuticImportSelections;
-  setMaieuticDraft: (draft: MaieuticOutput | null) => void;
-  setMaieuticCurrentStep: (step: MaieuticStep) => void;
-  setMaieuticSelections: (selections: MaieuticImportSelections) => void;
-  resetMaieutic: () => void;
 }
-
-// Default Maieutic selections - all ON by default
-const defaultMaieuticSelections: MaieuticImportSelections = {
-  importHypothesis: true,
-  importQALog: true,
-  importRobustness: true,
-  importPlaybook: true,
-  importDetectionRule: true,
-  importSynthesis: true,
-};
 
 // --- 4. Create the store ---
 export const useAppStore = create<AppState>((set) => ({
   selectedNode: null,
   setSelectedNode: (nodeData) => set({ selectedNode: nodeData }),
-
-  // Maieutic Engine state
-  maieuticDraft: null,
-  maieuticCurrentStep: 'Hypothesis',
-  maieuticSelections: defaultMaieuticSelections,
-  setMaieuticDraft: (draft) => set({ maieuticDraft: draft }),
-  setMaieuticCurrentStep: (step) => set({ maieuticCurrentStep: step }),
-  setMaieuticSelections: (selections) => set({ maieuticSelections: selections }),
-  resetMaieutic: () => set({ 
-    maieuticDraft: null, 
-    maieuticCurrentStep: 'Hypothesis', 
-    maieuticSelections: defaultMaieuticSelections 
-  }),
 }));

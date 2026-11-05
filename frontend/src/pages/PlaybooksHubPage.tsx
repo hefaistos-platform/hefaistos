@@ -7,11 +7,6 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useGraphQLErrorHandling } from '../utils/errorHandling';
 import ImportWorkbenchModal from '../components/playbook/ImportWorkbenchModal';
 import ImportFromHefModal from '../components/playbook/ImportFromHefModal';
-import { MaieuticEngineModal } from '../components/maieutic/MaieuticEngineModal';
-import { applyMaieuticToWorkbench } from '../utils/maieuticMapping';
-import { MaieuticOutput, MaieuticImportSelections } from '../types/maieutic';
-import { Button as CustomButton } from '../components/ui/Button';
-import { PixelIcon } from '../components/ui/PixelIcon';
 import { TlpBadge } from '../components/ui/TlpBadge';
 
 const AchPageLazy = React.lazy(() => import('./ACHPage').then(m => ({ default: m.ACHPage })));
@@ -157,8 +152,6 @@ export const PlaybooksHubPage: React.FC = () => {
   });
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [importHefModalVisible, setImportHefModalVisible] = useState(false);
-  const [maieuticModalVisible, setMaieuticModalVisible] = useState(false);
-  const [creatingFromMaieutic, setCreatingFromMaieutic] = useState(false);
 
   // Handle successful import - refresh the workbenches list
   const handleImportSuccess = () => {
@@ -331,99 +324,6 @@ export const PlaybooksHubPage: React.FC = () => {
     }
   };
 
-  const handleMaieuticCreate = async (output: MaieuticOutput, selections: MaieuticImportSelections) => {
-    const defaultTitle = output.hypothesis.capability?.trim()
-      ? `Maieutic: ${output.hypothesis.capability.trim().slice(0, 60)}`
-      : 'Maieutic Workbench';
-    const title = window.prompt('Name your new workbench', defaultTitle);
-    if (!title) return;
-
-    setCreatingFromMaieutic(true);
-    try {
-      const res = await createGraph({
-        variables: { title },
-        optimisticResponse: {
-          createPlaybookGraph: {
-            graph: {
-              id: 'temp-' + Date.now().toString(),
-              title,
-              status: 'IDEA',
-              tlpClassification: 'UNCLEAR',
-              updatedAt: new Date().toISOString(),
-              author: { id: 'temp-user', username: 'You' },
-              mitreTechnique: null,
-              isReadOnly: false,
-              ownerOrganizationName: null
-            }
-          }
-        },
-        update(cache, result) {
-          const newGraph = result.data?.createPlaybookGraph?.graph;
-          if (!newGraph) return;
-          const existing = cache.readQuery<{ allPlaybookGraphs: GraphRow[] }>({ query: GET_ALL_GRAPHS_QUERY });
-          if (existing?.allPlaybookGraphs) {
-            cache.writeQuery({ query: GET_ALL_GRAPHS_QUERY, data: { allPlaybookGraphs: [newGraph, ...existing.allPlaybookGraphs] } });
-          }
-        }
-      });
-
-      const graphId = res.data?.createPlaybookGraph?.graph?.id;
-      if (!graphId) {
-        throw new Error('Failed to create workbench');
-      }
-
-      const updatedFormState = applyMaieuticToWorkbench(output, selections, {
-        goal: '',
-        technicalContext: '',
-        blindSpots: '',
-        falsePositives: '',
-        responsePlaybook: '',
-        detectionRule: '',
-      });
-
-      await updatePlaybookDetails({
-        variables: {
-          graphId,
-          goal: updatedFormState.goal,
-          technicalContext: updatedFormState.technicalContext,
-          blindSpots: updatedFormState.blindSpots,
-          triageGuidance: updatedFormState.triageGuidance,
-          falsePositives: updatedFormState.falsePositives,
-          responsePlaybook: updatedFormState.responsePlaybook,
-          detectionRule: updatedFormState.detectionRule,
-          testScenario: updatedFormState.testScenario,
-          testExpectedOutput: updatedFormState.testExpectedOutput,
-          alertTrigger: updatedFormState.alertTrigger,
-          defaultSeverity: updatedFormState.defaultSeverity,
-          enrichmentSteps: updatedFormState.enrichmentSteps
-            ? JSON.stringify(updatedFormState.enrichmentSteps)
-            : undefined,
-          containmentSteps: updatedFormState.containmentSteps
-            ? JSON.stringify(updatedFormState.containmentSteps)
-            : undefined,
-          notificationSteps: updatedFormState.notificationSteps
-            ? JSON.stringify(updatedFormState.notificationSteps)
-            : undefined,
-          downstreamCorrelationRequirements: updatedFormState.downstreamCorrelationRequirements
-            ? JSON.stringify(updatedFormState.downstreamCorrelationRequirements)
-            : undefined,
-          robustnessLevel: updatedFormState.robustnessLevel,
-          dataSourceMaturity: updatedFormState.dataSourceMaturity,
-          conversationHistory: JSON.stringify(output.conversationHistory || []),
-        },
-      });
-
-      message.success('Workbench created from Maieutic output');
-      setMaieuticModalVisible(false);
-      navigate(`/playbooks/${graphId}`);
-    } catch (e: any) {
-      console.error('Failed to create workbench from Maieutic output', e);
-      message.error(e?.message || 'Failed to create workbench from Maieutic output');
-    } finally {
-      setCreatingFromMaieutic(false);
-    }
-  };
-
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="large">
       <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
@@ -453,16 +353,6 @@ export const PlaybooksHubPage: React.FC = () => {
             </Button>
           </Dropdown>
           <Button loading={creatingGraph} onClick={handleCreateGraph}>+ New Workbench</Button>
-          <CustomButton 
-            variant="golden-orange"
-            disabled={creatingFromMaieutic}
-            onClick={() => setMaieuticModalVisible(true)}
-            className="flex items-center gap-1"
-            title="Launch hypothesis-driven detection engineering workflow"
-          >
-            <PixelIcon name="lightbulb" className="w-4 h-4" />
-            Maieutic Engine
-          </CustomButton>
         </Space>
       </Space>
       
@@ -480,12 +370,6 @@ export const PlaybooksHubPage: React.FC = () => {
         onImportSuccess={handleImportSuccess}
       />
 
-      <MaieuticEngineModal
-        isOpen={maieuticModalVisible}
-        onClose={() => setMaieuticModalVisible(false)}
-        onSubmit={handleMaieuticCreate}
-        submitLabel="Create Workbench"
-      />
       
       <Tabs
         activeKey={activeTab}

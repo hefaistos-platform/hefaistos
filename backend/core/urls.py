@@ -21,7 +21,6 @@ from django.views.generic.base import RedirectView
 from django.conf import settings
 from django.views.static import serve
 from playbooks.views import attack_navigator_layer_json, issue_coverage_access_token
-from ai_assistant.views import maieutic_ai, maieutic_hints, maieutic_validate
 from lsp_server.views import lsp_status
 from organizations.views import sharing_export, sharing_instance_info
 from core.system_update_api_views import (
@@ -48,9 +47,6 @@ urlpatterns = [
     path('graphql', csrf_exempt(FileUploadGraphQLView.as_view(graphiql=True))),
     path('api/coverage/token', issue_coverage_access_token, name='coverage-token'),
     path('api/coverage/layer.json', attack_navigator_layer_json, name='coverage-layer-json'),
-    path('api/maieutic/validate', maieutic_validate, name='maieutic-validate'),
-    path('api/maieutic/hints', maieutic_hints, name='maieutic-hints'),
-    path('api/maieutic/ai', maieutic_ai, name='maieutic-ai'),
     path('api/lsp/status', lsp_status, name='lsp-status'),
     path('api/profile/', include('identity.urls')),
     # Instance-to-instance sharing API (read-only remote export surface)
