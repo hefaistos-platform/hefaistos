@@ -3,6 +3,7 @@ import { gql, useMutation, useQuery } from '@apollo/client';
 import { Button, Card, Form, Input, Select, Tag, Table, Collapse, Typography, Space, Alert, Popconfirm, message } from 'antd';
 import { SyncOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { AdeFrameworkSection } from '../components/framework/AdeFrameworkSection';
 
 const { Text, Title } = Typography;
 const { Panel } = Collapse;
@@ -1180,7 +1181,7 @@ export const FrameworkUpdatesPage: React.FC = () => {
       </Card>
 
       {/* Chokepoint job history */}
-      <Card title="Recent Chokepoint Import Jobs">
+      <Card title="Recent Chokepoint Import Jobs" style={{ marginBottom: 24 }}>
         <Table
           dataSource={chokepointJobs}
           columns={chokepointColumns}
@@ -1192,6 +1193,9 @@ export const FrameworkUpdatesPage: React.FC = () => {
           tableLayout="fixed"
         />
       </Card>
+
+      {/* Adversarial Detection Engineering (ADE) */}
+      <AdeFrameworkSection canManage={canManage} />
     </div>
   );
 };
