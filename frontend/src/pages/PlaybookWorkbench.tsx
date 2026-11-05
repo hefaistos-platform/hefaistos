@@ -41,7 +41,7 @@ import { isDirty, normalize } from '../utils/ruleDiff';
 import OpenTideMetadataPreview from '../components/OpenTideMetadataPreview';
 import { OpenTidePreviewModal } from '../components/OpenTidePreviewModal';
 import { savedFormatSnapshot, formatHasChanges } from '../components/DetectionRuleEditorModal';
-import { DETECTION_FORMAT_REGISTRY } from '../components/detectionFormatRegistry';
+import { DETECTION_FORMAT_REGISTRY, getFormatByName } from '../components/detectionFormatRegistry';
 import { useTheme } from '../context/ThemeContext';
 import {
   LAYER_ORDER,
@@ -1042,6 +1042,13 @@ export const PlaybookWorkbench = () => {
   // OpenTIDE Preview Modal State (Phase 2)
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [localSectionVisibility, setLocalSectionVisibility] = useState<WorkbenchSectionVisibilityMap>({});
+
+  const modalInitialOpenTideRule = useMemo(() => {
+    if (!openTideRule) return undefined;
+    const formatEntry = getFormatByName(aiFormat);
+    if (!formatEntry) return openTideRule;
+    return formatEntry.setContent(openTideRule, localRule);
+  }, [openTideRule, aiFormat, localRule]);
 
   useEffect(() => {
     setLocalSectionVisibility({});
@@ -3041,7 +3048,7 @@ export const PlaybookWorkbench = () => {
             errors: res.data?.saveDetectionRule?.errors ?? [],
           };
         }}
-        initialOpenTideRule={openTideRule}
+        initialOpenTideRule={modalInitialOpenTideRule}
         playbookData={playbookDataForModal}
       />
 

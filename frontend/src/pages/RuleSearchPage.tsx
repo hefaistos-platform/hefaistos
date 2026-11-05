@@ -1,6 +1,6 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { TlpBadge } from '../components/ui/TlpBadge';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { gql } from '@apollo/client';
 import { useLazyQuery, useMutation } from '@apollo/client/react';
 import { Card, Input, Tag, Typography, Spin, Select, Checkbox, Switch, Space, Button, Modal, message } from 'antd';
@@ -151,17 +151,7 @@ export const RuleSearchPage: React.FC = () => {
           if (result?.deleteDetectionRule?.success) {
             message.success(result.deleteDetectionRule.message || 'Rule deleted successfully');
             // Refresh the search results
-            const vars: RulesConnectionVars = {
-              text: searchTerm || undefined,
-              author: author || undefined,
-              repositoryId: repositoryId || undefined,
-              status: status.length ? status : undefined,
-              tags: tags.length ? tags : undefined,
-              techniqueId: techniqueId || undefined,
-              sort: sort || undefined,
-              first: 48,
-              after: undefined,
-            };
+            const vars = buildSearchVars(undefined);
             setAfter(undefined);
             loadRules({ variables: vars });
           } else {
@@ -179,6 +169,23 @@ export const RuleSearchPage: React.FC = () => {
   // Debounce effect: trigger the search only after the user stops typing
   const [pageSize] = useState<number>(48);
   const [after, setAfter] = useState<string | undefined>(undefined);
+
+  const buildSearchVars = useCallback((cursor?: string): RulesConnectionVars => ({
+    text: searchTerm || undefined,
+    author: author || undefined,
+    repositoryId: repositoryId || undefined,
+    status: status.length ? status : undefined,
+    tags: tags.length ? tags : undefined,
+    techniqueId: techniqueId || undefined,
+    sort: sort || undefined,
+    first: pageSize,
+    after: cursor,
+  }), [searchTerm, author, repositoryId, status, tags, techniqueId, sort, pageSize]);
+
+  const handleRefresh = useCallback(() => {
+    setAfter(undefined);
+    loadRules({ variables: buildSearchVars(undefined) });
+  }, [buildSearchVars, loadRules]);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -214,7 +221,7 @@ export const RuleSearchPage: React.FC = () => {
     const nextCursor = data?.rulesConnection?.pageInfo?.endCursor || undefined;
     if (!nextCursor) return;
     setAfter(nextCursor);
-    loadRules({ variables: { text: searchTerm || undefined, first: pageSize, after: nextCursor } });
+    loadRules({ variables: buildSearchVars(nextCursor) });
   };
 
   return (
@@ -222,7 +229,7 @@ export const RuleSearchPage: React.FC = () => {
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}>
         <Typography.Title level={3} style={{ margin: 0 }}>Search Detection Rules</Typography.Title>
         <Space>
-          <Button onClick={() => { /* placeholder: refresh search */ }}>Refresh</Button>
+          <Button onClick={handleRefresh}>Refresh</Button>
           <Button type="primary" onClick={() => navigate('/rules/new')}>New Rule</Button>
         </Space>
       </Space>
