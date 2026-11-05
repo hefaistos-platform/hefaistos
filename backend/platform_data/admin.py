@@ -16,6 +16,9 @@ from .models import (
     ChokepointSnapshot,
     ChokepointEntry,
     ChokepointImportJob,
+    AdeSnapshot,
+    AdeEntry,
+    AdeImportJob,
 )
 
 # --- 1. Techniques ---
@@ -140,6 +143,31 @@ class ChokepointImportJobAdmin(admin.ModelAdmin):
         'id', 'source_ref', 'mode', 'status', 'snapshot',
         'triggered_by', 'created_at', 'finished_at',
     )
+    list_filter = ('status', 'mode')
+    search_fields = ('source_ref', 'source_repo')
+    readonly_fields = ('id', 'created_at', 'updated_at', 'started_at', 'finished_at', 'log', 'error', 'summary')
+
+
+# --- ADE framework ---
+@admin.register(AdeSnapshot)
+class AdeSnapshotAdmin(admin.ModelAdmin):
+    list_display = ('id', 'status', 'source_ref', 'source_sha', 'entry_count', 'triggered_by', 'created_at', 'activated_at')
+    list_filter = ('status',)
+    search_fields = ('source_ref', 'source_sha')
+    readonly_fields = ('id', 'created_at', 'updated_at', 'activated_at', 'entry_count', 'summary', 'validation_errors')
+
+
+@admin.register(AdeEntry)
+class AdeEntryAdmin(admin.ModelAdmin):
+    list_display = ('ade_id', 'kind', 'title', 'snapshot', 'source_path')
+    list_filter = ('kind',)
+    search_fields = ('ade_id', 'title', 'entry_key', 'source_path')
+    readonly_fields = ('id',)
+
+
+@admin.register(AdeImportJob)
+class AdeImportJobAdmin(admin.ModelAdmin):
+    list_display = ('id', 'source_ref', 'mode', 'status', 'snapshot', 'triggered_by', 'created_at', 'finished_at')
     list_filter = ('status', 'mode')
     search_fields = ('source_ref', 'source_repo')
     readonly_fields = ('id', 'created_at', 'updated_at', 'started_at', 'finished_at', 'log', 'error', 'summary')

@@ -13,6 +13,11 @@ from .chokepoints_sync import (
     fetch_latest_ref_sha,
     normalize_git_ref,
 )
+from .ade_sync import (
+    DEFAULT_ADE_REF,
+    DEFAULT_ADE_REPO,
+    fetch_latest_ade_sha,
+)
 from .scraper import (
     scrape_mitre_analytic_details,
     scrape_mitre_log_sources_json,
@@ -23,6 +28,7 @@ from .models import (
     D3fendDefensiveTechnique, D3fendDigitalArtifact, D3fendAttackMapping,
     ShareTideIndexEntry, PlatformDataVersion, MitreImportJob,
     ChokepointSnapshot, ChokepointEntry, ChokepointImportJob,
+    AdeSnapshot, AdeEntry, AdeImportJob,
 )
 from playbooks.models import PlaybookGraph
 
@@ -138,6 +144,62 @@ class ChokepointImportJobType(DjangoObjectType):
         if self.started_at and self.finished_at:
             return (self.finished_at - self.started_at).total_seconds()
         return None
+
+
+class AdeSnapshotType(DjangoObjectType):
+    class Meta:
+        model = AdeSnapshot
+        fields = (
+            "id", "source_repo", "source_ref", "source_sha", "status",
+            "summary", "entry_count", "validation_errors",
+            "created_at", "updated_at", "activated_at", "triggered_by",
+        )
+
+
+class AdeEntryType(DjangoObjectType):
+    class Meta:
+        model = AdeEntry
+        fields = (
+            "id", "entry_key", "kind", "ade_id", "parent_ade_id", "title", "definition",
+            "related_ade", "mitre_attack", "logsource", "schema_version", "source_path",
+        )
+
+
+class AdeImportJobType(DjangoObjectType):
+    duration_seconds = graphene.Float(description="Wall-clock duration in seconds, or null if not finished.")
+
+    class Meta:
+        model = AdeImportJob
+        fields = (
+            "id", "source_repo", "source_ref", "mode", "status", "summary",
+            "log", "error", "created_at", "updated_at", "started_at",
+            "finished_at", "snapshot", "triggered_by",
+        )
+
+    def resolve_duration_seconds(self, info):
+        if self.started_at and self.finished_at:
+            return (self.finished_at - self.started_at).total_seconds()
+        return None
+
+
+class AdeDiffChangeType(graphene.ObjectType):
+    entry_key = graphene.String()
+    kind = graphene.String()
+    ade_id = graphene.String()
+    title = graphene.String()
+    change = graphene.String(description="ADDED, CHANGED, RENAMED or REMOVED")
+
+
+class AdeDiffSummaryType(graphene.ObjectType):
+    snapshot_id = graphene.UUID()
+    active_snapshot_id = graphene.UUID()
+    added = graphene.Int()
+    changed = graphene.Int()
+    removed = graphene.Int()
+    unchanged = graphene.Int()
+    staged_count = graphene.Int()
+    active_count = graphene.Int()
+    changes = graphene.List(AdeDiffChangeType, description="Per-entry changes (capped at 300).")
 
 
 class ChokepointDiffSummaryType(graphene.ObjectType):
@@ -258,6 +320,70 @@ def _activate_chokepoint_snapshot(snapshot: ChokepointSnapshot) -> ChokepointSna
     return snapshot
 
 
+def compute_ade_diff(staged: AdeSnapshot, active: AdeSnapshot | None) -> dict:
+    """
+    Diff two snapshots by ``entry_key`` and ``source_hash``.
+
+    RENAMED means same key, same hash apart from the title, which is how upstream renamed
+    ADE2-01 from "API/Function" to "Method/Binary" without changing its ID.
+    """
+    def rows(snapshot):
+        return {
+            e.entry_key: e
+            for e in AdeEntry.objects.filter(snapshot=snapshot).only(
+                "entry_key", "kind", "ade_id", "title", "definition", "source_hash",
+            )
+        }
+
+    staged_rows = rows(staged)
+    active_rows = rows(active) if active else {}
+    changes = []
+    unchanged = 0
+    for key, row in sorted(staged_rows.items()):
+        old = active_rows.get(key)
+        if old is None:
+            change = "ADDED"
+        elif old.source_hash == row.source_hash:
+            unchanged += 1
+            continue
+        elif old.title != row.title and old.definition == row.definition:
+            change = "RENAMED"
+        else:
+            change = "CHANGED"
+        changes.append({"entry_key": key, "kind": row.kind, "ade_id": row.ade_id, "title": row.title, "change": change})
+    for key, old in sorted(active_rows.items()):
+        if key not in staged_rows:
+            changes.append({"entry_key": key, "kind": old.kind, "ade_id": old.ade_id, "title": old.title, "change": "REMOVED"})
+    return {
+        "added": sum(1 for c in changes if c["change"] == "ADDED"),
+        "changed": sum(1 for c in changes if c["change"] in ("CHANGED", "RENAMED")),
+        "removed": sum(1 for c in changes if c["change"] == "REMOVED"),
+        "unchanged": unchanged,
+        "staged_count": len(staged_rows),
+        "active_count": len(active_rows),
+        "changes": changes,
+    }
+
+
+@transaction.atomic
+def _activate_ade_snapshot(snapshot: AdeSnapshot) -> AdeSnapshot:
+    """Promote a snapshot to ACTIVE and archive the previously active one."""
+    AdeSnapshot.objects.select_for_update().filter(
+        status=AdeSnapshot.Status.ACTIVE,
+    ).exclude(id=snapshot.id).update(status=AdeSnapshot.Status.ARCHIVED)
+
+    snapshot.status = AdeSnapshot.Status.ACTIVE
+    snapshot.activated_at = timezone.now()
+    snapshot.save(update_fields=["status", "activated_at", "updated_at"])
+
+    version_value = (snapshot.source_sha[:12] if snapshot.source_sha else snapshot.source_ref)[:20] or "staged"
+    PlatformDataVersion.objects.update_or_create(
+        framework='ade-framework',
+        defaults={'version': version_value},
+    )
+    return snapshot
+
+
 class Query(graphene.ObjectType):
     detection_suggestions = graphene.Field(
         SuggestionResultType,
@@ -369,6 +495,28 @@ class Query(graphene.ObjectType):
         ChokepointDiffSummaryType,
         snapshot_id=graphene.UUID(required=True),
         description="Compare a staged snapshot to current active snapshot.",
+    )
+
+    latest_available_ade_revision = graphene.String(
+        source_repo=graphene.String(default_value=DEFAULT_ADE_REPO),
+        ref=graphene.String(default_value=DEFAULT_ADE_REF),
+        description="Resolve latest commit SHA for the ADE source ref (cached 1 hour). Null on network errors.",
+    )
+    active_ade_snapshot = graphene.Field(AdeSnapshotType, description="Currently active ADE snapshot.")
+    ade_snapshot = graphene.Field(AdeSnapshotType, id=graphene.UUID(required=True))
+    ade_snapshots = graphene.List(
+        AdeSnapshotType, status=graphene.String(), limit=graphene.Int(default_value=20),
+        description="List ADE snapshots (latest first).",
+    )
+    ade_entries = graphene.List(
+        AdeEntryType, snapshot_id=graphene.UUID(), kind=graphene.String(),
+        description="Entries of a snapshot (defaults to the active one), optionally filtered by kind.",
+    )
+    ade_import_job = graphene.Field(AdeImportJobType, id=graphene.UUID(required=True))
+    ade_import_jobs = graphene.List(AdeImportJobType, limit=graphene.Int(default_value=20))
+    staged_ade_diff = graphene.Field(
+        AdeDiffSummaryType, snapshot_id=graphene.UUID(required=True),
+        description="Compare a staged ADE snapshot to the current active snapshot.",
     )
 
     # D3FEND Queries
@@ -577,6 +725,72 @@ class Query(graphene.ObjectType):
             unchanged=unchanged,
             staged_count=len(staged_rows),
             active_count=len(active_rows),
+        )
+
+    def resolve_latest_available_ade_revision(self, info, source_repo=DEFAULT_ADE_REPO, ref=DEFAULT_ADE_REF):
+        cache_key = f"ade:latest_revision:{source_repo}:{ref}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+        try:
+            resolved = fetch_latest_ade_sha(source_repo, ref)
+            cache.set(cache_key, resolved, timeout=3600)
+            return resolved
+        except Exception:
+            return None
+
+    def resolve_active_ade_snapshot(self, info):
+        _require_superuser(info)
+        return AdeSnapshot.objects.filter(status=AdeSnapshot.Status.ACTIVE).first()
+
+    def resolve_ade_snapshot(self, info, id):
+        _require_superuser(info)
+        return AdeSnapshot.objects.filter(id=id).first()
+
+    def resolve_ade_snapshots(self, info, status=None, limit=20):
+        _require_superuser(info)
+        qs = AdeSnapshot.objects.all()
+        if status:
+            status_upper = str(status).upper().strip()
+            if status_upper in AdeSnapshot.Status.values:
+                qs = qs.filter(status=status_upper)
+        return qs[:max(1, min(int(limit or 20), 100))]
+
+    def resolve_ade_entries(self, info, snapshot_id=None, kind=None):
+        _require_superuser(info)
+        if snapshot_id:
+            qs = AdeEntry.objects.filter(snapshot_id=snapshot_id)
+        else:
+            qs = AdeEntry.objects.filter(snapshot__status=AdeSnapshot.Status.ACTIVE)
+        if kind:
+            qs = qs.filter(kind=str(kind).upper().strip())
+        return qs
+
+    def resolve_ade_import_job(self, info, id):
+        _require_superuser(info)
+        return AdeImportJob.objects.filter(id=id).first()
+
+    def resolve_ade_import_jobs(self, info, limit=20):
+        _require_superuser(info)
+        return AdeImportJob.objects.select_related("snapshot", "triggered_by").all()[:max(1, min(int(limit or 20), 100))]
+
+    def resolve_staged_ade_diff(self, info, snapshot_id):
+        _require_superuser(info)
+        staged = AdeSnapshot.objects.filter(id=snapshot_id).first()
+        if staged is None:
+            return None
+        active = (
+            AdeSnapshot.objects.filter(status=AdeSnapshot.Status.ACTIVE).exclude(id=staged.id)
+            .order_by("-activated_at", "-created_at").first()
+        )
+        diff = compute_ade_diff(staged, active)
+        return AdeDiffSummaryType(
+            snapshot_id=staged.id,
+            active_snapshot_id=active.id if active else None,
+            added=diff["added"], changed=diff["changed"], removed=diff["removed"],
+            unchanged=diff["unchanged"], staged_count=diff["staged_count"],
+            active_count=diff["active_count"],
+            changes=[AdeDiffChangeType(**c) for c in diff["changes"][:300]],
         )
 
     def resolve_enrich_analytic_data(self, info, strategy_url, analytic_id):
@@ -964,6 +1178,85 @@ class RollbackChokepointSnapshot(graphene.Mutation):
         )
 
 
+class RunAdeImport(graphene.Mutation):
+    """Admin-only: trigger an async ADE framework import into a staged snapshot."""
+
+    class Arguments:
+        source_repo = graphene.String(default_value=DEFAULT_ADE_REPO, description="Source repository URL.")
+        ref = graphene.String(default_value=DEFAULT_ADE_REF, description="Source git ref.")
+        mode = graphene.String(default_value="remote", description="'remote' or 'local'")
+
+    job = graphene.Field(AdeImportJobType)
+
+    @staticmethod
+    def mutate(root, info, source_repo=DEFAULT_ADE_REPO, ref=DEFAULT_ADE_REF, mode="remote"):
+        from .tasks import fail_stale_ade_jobs, run_ade_import_job
+
+        user = _require_superuser(info)
+        fail_stale_ade_jobs()
+        if AdeImportJob.objects.filter(
+            status__in=[AdeImportJob.Status.PENDING, AdeImportJob.Status.RUNNING]
+        ).exists():
+            raise GraphQLError("An ADE import is already running.")
+
+        mode_upper = str(mode).upper().strip()
+        if mode_upper not in (AdeImportJob.Mode.REMOTE, AdeImportJob.Mode.LOCAL):
+            mode_upper = AdeImportJob.Mode.REMOTE
+        job = AdeImportJob.objects.create(
+            source_repo=(source_repo or DEFAULT_ADE_REPO).strip(),
+            source_ref=normalize_git_ref(ref, DEFAULT_ADE_REF),
+            mode=mode_upper,
+            status=AdeImportJob.Status.PENDING,
+            triggered_by=user,
+        )
+        run_ade_import_job(str(job.id))
+        return RunAdeImport(job=job)
+
+
+class PromoteAdeSnapshot(graphene.Mutation):
+    """Promote a staged ADE snapshot to active."""
+
+    class Arguments:
+        snapshot_id = graphene.UUID(required=True)
+
+    success = graphene.Boolean()
+    message = graphene.String()
+    snapshot = graphene.Field(AdeSnapshotType)
+
+    @staticmethod
+    def mutate(root, info, snapshot_id):
+        _require_superuser(info)
+        snapshot = AdeSnapshot.objects.filter(id=snapshot_id).first()
+        if snapshot is None:
+            raise GraphQLError("ADE snapshot not found.")
+        if snapshot.status == AdeSnapshot.Status.FAILED:
+            raise GraphQLError("Cannot promote a failed snapshot.")
+        _activate_ade_snapshot(snapshot)
+        return PromoteAdeSnapshot(success=True, message=f"Snapshot {snapshot.id} is now active.", snapshot=snapshot)
+
+
+class RollbackAdeSnapshot(graphene.Mutation):
+    """Roll the active ADE content back to an earlier snapshot."""
+
+    class Arguments:
+        snapshot_id = graphene.UUID(required=True)
+
+    success = graphene.Boolean()
+    message = graphene.String()
+    snapshot = graphene.Field(AdeSnapshotType)
+
+    @staticmethod
+    def mutate(root, info, snapshot_id):
+        _require_superuser(info)
+        snapshot = AdeSnapshot.objects.filter(id=snapshot_id).first()
+        if snapshot is None:
+            raise GraphQLError("Target snapshot not found.")
+        if snapshot.status == AdeSnapshot.Status.FAILED:
+            raise GraphQLError("Cannot roll back to a failed snapshot.")
+        _activate_ade_snapshot(snapshot)
+        return RollbackAdeSnapshot(success=True, message=f"Rolled back active ADE content to snapshot {snapshot.id}.", snapshot=snapshot)
+
+
 class Mutation(graphene.ObjectType):
     remove_local_attack_version = RemoveLocalAttackVersion.Field()
     run_mitre_import = RunMitreImport.Field(
@@ -978,3 +1271,6 @@ class Mutation(graphene.ObjectType):
     rollback_chokepoint_snapshot = RollbackChokepointSnapshot.Field(
         description="Roll back to a selected chokepoint snapshot (admin only)."
     )
+    run_ade_import = RunAdeImport.Field(description="Trigger an async ADE framework import (admin only).")
+    promote_ade_snapshot = PromoteAdeSnapshot.Field(description="Promote a staged ADE snapshot to active (admin only).")
+    rollback_ade_snapshot = RollbackAdeSnapshot.Field(description="Roll back to a selected ADE snapshot (admin only).")

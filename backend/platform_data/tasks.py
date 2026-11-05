@@ -211,3 +211,102 @@ def _execute_chokepoint_job(job_id: str) -> None:
             'snapshot_id': str(job.snapshot_id) if job.snapshot_id else None,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Adversarial Detection Engineering (ADE) framework import
+# ---------------------------------------------------------------------------
+
+ADE_STALE_JOB_MINUTES = 15
+
+
+def fail_stale_ade_jobs() -> int:
+    """
+    Mark ADE import jobs stuck in PENDING/RUNNING as FAILED.
+
+    Imports run in daemon threads, so a backend restart kills the thread without updating the
+    row. Calling this at the top of the import mutation lets the next click self-heal.
+    """
+    from datetime import timedelta
+    from platform_data.models import AdeImportJob
+
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(minutes=ADE_STALE_JOB_MINUTES)
+    return AdeImportJob.objects.filter(
+        status__in=[AdeImportJob.Status.PENDING, AdeImportJob.Status.RUNNING],
+        updated_at__lt=cutoff,
+    ).update(
+        status=AdeImportJob.Status.FAILED,
+        error='Marked failed: job did not finish (backend restart or crash).',
+        finished_at=datetime.now(tz=timezone.utc),
+    )
+
+
+def run_ade_import_job(job_id: str) -> None:
+    """Dispatch an ADE framework import in a daemon thread."""
+    t = threading.Thread(target=_execute_ade_job, args=(job_id,), daemon=True)
+    t.start()
+
+
+def _execute_ade_job(job_id: str) -> None:
+    """Background thread: run the ADE import command and persist results."""
+    from django.core.management import call_command
+    from platform_data.models import AdeImportJob, AdeSnapshot
+
+    try:
+        job = AdeImportJob.objects.get(id=job_id)
+    except AdeImportJob.DoesNotExist:
+        logger.error("AdeImportJob %s not found", job_id)
+        return
+
+    job.status = AdeImportJob.Status.RUNNING
+    job.started_at = datetime.now(tz=timezone.utc)
+    job.save(update_fields=['status', 'started_at', 'updated_at'])
+
+    user_id = str(getattr(job.triggered_by, 'id', '') or '') or None
+    user_name = getattr(job.triggered_by, 'username', None)
+    _emit_import_audit_event(
+        framework='ade', action='start', outcome='success', level='informational',
+        reason='ADE framework import job started.', user_id=user_id, user_name=user_name,
+        extra_context={'job_id': str(job.id), 'source_repo': job.source_repo,
+                       'source_ref': job.source_ref, 'mode': job.mode},
+    )
+
+    snapshot = job.snapshot
+    if snapshot is None:
+        snapshot = AdeSnapshot.objects.create(
+            source_repo=job.source_repo, source_ref=job.source_ref,
+            status=AdeSnapshot.Status.STAGED, triggered_by=job.triggered_by,
+        )
+        job.snapshot = snapshot
+        job.save(update_fields=['snapshot', 'updated_at'])
+
+    stdout_buf = io.StringIO()
+    stderr_buf = io.StringIO()
+    try:
+        call_command(
+            'import_ade_framework',
+            source_repo=job.source_repo, ref=job.source_ref, mode=job.mode.lower(),
+            snapshot_id=str(snapshot.id), stdout=stdout_buf, stderr=stderr_buf,
+        )
+        snapshot.refresh_from_db(fields=['summary'])
+        job.summary = snapshot.summary or {}
+        job.status = AdeImportJob.Status.SUCCESS
+        job.error = stderr_buf.getvalue()
+    except Exception as exc:
+        logger.exception("AdeImportJob %s failed: %s", job_id, exc)
+        job.status = AdeImportJob.Status.FAILED
+        job.error = f"{exc}\n\n{stderr_buf.getvalue()}"
+
+    job.log = stdout_buf.getvalue()
+    job.finished_at = datetime.now(tz=timezone.utc)
+    job.save(update_fields=['status', 'summary', 'log', 'error', 'finished_at', 'updated_at'])
+
+    failed = job.status == AdeImportJob.Status.FAILED
+    _emit_import_audit_event(
+        framework='ade', action='finish',
+        outcome='failure' if failed else 'success',
+        level='warning' if failed else 'informational',
+        reason=(job.error or job.log or job.status)[:500], user_id=user_id, user_name=user_name,
+        extra_context={'job_id': str(job.id), 'status': job.status, 'mode': job.mode,
+                       'snapshot_id': str(job.snapshot_id) if job.snapshot_id else None},
+    )

@@ -236,6 +236,7 @@ class PlatformDataVersion(models.Model):
         ('mobile-attack', 'MITRE ATT&CK Mobile'),
         ('d3fend', 'MITRE D3FEND'),
         ('detection-chokepoints', 'Detection Chokepoints'),
+        ('ade-framework', 'Adversarial Detection Engineering (ADE)'),
     ]
 
     framework = models.CharField(
@@ -491,3 +492,156 @@ class ChokepointImportJob(models.Model):
 
     def __str__(self):
         return f"ChokepointImportJob {self.source_ref} [{self.status}] @ {self.created_at}"
+
+
+# ---------------------------------------------------------------------------
+# Adversarial Detection Engineering (ADE) framework
+# ---------------------------------------------------------------------------
+
+class AdeSnapshot(models.Model):
+    """
+    Versioned imported snapshot of the ADE framework (taxonomy, bug likelihood checks,
+    rule-specific bypass records and in-the-wild records).
+
+    Same lifecycle as ``ChokepointSnapshot``: imports create STAGED snapshots, an admin
+    reviews the diff and promotes one to ACTIVE, and the previous ACTIVE snapshot is
+    ARCHIVED so it can be rolled back to. Upstream changes are never auto-applied.
+    """
+
+    class Status(models.TextChoices):
+        STAGED = 'STAGED', 'Staged'
+        ACTIVE = 'ACTIVE', 'Active'
+        FAILED = 'FAILED', 'Failed'
+        ARCHIVED = 'ARCHIVED', 'Archived'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source_repo = models.URLField(
+        max_length=512,
+        default='https://github.com/Adversarial-Detection-Engineering/Adversarial-Detection-Engineering-Framework',
+        help_text="Upstream source repository URL.",
+    )
+    source_ref = models.CharField(max_length=128, default='main', help_text="Imported ref (branch/tag/commit).")
+    source_sha = models.CharField(
+        max_length=64, blank=True, default='',
+        help_text="Resolved upstream commit SHA when available.",
+    )
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.STAGED)
+    summary = models.JSONField(
+        default=dict, blank=True,
+        help_text="Import counters per entry kind plus parser warnings.",
+    )
+    entry_count = models.PositiveIntegerField(default=0)
+    validation_errors = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    activated_at = models.DateTimeField(null=True, blank=True)
+    triggered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='ade_snapshots',
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at'], name='pld_ade_snap_st_cr_idx'),
+            models.Index(fields=['source_sha'], name='pld_ade_snap_sha_idx'),
+        ]
+        verbose_name = "ADE Snapshot"
+        verbose_name_plural = "ADE Snapshots"
+
+    def __str__(self):
+        rev = self.source_sha[:12] if self.source_sha else self.source_ref
+        return f"AdeSnapshot {rev} [{self.status}]"
+
+
+class AdeEntry(models.Model):
+    """
+    One normalized upstream ADE record belonging to a snapshot.
+
+    ``ade_id`` is the stable upstream identifier (``ADE3-01``, ``DLE-2026-00001``...) and is
+    what Maieutic answers and overlay content will reference, so renames upstream do not
+    break links. Likelihood checks have no upstream ID and are keyed by position.
+    """
+
+    class Kind(models.TextChoices):
+        CATEGORY = 'CATEGORY', 'Category'
+        SUBCATEGORY = 'SUBCATEGORY', 'Subcategory'
+        LIKELIHOOD_CHECK = 'LIKELIHOOD_CHECK', 'Bug likelihood check'
+        DLE = 'DLE', 'Detection logic example'
+        ITW = 'ITW', 'In the wild'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    snapshot = models.ForeignKey(AdeSnapshot, on_delete=models.CASCADE, related_name='entries')
+    entry_key = models.CharField(max_length=160, help_text="Stable key within a snapshot, e.g. 'SUBCATEGORY:ADE3-01'.")
+    kind = models.CharField(max_length=24, choices=Kind.choices)
+    ade_id = models.CharField(max_length=40, blank=True, default='')
+    parent_ade_id = models.CharField(max_length=16, blank=True, default='', help_text="Category ID for subcategories.")
+    title = models.CharField(max_length=512, blank=True, default='')
+    definition = models.TextField(blank=True, default='')
+    related_ade = models.JSONField(default=list, blank=True)
+    mitre_attack = models.JSONField(default=list, blank=True)
+    logsource = models.JSONField(default=dict, blank=True)
+    schema_version = models.CharField(max_length=16, blank=True, default='')
+    source_path = models.CharField(max_length=512, blank=True, default='')
+    source_hash = models.CharField(max_length=64, blank=True, default='')
+    content = models.JSONField(default=dict, blank=True, help_text="Full parsed upstream record.")
+
+    class Meta:
+        ordering = ['kind', 'ade_id', 'entry_key']
+        constraints = [
+            models.UniqueConstraint(fields=['snapshot', 'entry_key'], name='unique_ade_entry_per_snapshot'),
+        ]
+        indexes = [
+            models.Index(fields=['snapshot', 'kind'], name='pld_ade_ent_snap_kind_idx'),
+            models.Index(fields=['ade_id'], name='pld_ade_ent_ade_id_idx'),
+        ]
+        verbose_name = "ADE Entry"
+        verbose_name_plural = "ADE Entries"
+
+    def __str__(self):
+        return f"{self.ade_id or self.entry_key}: {self.title}"[:200]
+
+
+class AdeImportJob(models.Model):
+    """Tracks async ADE imports triggered from the Framework Updates page."""
+
+    class Mode(models.TextChoices):
+        REMOTE = 'REMOTE', 'Remote'
+        LOCAL = 'LOCAL', 'Local'
+
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        RUNNING = 'RUNNING', 'Running'
+        SUCCESS = 'SUCCESS', 'Success'
+        FAILED = 'FAILED', 'Failed'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source_repo = models.URLField(
+        max_length=512,
+        default='https://github.com/Adversarial-Detection-Engineering/Adversarial-Detection-Engineering-Framework',
+    )
+    source_ref = models.CharField(max_length=128, default='main')
+    mode = models.CharField(max_length=10, choices=Mode.choices, default=Mode.REMOTE)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    snapshot = models.ForeignKey(
+        AdeSnapshot, null=True, blank=True, on_delete=models.SET_NULL, related_name='import_jobs',
+    )
+    summary = models.JSONField(default=dict, blank=True)
+    log = models.TextField(blank=True, default='')
+    error = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    triggered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='ade_import_jobs',
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "ADE Import Job"
+        verbose_name_plural = "ADE Import Jobs"
+
+    def __str__(self):
+        return f"AdeImportJob {self.source_ref} [{self.status}] @ {self.created_at}"
