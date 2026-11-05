@@ -263,10 +263,13 @@ def _run_generate_rule(task) -> dict:
         reference_context=reference_context,
         validation_result=validation_result,
     )
-    accepted = bool(validation_result.get('is_valid')) and confidence_decision != 'REJECT' if gate_enabled else bool(current_rule)
+    # Always return a generated draft rule to the caller when generation produced text.
+    # Guardrails remain advisory metadata for UI/operator decisions.
+    accepted = bool(current_rule)
+    guardrail_passed = bool(validation_result.get('is_valid')) and confidence_decision != 'REJECT' if gate_enabled else True
 
     artifacts = {}
-    if accepted:
+    if accepted and guardrail_passed:
         from ai_assistant.rule_feedback import capture_generation
         artifacts = capture_generation(task.user, bundle, output_format.upper(), task.prompt_provenance,
             task=task, workbench_id=task.input_data.get('playbook_id'),
@@ -280,12 +283,12 @@ def _run_generate_rule(task) -> dict:
         validation_status = 'VALID' if validation_result.get('is_valid') else 'INVALID'
     else:
         validation_status = 'SKIPPED_PHASE_ROLLOUT'
-    if gate_enabled and not accepted:
-        validation_status = 'REJECTED'
+    if gate_enabled and not guardrail_passed:
+        validation_status = 'ADVISORY_REVIEW_REQUIRED'
 
     return {
         'rule': bundle.get('primary_rule') if accepted else None,
-        'rejected_rule_draft': bundle.get('primary_rule') if not accepted else None,
+        'rejected_rule_draft': None,
         'quick_win_rule': bundle.get('quick_win_rule'),
         'robust_rule': bundle.get('robust_rule'),
         'generation_summary': bundle.get('generation_summary'),
@@ -300,6 +303,7 @@ def _run_generate_rule(task) -> dict:
         'validation_issues': validation_result.get('issues') or [],
         'confidence_score': confidence_score,
         'confidence_decision': confidence_decision,
+        'guardrail_passed': guardrail_passed,
         'grounded_template_ids': [str(item.get('id')) for item in reference_context if isinstance(item, dict)],
         'repair_attempts': repair_attempts,
         'generation_artifacts': {variant: str(artifact.id) for variant, artifact in artifacts.items()},

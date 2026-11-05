@@ -824,7 +824,11 @@ export const DetectionRuleEditorModal: React.FC<DetectionRuleEditorModalProps> =
                 setLastInsightsPlatform(targetPlatform);
               }
               setMode('ai');
-              message.success(`AI-generated rule loaded (${result.provider_used})`);
+              if (validationStatus === 'ADVISORY_REVIEW_REQUIRED') {
+                message.warning(`AI-generated draft loaded (${result.provider_used}). Guardrails flagged review, but generation was not blocked.`);
+              } else {
+                message.success(`AI-generated rule loaded (${result.provider_used})`);
+              }
             } else if (validationStatus === 'REJECTED') {
               setPlatformGenerationInsights(prev => ({
                 ...prev,
