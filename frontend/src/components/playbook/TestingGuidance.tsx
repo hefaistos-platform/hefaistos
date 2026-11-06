@@ -3,6 +3,7 @@ import { PixelIcon } from '../ui/PixelIcon';
 import SimpleMDE from 'react-simplemde-editor';
 import { configureMdeInstance, MARKDOWN_EDITOR_OPTIONS } from '../../config/markdownConfig';
 import "easymde/dist/easymde.min.css";
+import { NegativeTestsPanel } from './NegativeTests';
 
 interface TestingProps {
   data: {
@@ -11,11 +12,12 @@ interface TestingProps {
     techniqueId?: string; // e.g. T1003.001
   };
   onChange: (field: string, value: string) => void;
+  playbookId?: string;
 }
 
 const TESTING_STORAGE_KEY = 'wb-testing-guidance-open';
 
-export const TestingGuidance: React.FC<TestingProps> = ({ data, onChange }) => {
+export const TestingGuidance: React.FC<TestingProps> = ({ data, onChange, playbookId }) => {
   // Persist open/closed state across page refreshes
   const [isOpen, setIsOpen] = useState<boolean>(() => localStorage.getItem(TESTING_STORAGE_KEY) === '1');
 
@@ -182,6 +184,7 @@ export const TestingGuidance: React.FC<TestingProps> = ({ data, onChange }) => {
 
       {isOpen && (
         <div className="mt-4">
+          <NegativeTestsPanel playbookId={playbookId} />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Atomic docs + test selector (manual, authoritative) */}
         <div className="lg:col-span-1 border border-gray-200 rounded-lg p-4 bg-gray-50">

@@ -17,6 +17,7 @@ import { CapabilityAbstractionPanel } from '../components/playbook/CapabilityAbs
 import { DeepDive } from '../components/playbook/DeepDive';
 import { SoarConfiguration } from '../components/playbook/SoarConfiguration';
 import { TestingGuidance } from '../components/playbook/TestingGuidance';
+import { BlindSpotCoverageNotice } from '../components/playbook/NegativeTests';
 import { ReviewWorkflow } from '../components/playbook/ReviewWorkflow';
 import { ActivityOverview } from '../components/playbook/ActivityOverview';
 import { PlaybookSidebar } from '../components/playbook/PlaybookSidebar';
@@ -2441,6 +2442,7 @@ export const PlaybookWorkbench = () => {
                            }}
                          />
                        )}
+                       {resolvedWorkbenchSections.sections.part2.visible && <BlindSpotCoverageNotice playbookId={playbookId || ''} />}
 
                         {/* Part 3: Detection Rule */}
                         {resolvedWorkbenchSections.sections.part3.visible && (
@@ -2740,6 +2742,7 @@ export const PlaybookWorkbench = () => {
                           techniqueId: data.playbookGraph.mitreTechnique?.techniqueId || undefined
                         }}
                         onChange={(field, val) => handleSidebarUpdate(field, val)}
+                        playbookId={data.playbookGraph.id}
                       />
                     )}
 
