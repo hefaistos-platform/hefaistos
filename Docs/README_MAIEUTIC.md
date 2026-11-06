@@ -111,6 +111,25 @@ The evasion questions come from the ADE false-negative framework (4 categories, 
 chosen from your own design. ADE covers *what your rule could miss*. It is a different thing from
 robustness against an attacker changing their behaviour, and the two are never merged into one score.
 
+## Wording help (optional)
+
+If you have an AI provider set up in your profile, four free-text fields get a **Help me word this**
+button: the goal, the scope notes, the design in your own words and the test scenario. It stays disabled
+until you have written at least 25 characters, because the AI only rewords what you wrote.
+
+- **It is a suggestion only.** It appears beside your text. Nothing changes until you press **Use this**;
+  **Discard**, or typing anything yourself, throws it away.
+- **It may not add anything.** The server checks the suggestion against everything you wrote in the session
+  and withholds it if it brings in a word of five letters or more, or any number, id or path, that you did not
+  write. You then see "I could not reword this without adding something you did not write". Four-letter
+  words cannot be checked reliably, so that is a known gap.
+- **It is marked.** A field you accepted shows **AI reworded**; once you change it, **AI reworded, then edited
+  by you**. The server decides this from the text itself, so the browser cannot claim it. The review stage lists
+  such fields. **Put my text back** restores exactly what you had written, while the field still holds the AI wording.
+- **Limits.** Five suggestions per field per session. Never offered for evasion answers, "I do not know yet",
+  negative-test steps or the response lists.
+- **It stays in the session.** The mark is not written to the Workbench and the rule generator does not see it.
+
 ## Saving
 
 Everything you type is saved automatically a moment after you stop typing. The top right of every stage
