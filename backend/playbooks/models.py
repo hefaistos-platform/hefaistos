@@ -439,6 +439,9 @@ class PlaybookGraph(models.Model):
         blank=True,
         help_text="Example log event or artifact created by the test."
     )
+    # Procedures that check the rule does NOT fire on something the engineer accepted, with the outcome
+    # the person who ran them reported. See playbooks/negative_tests.py. Not part of test_validation_status.
+    negative_tests = models.JSONField(default=list, blank=True)
 
     # --- DEPLOYMENT METADATA ---
     # Where should this rule live in the Git Repo?

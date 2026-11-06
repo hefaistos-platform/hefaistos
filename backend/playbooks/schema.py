@@ -15,6 +15,7 @@ from django.db.models import Count, Q, Prefetch
 from django.core.exceptions import ObjectDoesNotExist
 from playbooks.models import DetectionPlaybook
 from playbooks.utils.tlp import normalize_tlp
+from playbooks import negative_tests as negative_tests_lib
 from playbooks.l1_portal import (
     build_l1_portal_share_url as _build_l1_portal_share_url,
     upsert_l1_portal_snapshot as _upsert_l1_portal_snapshot,
@@ -916,6 +917,9 @@ class PlaybookGraphType(DjangoObjectType):
     telemetry_requirements_generated_at = graphene.DateTime()
     telemetry_tagging_missing_fields = graphene.List(graphene.String)
 
+    # Procedures checking the rule does NOT fire on accepted limitations, with the reported outcome.
+    negative_tests = GenericScalar()
+
     class Meta:
         model = PlaybookGraph
         fields = (
@@ -938,6 +942,9 @@ class PlaybookGraphType(DjangoObjectType):
 
     def resolve_telemetry_tagging_missing_fields(self, info):
         return self.telemetry_tagging_missing_fields()
+
+    def resolve_negative_tests(self, info):
+        return negative_tests_lib.present(self.negative_tests, self.detection_rule)
 
     def resolve_tags(self, info):
         return self.tags.names() # Returns list of tag names
@@ -2328,6 +2335,45 @@ class UpdatePlaybook(graphene.Mutation):
             playbook.mitre_mobile_mappings.set(mobile_ids)
 
         return UpdatePlaybook(playbook=playbook)
+
+
+class UpdateNegativeTest(graphene.Mutation):
+    """Edit the steps or notes of one negative test, or record the outcome the user observed.
+
+    Deliberately does not use graph.save(): recording a result is not an edit of the rule, so it must not
+    bump the Workbench version, move updated_at (which would mark an earlier test as outdated) or touch
+    test_validation_status.
+    """
+    class Arguments:
+        graph_id = graphene.UUID(required=True)
+        test_id = graphene.UUID(required=True)
+        steps = graphene.String()
+        result = graphene.String(description="NOT_RUN, NOT_DETECTED or DETECTED")
+        notes = graphene.String()
+
+    negative_tests = GenericScalar()
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def mutate(root, info, graph_id, test_id, steps=None, result=None, notes=None):
+        nt = negative_tests_lib
+        user = info.context.user
+        if user.is_anonymous:
+            raise Exception("Authentication required")
+        graph = PlaybookGraph.objects.filter(pk=graph_id, organization=user.organization).first()
+        if graph is None:
+            raise Exception("Graph not found or you do not have permission")
+        try:
+            updated = nt.apply_update(graph.negative_tests, test_id, rule_text=graph.detection_rule,
+                                      steps=steps, result=result, notes=notes)
+        except ValueError as exc:
+            raise Exception(str(exc))
+        PlaybookGraph.objects.filter(pk=graph.pk).update(negative_tests=updated)
+        if result is not None:
+            ActivityLog.objects.create(
+                playbook=graph, user=user, action="Negative test result",
+                details=f"{user.username} recorded {result} for a negative test")
+        return UpdateNegativeTest(negative_tests=nt.present(updated, graph.detection_rule))
 
 
 class UpdatePlaybookGraphMetadata(graphene.Mutation):
@@ -4002,6 +4048,7 @@ def serialize_playbook_graph(graph: PlaybookGraph) -> dict:
             # Testing
             "test_scenario": graph.test_scenario or "",
             "test_expected_output": graph.test_expected_output or "",
+            "negative_tests": graph.negative_tests or [],
             
             # Deployment
             "target_file_path": graph.target_file_path or "",
@@ -4070,6 +4117,7 @@ def deserialize_playbook_graph(data: dict, organization, author) -> PlaybookGrap
         # Testing
         test_scenario=playbook_data.get("test_scenario", ""),
         test_expected_output=playbook_data.get("test_expected_output", ""),
+        negative_tests=negative_tests_lib.normalize(playbook_data.get("negative_tests")),
         
         # Deployment
         target_file_path=playbook_data.get("target_file_path", ""),
@@ -4218,6 +4266,8 @@ def update_playbook_graph_from_v1(data: dict, graph: PlaybookGraph, author, new_
 
     graph.test_scenario = playbook_data.get("test_scenario", "")
     graph.test_expected_output = playbook_data.get("test_expected_output", "")
+    if "negative_tests" in playbook_data:  # an older file must not erase recorded results
+        graph.negative_tests = negative_tests_lib.normalize(playbook_data.get("negative_tests"))
     graph.target_file_path = playbook_data.get("target_file_path", "")
 
     graph.robustness_level = playbook_data.get("robustness_level", 0)
@@ -4370,6 +4420,7 @@ def serialize_playbook_graph_hex_v2(graph: PlaybookGraph) -> dict:
         "testing": {
             "test_scenario": graph.test_scenario or "",
             "test_expected_output": graph.test_expected_output or "",
+            "negative_tests": graph.negative_tests or [],
             "test_environment": "",
             "target_file_path": graph.target_file_path or ""
         },
@@ -4465,6 +4516,7 @@ def deserialize_playbook_graph_hex_v2(data: dict, organization, author) -> Playb
         # Testing
         test_scenario=testing.get("test_scenario", ""),
         test_expected_output=testing.get("test_expected_output", ""),
+        negative_tests=negative_tests_lib.normalize(testing.get("negative_tests")),
         
         # Deployment
         target_file_path=testing.get("target_file_path", ""),
@@ -4645,6 +4697,8 @@ def update_playbook_graph_from_hex_v2(data: dict, graph: PlaybookGraph, author, 
 
     graph.test_scenario = testing.get("test_scenario", "")
     graph.test_expected_output = testing.get("test_expected_output", "")
+    if "negative_tests" in testing:  # an older file must not erase recorded results
+        graph.negative_tests = negative_tests_lib.normalize(testing.get("negative_tests"))
     graph.target_file_path = testing.get("target_file_path", "")
 
     graph.robustness_level = audit_trail.get("robustness_level", 0)
@@ -7013,6 +7067,7 @@ class Mutation(graphene.ObjectType):
 
     # Graph metadata & snapshot
     update_playbook_graph_metadata = UpdatePlaybookGraphMetadata.Field()
+    update_negative_test = UpdateNegativeTest.Field()
     set_playbook_graph_snapshot = SetPlaybookGraphSnapshot.Field()
     upload_graph_snapshot = UploadGraphSnapshot.Field()
 
