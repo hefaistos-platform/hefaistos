@@ -105,6 +105,8 @@ export const MaieuticSessionPage: React.FC = () => {
   const [stage, setStage] = useState(1);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveError, setSaveError] = useState('');
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const inflight = useRef<Promise<boolean> | null>(null);
   const dirty = useRef<Record<string, any>>({});
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nameDirty = useRef(false);
@@ -122,27 +124,43 @@ export const MaieuticSessionPage: React.FC = () => {
     }
   }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const flush = useCallback(async () => {
+  // Resolves true when nothing is left unsaved. A save started while another is in flight waits for it, so
+  // "saved" is never reported before an earlier request has actually finished.
+  const flush = useCallback(async (): Promise<boolean> => {
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
-    const patch = dirty.current;
-    const hasName = nameDirty.current;
-    if (!Object.keys(patch).length && !hasName) return;
-    dirty.current = {};
-    nameDirty.current = false;
-    setSaveState('saving');
-    try {
-      await updateDraft({
-        variables: { id: draftId, patch: Object.keys(patch).length ? patch : null, name: hasName ? name : null },
-      });
-      setSaveState('saved');
-      setSaveError('');
-    } catch (err: any) {
-      dirty.current = { ...patch, ...dirty.current };
-      if (hasName) nameDirty.current = true;
-      setSaveState('error');
-      setSaveError(err?.message ?? 'Could not save');
-    }
+    const previous = inflight.current;
+    const run = (async (): Promise<boolean> => {
+      if (previous) await previous;
+      const patch = dirty.current;
+      const hasName = nameDirty.current;
+      if (!Object.keys(patch).length && !hasName) return true;
+      dirty.current = {};
+      nameDirty.current = false;
+      setSaveState('saving');
+      try {
+        await updateDraft({
+          variables: { id: draftId, patch: Object.keys(patch).length ? patch : null, name: hasName ? name : null },
+        });
+        setSaveState('saved');
+        setSaveError('');
+        setSavedAt(new Date());
+        return true;
+      } catch (err: any) {
+        dirty.current = { ...patch, ...dirty.current };
+        if (hasName) nameDirty.current = true;
+        setSaveState('error');
+        setSaveError(err?.message ?? 'Could not save');
+        return false;
+      }
+    })();
+    inflight.current = run;
+    try { return await run; } finally { if (inflight.current === run) inflight.current = null; }
   }, [draftId, name, updateDraft]);
+
+  // The explicit button. Also the way to retry after a failed autosave, which does not retry by itself.
+  const saveNow = async () => {
+    if (await flush()) { setSaveState('saved'); setSaveError(''); setSavedAt((t) => t ?? new Date()); }
+  };
 
   const queueSave = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -287,7 +305,8 @@ export const MaieuticSessionPage: React.FC = () => {
   const unknownAde = plan ? plan.items.filter((i: any) => i.ledgerEntry?.disposition === 'UNKNOWN').length : 0;
   const limitations = plan ? plan.items.filter((i: any) => i.ledgerEntry?.disposition === 'ACCEPTED_LIMITATION').length : 0;
 
-  const saveLabel = saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'All changes saved'
+  const savedTime = savedAt ? ` at ${savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '';
+  const saveLabel = saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? `All changes saved${savedTime}`
     : saveState === 'error' ? `Not saved: ${saveError}` : '';
 
   const body = (() => {
@@ -555,7 +574,10 @@ export const MaieuticSessionPage: React.FC = () => {
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Space style={{ justifyContent: 'space-between', width: '100%' }}>
           <Button icon={<ArrowLeftOutlined />} onClick={async () => { await flush(); navigate('/playbooks?tab=maieutics'); }}>Maieutics</Button>
-          <Text type={saveState === 'error' ? 'danger' : 'secondary'}>{saveLabel}</Text>
+          <Space>
+            <Text type={saveState === 'error' ? 'danger' : 'secondary'} data-testid="save-status">{saveLabel}</Text>
+            <Button size="small" onClick={saveNow} loading={saveState === 'saving'}>Save draft</Button>
+          </Space>
         </Space>
         <Input variant="borderless" style={{ fontSize: 22, fontWeight: 600, padding: 0 }} maxLength={255} value={name}
           onChange={(e) => { setName(e.target.value); nameDirty.current = true; queueSave(); }} />
