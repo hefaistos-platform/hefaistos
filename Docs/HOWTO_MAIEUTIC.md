@@ -145,7 +145,7 @@ Select **Next**.
 4. Choose how to finish:
    - **Create Workbench and generate rule:** creates the Workbench and queues rule generation.
    - **Create Workbench without a rule:** creates the Workbench only.
-   - **Save and close:** keeps the session open for later.
+   - **Save and close:** saves and returns to the Maieutics tab; the session stays open for later.
 5. Confirm the question "Create the Workbench and generate the rule? This locks the session."
 
 ## Step 8: What you get
