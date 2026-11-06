@@ -53,7 +53,7 @@ What goes where in the Workbench:
 | title, technique, goal + ways an attacker could do it | title, ATT&CK technique, goal |
 | scope notes, planned log sources and fields, design in words and its elements | technical context |
 | harmless look-alikes and planned exclusions | false positives |
-| evasion points you accepted, left to another detection, or did not know; plus a count of unanswered ones | blind spots |
+| evasion points you accepted or left to another detection; plus a count of unanswered ones ("I do not know yet" is not a blind spot and is not listed) | blind spots |
 | triage, response, alert trigger, severity, test scenario and expected result | the matching fields |
 | time window, threshold, count-by field, suppression | the matching tuning fields |
 | related events | downstream correlation (scope text) |

@@ -211,6 +211,9 @@ export const MaieuticAdeStage: React.FC<Props> = ({ draftId, disabled, refLabel,
               Save answer
             </Button>
             <Button disabled={disabled} onClick={() => submit(item, true)}>I do not know yet</Button>
+            {!disabled && !d.disposition && (
+              <Text type="secondary">Pick a status first, then write your answer. Or choose "I do not know yet".</Text>
+            )}
           </Space>
           {errors[item.adeId] && <Text type="danger">{errors[item.adeId]}</Text>}
           {fb && (

@@ -32,7 +32,9 @@ PLATFORM_SLOTS = {
     'AQL': ('qradar', 'query', 'qradar'),
     'WAZUH': ('wazuh', 'rule', 'wazuh'),
 }
-LIMITATION_DISPOSITIONS = ('ACCEPTED_LIMITATION', 'COVERED_BY_OTHER_RULE', 'UNKNOWN')
+# 'Not known yet' is deliberately absent: not knowing is not a blind spot or a coverage gap, and the
+# rule must not be told to list it as one.
+LIMITATION_DISPOSITIONS = ('ACCEPTED_LIMITATION', 'COVERED_BY_OTHER_RULE')
 
 
 def _s(value):
@@ -167,8 +169,7 @@ def workbench_fields(spec):
     open_count = len(maieutic_planner.open_items(spec, expert_all=lifecycle.is_expert(spec)))
     blind = []
     for lim in constraints['accepted_limitations']:
-        label = {'ACCEPTED_LIMITATION': 'Accepted limitation', 'COVERED_BY_OTHER_RULE': 'Covered elsewhere',
-                 'UNKNOWN': 'Not known yet'}[lim['status']]
+        label = {'ACCEPTED_LIMITATION': 'Accepted limitation', 'COVERED_BY_OTHER_RULE': 'Covered elsewhere'}[lim['status']]
         said = lim['engineer_says'] or 'no answer given'
         extra = f" (covered by: {lim['covered_by']})" if lim['covered_by'] else ''
         blind.append(f"{label}: {lim['topic']} {said}{extra}")

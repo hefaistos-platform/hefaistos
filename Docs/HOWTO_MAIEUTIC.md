@@ -107,8 +107,8 @@ In the test session:
   limitation*, answer: `My plan watches rundll32 only. regsvr32 and a renamed copy of rundll32 can load
   the same DLL, so those are not covered by this rule. I accept that for now and will add a
   process-access rule on lsass.exe so the target, not the tool, is what I match.`
-- The other eight were marked *I do not know yet*. They still count as answered, and they appear later
-  as "Not known yet" in the Workbench Blind Spots.
+- The other eight were marked *I do not know yet*. They still count as answered. Not knowing is not a
+  blind spot, so they are kept in the session record but are not listed in the Workbench Blind Spots.
 
 When the counter reads "0 of 10 points still open", select **Next**.
 
@@ -151,8 +151,8 @@ Select **Next**.
    - turned the planned exclusion into an `ApprovedBackupAgentPaths` placeholder with a note to fill in
      a verified path;
    - did not add `regsvr32.exe`, because that was an accepted limitation.
-3. **Blind Spots & Coverage Gaps** lists each accepted limitation and each "not known yet" point with
-   the question and your own words.
+3. **Blind Spots & Coverage Gaps** lists each accepted limitation and each point left to another
+   detection, with the question and your own words. Points you marked "I do not know yet" are not listed.
 4. "View Maieutic Conversation History" holds the questions and answers of the session.
 5. Back in Workbench Hub > Maieutics the session shows **Finished, locked**. It stays as a read-only
    record of how the design was made. Edit the Workbench, not the session.

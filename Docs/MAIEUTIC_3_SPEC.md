@@ -145,7 +145,7 @@ ade_ledger = [ {
 | ACCEPTED_LIMITATION | Known gap, will not be covered here | accepted_limitations |
 | COVERED_BY_OTHER_RULE | Another rule handles it (reference required) | accepted_limitations, with the reference |
 | NOT_APPLICABLE | Does not apply (reason required) | none |
-| UNKNOWN | User does not know yet | accepted_limitations, flagged unknown, and added to blind_spots |
+| UNKNOWN | User does not know yet | kept in the session record only. Not a limitation: it is not added to accepted_limitations or blind_spots, and the generator is not told to list it |
 
 A question with no disposition is **open**. The evaluator flag is advisory and never blocks.
 
@@ -224,7 +224,7 @@ Everything else may be UNKNOWN. SAVE_DRAFT has no minimum.
 | goal | hypothesis.goal + attacker_methods |
 | technical_context | interrogation + design.blueprint_text |
 | false_positives | benign_lookalikes + exclusions |
-| blind_spots | accepted_limitations + UNKNOWN items |
+| blind_spots | accepted_limitations (ACCEPTED_LIMITATION and COVERED_BY_OTHER_RULE); UNKNOWN is excluded |
 | triage_guidance, response_playbook, alert_trigger, default_severity, enrichment/containment/notification steps | playbook_tests |
 | time_window, alert_threshold, threshold_operator, aggregation_field, aggregation_function, suppression_window | design.windows_thresholds |
 | downstream_correlation_requirements | design.correlations |

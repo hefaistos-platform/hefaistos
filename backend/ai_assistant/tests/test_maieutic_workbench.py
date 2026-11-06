@@ -66,11 +66,13 @@ class MappingTests(SimpleTestCase):
         self.assertNotIn('telemetry_requirements', f)  # deliberately not written
         self.assertNotIn('robustness_level', f)
 
-    def test_blind_spots_hold_limitations_unknowns_and_unanswered_count(self):
+    def test_blind_spots_hold_limitations_and_unanswered_count_but_not_unknowns(self):
         blind = mw.workbench_fields(SPEC)['blind_spots']
         self.assertIn('Accepted limitation: Question for ADE2-02? Older Windows builds are not covered', blind)
         self.assertIn('Covered elsewhere: Question for ADE3-01? The EDR rule sees it (covered by: RULE-9)', blind)
-        self.assertIn('Not known yet: Question for ADE4-01? no answer given', blind)
+        # Not knowing is not a blind spot or a coverage gap.
+        self.assertNotIn('Not known yet', blind)
+        self.assertNotIn('ADE4-01', blind)
         self.assertNotIn('no relevance', blind)  # NOT_APPLICABLE is not a limitation
         self.assertIn('evasion question(s) were not answered', blind)
 
@@ -89,7 +91,7 @@ class MappingTests(SimpleTestCase):
         self.assertIn('Exclude: signed vendor updater because noisy', c['must_implement'])
         self.assertEqual(c['must_handle'], [{'topic': 'Question for ADE2-01?', 'engineer_says': 'I also match procdump',
                                               'applies_to': 'rundll32 loading comsvcs.dll'}])
-        self.assertEqual({i['status'] for i in c['accepted_limitations']}, {'ACCEPTED_LIMITATION', 'COVERED_BY_OTHER_RULE', 'UNKNOWN'})
+        self.assertEqual({i['status'] for i in c['accepted_limitations']}, {'ACCEPTED_LIMITATION', 'COVERED_BY_OTHER_RULE'})
 
     def test_formats_always_start_with_kql_and_ignore_unknown(self):
         self.assertEqual(mw.selected_formats(SPEC), ['KQL', 'SPL', 'WAZUH'])
@@ -104,8 +106,11 @@ class PromptTests(SimpleTestCase):
 
     def test_block_separates_the_three_groups(self):
         text = _format_maieutic_constraints_for_prompt({'maieutic_constraints': mw.build_constraints(SPEC)})
-        for part in ('MUST IMPLEMENT', 'MUST HANDLE', 'ACCEPTED LIMITATIONS', 'I also match procdump', '[UNKNOWN]', 'covered by: RULE-9'):
+        for part in ('MUST IMPLEMENT', 'MUST HANDLE', 'ACCEPTED LIMITATIONS', 'I also match procdump', 'covered by: RULE-9'):
             self.assertIn(part, text)
+        # An unknown answer is not handed to the rule as a limitation to list as a blind spot.
+        self.assertNotIn('[UNKNOWN]', text)
+        self.assertNotIn('ADE4-01', text)
 
     def test_generator_prompt_only_changes_when_constraints_exist(self):
         from ai_assistant import engine

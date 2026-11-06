@@ -92,7 +92,7 @@ interface AdminRow {
 }
 
 export const OUTCOME_LABELS: Record<string, string> = {
-  WORKBENCH_WITH_RULE: 'Workbench created, rule generation started',
+  WORKBENCH_WITH_RULE: 'Workbench created, rule requested',
   WORKBENCH_WITHOUT_RULE: 'Workbench created without a rule',
 };
 

@@ -16,7 +16,7 @@ class MaieuticDraft(models.Model):
         FINISHED = 'FINISHED', 'Finished'
 
     class Outcome(models.TextChoices):
-        WORKBENCH_WITH_RULE = 'WORKBENCH_WITH_RULE', 'Workbench created, rule generation started'
+        WORKBENCH_WITH_RULE = 'WORKBENCH_WITH_RULE', 'Workbench created, rule requested'
         WORKBENCH_WITHOUT_RULE = 'WORKBENCH_WITHOUT_RULE', 'Workbench created without rule'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
