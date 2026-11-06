@@ -76,6 +76,9 @@ Describe the detection in words. Your answers here decide which evasion question
 2. **What will it ignore?** Ignored: `Access to lsass.exe by the signed vendor backup agent`. Because:
    `It reads LSASS memory every night as part of a documented backup job.`
 3. Time window, thresholds and relations were left empty because the rule fires on a single event.
+4. **Capability Library (optional).** With a technique chosen in step 1, pick the library entries that
+   describe how it is done and, if you like, a focus layer (for example *API / Export*). It only tells the
+   rule generator what to prioritise. Skipping it changes nothing else.
 
 Select **Next**.
 

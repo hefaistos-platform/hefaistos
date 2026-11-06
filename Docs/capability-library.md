@@ -46,6 +46,10 @@ Workbench remains the execution/use context.
 
 Capability Library is the authoring/management context.
 
+A Maieutic session can also use the library: in its design step you may pick entries for the chosen
+technique and a focus layer. They are attached to the Workbench created from the session, exactly as if you
+had selected them there. See [README_MAIEUTIC.md](README_MAIEUTIC.md).
+
 If available in your UI build, Workbench may expose a non-invasive **Open in Capability Library** action for advanced capability maintenance.
 
 ## User workflow (recommended)

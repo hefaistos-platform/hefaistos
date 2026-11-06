@@ -52,6 +52,7 @@ What goes where in the Workbench:
 |---|---|
 | title, technique, goal + ways an attacker could do it | title, ATT&CK technique, goal |
 | scope notes, planned log sources and fields, design in words and its elements | technical context |
+| Capability Library entries you picked, and the focus layer | the Workbench's selected capability abstractions and detection focus layer |
 | harmless look-alikes and planned exclusions | false positives |
 | evasion points you accepted or left to another detection | blind spots |
 | triage, response, alert trigger, severity, test scenario and expected result | the matching fields |
@@ -68,7 +69,26 @@ record.
 
 Not filled in by a session: telemetry requirement tags (they come from the separate Telemetry
 Tagging step and are never guessed), robustness level (the Workbench evaluates it itself under
-VALUATION), capability abstractions and focus layer (that stage is not built yet).
+VALUATION). Capability Library entries and the focus layer are copied only if you picked them in the design
+step; nothing is chosen for you.
+
+## Capability Library and focus layer
+
+In the design step (stage 3) you may pick entries from the Capability Library for the technique you chose in
+step 1, and one focus layer (Tool / Binary, API / Export, COM / IPC, Registry Object, Protocol, Process
+Behavior or Network Behavior).
+
+- **It is optional.** With no pick, the Workbench gets no entries and no focus layer, as before.
+- **It only steers the rule generator.** The generator already reads these two fields of a Workbench; the
+  entries' purpose, known evasions, observables and telemetry are added to its prompt, together with the
+  focus layer. A pick does not answer, skip or change any evasion question.
+- **Entries are offered only for the chosen technique**, from your organization's library and the shared
+  baseline. Without a technique, the entries are not offered but you may still set a focus layer.
+- **Checked again when the Workbench is created.** Entries of another organization, of another technique
+  or deleted since are not attached. If you change the technique after picking, the step warns that the
+  earlier picks will be ignored.
+- **Robustness is not set by it.** The Workbench evaluates robustness under VALUATION, and the library's
+  own robustness values are not copied into the session.
 
 **How the rule is generated.** The normal generator runs, with its reference retrieval, validation
 check and repair attempts. Your session adds a block of design decisions to its prompt: what the
