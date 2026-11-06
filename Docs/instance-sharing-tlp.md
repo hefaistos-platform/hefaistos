@@ -82,7 +82,9 @@ by title.
 **What is sent.** The design record: hypothesis, telemetry choices, design, your evasion answers
 (the ADE ledger), response and test notes, outcome and TLP, plus the identity of the ADE snapshot the
 answers were given against (repository, ref, commit). **Not sent:** the Workbench created from the
-session, its rule, its conversation history, the author, and any local identifiers. Sharing a session
+session, its rule, its conversation history, the author, and any local identifiers.
+If the author used wording help, the "AI reworded" mark travels with the field, but never the text it replaced
+or any unused suggestion. Sharing a session
 and sharing its Workbench are independent; a peer can have either without the other.
 
 **What the receiver gets.** A finished, locked, read-only copy that belongs to the person who ran the

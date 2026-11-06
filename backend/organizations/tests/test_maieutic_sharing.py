@@ -150,6 +150,34 @@ class ExportTests(TestCase):
         session.refresh_from_db()
         self.assertEqual(session.spec['robustness']['ade_ledger'][0]['snapshot_id'], 'LOCAL-SNAPSHOT-UUID')
 
+    def test_wording_help_bookkeeping_never_leaves_but_the_mark_does(self):
+        spec = copy.deepcopy(SPEC)
+        spec['hypothesis']['goal'] = 'AI worded goal'
+        spec['meta']['wording'] = {'calls': {'hypothesis.goal': 2}, 'pending': {'hypothesis.scope_notes': {'text': 'PENDING-AI-TEXT'}}}
+        spec['meta']['text_origin'] = {
+            'hypothesis.goal': {'origin': 'AI_REWORDED', 'accepted_text': 'AI worded goal', 'original_text': 'SECRET-ORIGINAL-TEXT',
+                                'accepted_at': '2026-11-06T10:00:00+00:00'},
+            'robustness.ade_ledger': {'origin': 'AI_REWORDED'},
+            'hypothesis.scope_notes': 'junk',
+        }
+        make_session(self.org, self.author, spec=spec, ade_snapshot=self.snapshot)
+        row = self.get('maieutic', 'MAIEUTIC').json()['maieutic_sessions'][0]
+        text = str(row)
+        for forbidden in ('SECRET-ORIGINAL-TEXT', 'PENDING-AI-TEXT', 'wording', 'accepted_text', 'original_text', 'ade_ledger\': {'):
+            self.assertNotIn(forbidden, text, forbidden)
+        self.assertEqual(row['spec']['meta']['text_origin'],
+                         {'hypothesis.goal': {'origin': 'AI_REWORDED', 'accepted_at': '2026-11-06T10:00:00+00:00'}})
+        self.assertEqual(row['spec']['hypothesis']['goal'], 'AI worded goal')
+        stored = MaieuticDraft.objects.get().spec['meta']
+        self.assertIn('original_text', stored['text_origin']['hypothesis.goal'])    # export never edits the stored session
+        self.assertIn('wording', stored)
+
+    def test_a_session_without_wording_help_has_no_origin_block(self):
+        make_session(self.org, self.author, ade_snapshot=self.snapshot)
+        meta = self.get('maieutic', 'MAIEUTIC').json()['maieutic_sessions'][0]['spec']['meta']
+        self.assertNotIn('text_origin', meta)
+        self.assertNotIn('wording', meta)
+
     def test_a_session_with_an_unshareable_spec_is_skipped_not_fatal(self):
         make_session(self.org, self.author, name='broken', spec={'design': 'not an object'})
         make_session(self.org, self.author, name='fine')
@@ -267,6 +295,19 @@ class ImportTests(TestCase):
         self.assertNotIn('extra_section', copy_.spec)
         self.assertEqual(copy_.outcome, '')
         self.assertIsNotNone(copy_.finished_at)
+
+    def test_incoming_wording_data_is_cleaned_because_peer_data_is_untrusted(self):
+        row = self.row()
+        row['spec']['meta']['wording'] = {'pending': {'x': {'text': 'PENDING'}}}
+        row['spec']['meta']['text_origin'] = {
+            'hypothesis.goal': {'origin': 'AI_REWORDED', 'accepted_text': 'a', 'original_text': 'PRIVATE', 'accepted_at': 'now'},
+            'hypothesis.scope_notes': {'origin': 'MADE_UP'},
+            'review.output_formats': {'origin': 'AI_REWORDED'},
+        }
+        self.assertEqual(self.run_import(row)[1], [])
+        meta = MaieuticDraft.objects.get(organization=self.target).spec['meta']
+        self.assertEqual(meta['text_origin'], {'hypothesis.goal': {'origin': 'AI_REWORDED', 'accepted_at': 'now'}})
+        self.assertNotIn('wording', meta)
 
     def test_unknown_tlp_becomes_unclear(self):
         self.run_import(self.row(tlp_classification='PURPLE'))

@@ -509,11 +509,30 @@ def _capability_payload_for_org(organization, share_key=None) -> list[dict[str, 
     return payload
 
 
+def _clean_wording_meta(cleaned: dict[str, Any]) -> None:
+    from ai_assistant.maieutic_wording import FIELDS, ORIGIN_AI, ORIGIN_EDITED
+
+    meta = cleaned.get('meta')
+    if not isinstance(meta, dict):
+        return
+    meta.pop('wording', None)
+    origins = meta.pop('text_origin', None)
+    kept: dict[str, Any] = {}
+    if isinstance(origins, dict):
+        for field, record in origins.items():
+            if field in FIELDS and isinstance(record, dict) and record.get('origin') in (ORIGIN_AI, ORIGIN_EDITED):
+                kept[field] = {'origin': record['origin'], 'accepted_at': str(record.get('accepted_at') or '')[:40]}
+    if kept:
+        meta['text_origin'] = kept
+
+
 def _clean_maieutic_spec(spec: Any) -> dict[str, Any]:
     """Shareable copy of a session spec. Used on export and again on import (peer data is untrusted).
 
     Keeps only the known sections, refuses oversize or newer-format specs, and blanks the ledger's local
     ADE snapshot id, which means nothing on another instance (the snapshot identity travels as `ade_source`).
+    Wording-help bookkeeping stays private: pending suggestions and counters are dropped, and an origin record
+    keeps only the mark itself, never the text the author replaced.
     """
     from ai_assistant.maieutic_lifecycle import MAX_SPEC_BYTES, SPEC_SECTIONS, SPEC_VERSION
 
@@ -527,6 +546,7 @@ def _clean_maieutic_spec(spec: Any) -> dict[str, Any]:
         if not isinstance(section, dict):
             raise ValueError(f'Maieutic session section {name} must be an object.')
         cleaned[name] = deepcopy(section)
+    _clean_wording_meta(cleaned)
     version = (cleaned.get('meta') or {}).get('spec_version', SPEC_VERSION)
     if not isinstance(version, int) or isinstance(version, bool) or version > SPEC_VERSION:
         raise ValueError('Maieutic session was written by a newer format than this instance understands.')
