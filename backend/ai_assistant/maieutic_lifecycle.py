@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from playbooks.utils.tlp import normalize_tlp
 
-from . import maieutic_planner, maieutic_questioner, maieutic_questions
+from . import maieutic_planner, maieutic_questioner, maieutic_questions, maieutic_wording
 from .maieutic_models import MaieuticDraft
 
 STAGE_COUNT = 6
@@ -146,6 +146,11 @@ def update_draft(draft_id, user, *, name=None, current_stage=None, spec_patch=No
         draft.tlp_classification = normalize_tlp(tlp)
 
     meta = dict((draft.spec or {}).get('meta') or {})
+    origins = maieutic_wording.refresh_origins(draft.spec)   # recomputed from the text, never from the client
+    if origins:
+        meta['text_origin'] = origins
+    else:
+        meta.pop('text_origin', None)
     if challenge_level is not None:
         level = str(challenge_level).upper()
         if level not in CHALLENGE_LEVELS:
@@ -325,3 +330,119 @@ def record_ade_answer(draft_id, user, *, ade_id, answer_text, disposition, refer
     ledger.sort(key=lambda e: e['ade_id'])
     _save_robustness(draft, ade_ledger=ledger)
     return draft
+
+
+# --- Wording help (spec section 2). The AI call happens between prepare_wording and store_wording, outside
+# any lock; the server alone decides what is pending, accepted or restored and what the origin is. ---
+
+def _wording_meta(draft):
+    meta = dict((draft.spec or {}).get('meta') or {})
+    wording = dict(meta.get('wording') or {})
+    wording['calls'] = dict(wording.get('calls') or {})
+    wording['pending'] = dict(wording.get('pending') or {})
+    return meta, wording
+
+
+def _save_meta(draft, meta, wording):
+    meta['wording'] = wording
+    draft.spec = {**(draft.spec or {}), 'meta': meta}
+    draft.save(update_fields=['spec', 'updated_at'])
+
+
+def _wording_field(field):
+    if field not in maieutic_wording.FIELDS:
+        raise MaieuticError('Wording help is not available for that field.')
+
+
+def prepare_wording(draft_id, user, field):
+    """Checks before the AI is called. Returns (spec, text)."""
+    _wording_field(field)
+    with transaction.atomic():
+        draft = _lock_own(draft_id, user)
+        text = maieutic_wording.get_text(draft.spec, field)
+        if len(text) < maieutic_wording.MIN_CHARS:
+            raise MaieuticError(f'Write at least {maieutic_wording.MIN_CHARS} characters first. '
+                                'The AI only rewords what you wrote.')
+        _meta, wording = _wording_meta(draft)
+        if wording['calls'].get(field, 0) >= maieutic_wording.MAX_CALLS_PER_FIELD:
+            raise MaieuticError('You have used all wording suggestions for this field in this session.')
+        return draft.spec, text
+
+
+def store_wording(draft_id, user, field, source_text, result):
+    """Counts the call and keeps the suggestion as pending. Returns {stored, remaining, text_changed}."""
+    _wording_field(field)
+    with transaction.atomic():
+        draft = _lock_own(draft_id, user)
+        meta, wording = _wording_meta(draft)
+        if result.get('called'):
+            wording['calls'][field] = wording['calls'].get(field, 0) + 1
+        remaining = max(0, maieutic_wording.MAX_CALLS_PER_FIELD - wording['calls'].get(field, 0))
+        stored, changed = False, False
+        wording['pending'].pop(field, None)
+        if result.get('suggestion'):
+            if maieutic_wording.text_hash(maieutic_wording.get_text(draft.spec, field)) != maieutic_wording.text_hash(source_text):
+                changed = True   # the user kept typing while the AI worked: never offer a wording for old text
+            else:
+                wording['pending'][field] = {'text': result['suggestion'], 'source_hash': maieutic_wording.text_hash(source_text)}
+                stored = True
+        _save_meta(draft, meta, wording)
+        return {'stored': stored, 'remaining': remaining, 'text_changed': changed}
+
+
+def _set_field_text(draft, field, text):
+    section, key = maieutic_wording.FIELDS[field]
+    spec = dict(draft.spec or {})
+    spec[section] = {**(spec.get(section) or {}), key: text}
+    draft.spec = spec
+
+
+def accept_wording(draft_id, user, field):
+    """Writes the pending wording into the field and records the origin. Returns (text, text_origin)."""
+    _wording_field(field)
+    with transaction.atomic():
+        draft = _lock_own(draft_id, user)
+        meta, wording = _wording_meta(draft)
+        pending = wording['pending'].get(field)
+        if not pending:
+            raise MaieuticError('There is no suggestion to use. Ask for one again.')
+        original = maieutic_wording.get_text(draft.spec, field)
+        if maieutic_wording.text_hash(original) != pending.get('source_hash'):
+            wording['pending'].pop(field, None)
+            _save_meta(draft, meta, wording)
+            raise MaieuticError('Your text changed after this wording was made. Ask for a new one.')
+        records = dict(meta.get('text_origin') or {})
+        previous = records.get(field)
+        records[field] = {
+            'origin': maieutic_wording.ORIGIN_AI, 'accepted_text': pending['text'],
+            # a second acceptance keeps the very first text the user wrote, so "put my text back" is always theirs
+            'original_text': (previous or {}).get('original_text', original),
+            'accepted_at': timezone.now().isoformat(),
+        }
+        meta['text_origin'] = records
+        wording['pending'].pop(field, None)
+        _set_field_text(draft, field, pending['text'])
+        _save_meta(draft, meta, wording)
+        return pending['text'], records
+
+
+def restore_wording(draft_id, user, field):
+    """Puts the user's own text back, only while the field still holds the accepted wording."""
+    _wording_field(field)
+    with transaction.atomic():
+        draft = _lock_own(draft_id, user)
+        meta, wording = _wording_meta(draft)
+        records = dict(meta.get('text_origin') or {})
+        record = records.get(field)
+        if not record:
+            raise MaieuticError('That field has no AI wording to undo.')
+        if maieutic_wording.normalize(maieutic_wording.get_text(draft.spec, field)) != maieutic_wording.normalize(record.get('accepted_text')):
+            raise MaieuticError('You have edited this text since. Edit it back by hand instead.')
+        records.pop(field)
+        if records:
+            meta['text_origin'] = records
+        else:
+            meta.pop('text_origin', None)
+        _set_field_text(draft, field, record.get('original_text') or '')
+        _save_meta(draft, meta, wording)
+        return record.get('original_text') or '', records

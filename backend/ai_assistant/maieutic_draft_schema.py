@@ -7,7 +7,7 @@ from graphql import GraphQLError
 from identity.decorators import Roles, role_required
 
 from . import maieutic_lifecycle as lifecycle
-from . import maieutic_planner, maieutic_questioner, maieutic_questions, maieutic_workbench
+from . import maieutic_planner, maieutic_questioner, maieutic_questions, maieutic_wording, maieutic_workbench
 from .maieutic_lifecycle import MaieuticError
 from .maieutic_models import MaieuticDraft
 
@@ -179,6 +179,7 @@ class Query(graphene.ObjectType):
         MaieuticLogFieldType, log_source_ids=graphene.List(graphene.UUID, required=True))
     maieutic_generation_status = graphene.List(MaieuticGenerationStatusType, workbench_id=graphene.UUID(required=True))
     maieutic_ade_plan = graphene.Field(MaieuticAdePlanType, draft_id=graphene.UUID(required=True))
+    maieutic_wording_available = graphene.Boolean(description='True when the user has an AI provider for wording help')
 
     @role_required([Roles.ADMIN, Roles.ANALYST])
     def resolve_maieutic_drafts(self, info, status=None):
@@ -186,6 +187,10 @@ class Query(graphene.ObjectType):
         if status:
             qs = qs.filter(status=status)
         return qs
+
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def resolve_maieutic_wording_available(self, info):
+        return _user_ai_settings(_user(info)) is not None
 
     @role_required([Roles.ADMIN, Roles.ANALYST])
     def resolve_maieutic_draft(self, info, id):
@@ -301,6 +306,69 @@ def _user_ai_settings(user):
     return _get_effective_ai_settings(settings)
 
 
+WORDING_MESSAGES = {
+    'NO_AI': 'Wording help needs an AI provider. Configure AI Settings in your profile.',
+    'PROVIDER_ERROR': 'The AI provider did not answer. Try again later.',
+    'SAME': 'Nothing to improve: the AI would not change your wording.',
+    'UNUSABLE': 'I could not reword this without adding something you did not write, so there is no suggestion. '
+                'Adding the detail yourself will help more.',
+}
+
+
+class SuggestMaieuticWording(graphene.Mutation):
+    """Optional help: the AI rephrases the user's own text. It is only a suggestion until the user accepts it."""
+    class Arguments:
+        draft_id = graphene.UUID(required=True)
+        field = graphene.String(required=True)
+
+    suggestion = graphene.String()
+    message = graphene.String()
+    remaining = graphene.Int()
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def mutate(root, info, draft_id, field):
+        user = _user(info)
+        spec, text = _guard(lifecycle.prepare_wording, draft_id, user, field)
+        result = maieutic_wording.reword(spec, field, user_settings=_user_ai_settings(user), organization_id=user.organization_id)
+        stored = _guard(lifecycle.store_wording, draft_id, user, field, text, result)
+        message = WORDING_MESSAGES.get(result['reason']) if not result['suggestion'] else None
+        if stored['text_changed']:
+            message = 'Your text changed while the wording was being prepared. Ask again.'
+        return SuggestMaieuticWording(suggestion=result['suggestion'] if stored['stored'] else None,
+                                      message=message, remaining=stored['remaining'])
+
+
+class AcceptMaieuticWording(graphene.Mutation):
+    class Arguments:
+        draft_id = graphene.UUID(required=True)
+        field = graphene.String(required=True)
+
+    value = graphene.String()
+    text_origin = GenericScalar()
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def mutate(root, info, draft_id, field):
+        value, origins = _guard(lifecycle.accept_wording, draft_id, _user(info), field)
+        return AcceptMaieuticWording(value=value, text_origin=origins)
+
+
+class RestoreMaieuticWording(graphene.Mutation):
+    class Arguments:
+        draft_id = graphene.UUID(required=True)
+        field = graphene.String(required=True)
+
+    value = graphene.String()
+    text_origin = GenericScalar()
+
+    @staticmethod
+    @role_required([Roles.ADMIN, Roles.ANALYST])
+    def mutate(root, info, draft_id, field):
+        value, origins = _guard(lifecycle.restore_wording, draft_id, _user(info), field)
+        return RestoreMaieuticWording(value=value, text_origin=origins)
+
+
 class AnswerMaieuticAdeQuestion(graphene.Mutation):
     """Stores the user's own answer. The AI check is advisory: it can ask a follow-up, never blocks."""
     class Arguments:
@@ -379,4 +447,7 @@ class Mutation(graphene.ObjectType):
     delete_maieutic_draft = DeleteMaieuticDraft.Field()
     reveal_maieutic_hint = RevealMaieuticHint.Field()
     answer_maieutic_ade_question = AnswerMaieuticAdeQuestion.Field()
+    suggest_maieutic_wording = SuggestMaieuticWording.Field()
+    accept_maieutic_wording = AcceptMaieuticWording.Field()
+    restore_maieutic_wording = RestoreMaieuticWording.Field()
     create_workbench_from_maieutic_draft = CreateWorkbenchFromMaieuticDraft.Field()

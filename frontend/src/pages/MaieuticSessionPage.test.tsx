@@ -8,6 +8,7 @@ const mockHint = jest.fn();
 const mockCreate = jest.fn();
 const mockNavigate = jest.fn();
 let mockDraft: any;
+let mockWording = false;
 
 const PLAN = {
   openCount: 1,
@@ -29,6 +30,7 @@ jest.mock('@apollo/client', () => {
       switch (opName(doc)) {
         case 'MaieuticSession': return { data: { maieuticDraft: mockDraft }, loading: false, error: undefined };
         case 'MaieuticSources': return { data: { allLogSources: [{ id: 'l1', name: 'Sysmon Process Creation', coverageStatus: 'ACTIVE', siemProduct: 'X' }], allDataSources: [] }, loading: false };
+        case 'MaieuticWordingAvailable': return { data: { maieuticWordingAvailable: mockWording }, loading: false, error: undefined };
         case 'MaieuticAdePlan': return { data: { maieuticAdePlan: PLAN }, loading: false, error: undefined, refetch: jest.fn() };
         default: return { data: undefined, loading: false };
       }
@@ -68,6 +70,7 @@ beforeEach(() => {
   });
   mockCreate.mockReset().mockResolvedValue({ data: { createWorkbenchFromMaieuticDraft: { workbenchId: 'wb-1', queuedFormats: ['KQL'] } } });
   mockNavigate.mockReset();
+  mockWording = false;
   mockHint.mockReset().mockResolvedValue({ data: { revealMaieuticHint: { hint: 'Look at the ATT&CK page.', rung: 1 } } });
   mockDraft = {
     id: 'd1', name: 'My idea', status: 'IN_PROGRESS', currentStage: 1, isLocked: false, tlpClassification: 'UNCLEAR',
@@ -151,6 +154,37 @@ describe('MaieuticSessionPage', () => {
     release();
     expect(await screen.findByText('2. Telemetry')).toBeInTheDocument();
     expect(screen.getByTestId('save-status')).toHaveTextContent(/All changes saved/);
+  });
+
+  it('offers wording help under the four free-text fields only when an AI provider exists', () => {
+    mockDraft.spec = { hypothesis: { title: 't', goal: 'detect lsass dump via comsvcs minidump through rundll32' } };
+    const a = renderPage();
+    expect(screen.queryByRole('button', { name: /Help me word this/ })).toBeNull();
+    a.unmount();
+    mockWording = true;
+    renderPage();
+    expect(screen.getAllByRole('button', { name: /Help me word this/ })).toHaveLength(2);   // goal and scope notes
+  });
+
+  it('the review lists AI-reworded fields, and says when they were edited afterwards', () => {
+    const goal = 'Detect an LSASS dump made through rundll32 on servers.';
+    mockDraft.currentStage = 6;
+    mockDraft.spec = {
+      hypothesis: { title: 't', goal }, design: { blueprint_text: 'my own words, edited later on' },
+      meta: { text_origin: {
+        'hypothesis.goal': { origin: 'AI_REWORDED', accepted_text: goal },
+        'design.blueprint_text': { origin: 'AI_REWORDED', accepted_text: 'something the AI said' },
+      } },
+    };
+    renderPage();
+    expect(screen.getByTestId('ai-worded')).toHaveTextContent('goal, design in words (then edited)');
+  });
+
+  it('the review says nothing about wording when the user wrote everything', () => {
+    mockDraft.currentStage = 6;
+    mockDraft.spec = { hypothesis: { title: 't', goal: 'my own words' } };
+    renderPage();
+    expect(screen.queryByTestId('ai-worded')).toBeNull();
   });
 
   it('refuses to open a finished session for editing', () => {

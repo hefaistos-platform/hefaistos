@@ -9,6 +9,7 @@ import { Field, RecordList, StringList, newId } from '../components/maieutic/Mai
 import { MaieuticAdeStage, PLAN_QUERY } from '../components/maieutic/MaieuticAdeStage';
 import { MaieuticNegativeTests, acceptedLimitations } from '../components/maieutic/MaieuticNegativeTests';
 import { MaieuticCapabilityPicker } from '../components/maieutic/MaieuticCapabilityPicker';
+import { MaieuticWordingHelp, TextOrigin, originLabel } from '../components/maieutic/MaieuticWordingHelp';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -51,6 +52,10 @@ const CREATE_WORKBENCH = gql`
   mutation CreateWorkbenchFromMaieuticDraft($id: UUID!, $exit: String!) {
     createWorkbenchFromMaieuticDraft(draftId: $id, exit: $exit) { workbenchId queuedFormats }
   }
+`;
+
+const WORDING_AVAILABLE = gql`
+  query MaieuticWordingAvailable { maieuticWordingAvailable }
 `;
 
 const FIELDS_QUERY = gql`
@@ -97,6 +102,7 @@ export const MaieuticSessionPage: React.FC = () => {
   const [createError, setCreateError] = useState('');
   const [searchTech, { data: techData, loading: techLoading }] = useLazyQuery(TECHNIQUE_QUERY);
   const { data: srcData } = useQuery(SOURCES_QUERY);
+  const { data: wordingData } = useQuery(WORDING_AVAILABLE);
   const [loadFields, { data: fieldData }] = useLazyQuery(FIELDS_QUERY, { fetchPolicy: 'network-only' });
   const [loadPlan, { data: planData, error: planError }] = useLazyQuery(PLAN_QUERY, { fetchPolicy: 'network-only' });
 
@@ -105,6 +111,7 @@ export const MaieuticSessionPage: React.FC = () => {
   const [stage, setStage] = useState(1);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveError, setSaveError] = useState('');
+  const [origins, setOrigins] = useState<TextOrigin>({});
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const inflight = useRef<Promise<boolean> | null>(null);
   const dirty = useRef<Record<string, any>>({});
@@ -119,6 +126,7 @@ export const MaieuticSessionPage: React.FC = () => {
     if (draft && spec === null) {
       setSpec(draft.spec || {});
       specRef.current = draft.spec || {};
+      setOrigins(draft.spec?.meta?.text_origin || {});
       setName(draft.name);
       setStage(Math.min(6, Math.max(1, draft.currentStage || 1)));
     }
@@ -186,6 +194,21 @@ export const MaieuticSessionPage: React.FC = () => {
     queueSave();
   };
 
+  // Wording help: the server has already stored the text and the origin; this only mirrors it on screen.
+  const WORDING_FIELDS: Record<string, [Section, string]> = {
+    'hypothesis.goal': ['hypothesis', 'goal'], 'hypothesis.scope_notes': ['hypothesis', 'scope_notes'],
+    'design.blueprint_text': ['design', 'blueprint_text'], 'playbook_tests.test_scenario': ['playbook_tests', 'test_scenario'],
+  };
+  const applyWording = (field: string, value: string, nextOrigins: TextOrigin) => {
+    const [key, prop] = WORDING_FIELDS[field];
+    setSection(key, { [prop]: value });
+    setOrigins(nextOrigins);
+  };
+  const wording = (field: string, text: string) => (
+    <MaieuticWordingHelp draftId={draftId} field={field} text={text} origins={origins} locked={locked}
+      available={Boolean(wordingData?.maieuticWordingAvailable)} flush={flush} onApply={applyWording} />
+  );
+
   const create = async (exitMode: 'CREATE_AND_GENERATE' | 'CREATE_WITHOUT_RULE') => {
     setCreateError('');
     try {
@@ -213,6 +236,13 @@ export const MaieuticSessionPage: React.FC = () => {
 
   const technique = hyp.technique || {};
   const techniqueState: string = technique.state || '';
+  const WORDING_NAMES: Record<string, string> = {
+    'hypothesis.goal': 'goal', 'hypothesis.scope_notes': 'scope notes', 'design.blueprint_text': 'design in words', 'playbook_tests.test_scenario': 'test scenario',
+  };
+  const aiWorded = Object.keys(WORDING_NAMES).filter((f) => {
+    const [k, p] = [f.split('.')[0], f.split('.')[1]];
+    return originLabel(origins, f, str((spec?.[k] || {})[p])) !== null;
+  }).map((f) => `${WORDING_NAMES[f]}${originLabel(origins, f, str((spec?.[f.split('.')[0]] || {})[f.split('.')[1]])) === 'AI reworded' ? '' : ' (then edited)'}`);
   const missing: string[] = [];
   if (!str(hyp.title).trim()) missing.push('a title');
   if (techniqueState !== 'SET' && techniqueState !== 'NONE_CHOSEN') missing.push('a technique or the choice of none');
@@ -341,6 +371,7 @@ export const MaieuticSessionPage: React.FC = () => {
           <Field label="Goal" required help="What do you want to be able to say when this detection fires?">
             <Input.TextArea rows={3} style={{ maxWidth: 700 }} value={str(hyp.goal)}
               onChange={(e) => setSection('hypothesis', { goal: e.target.value })} />
+            {wording('hypothesis.goal', str(hyp.goal))}
           </Field>
           <Field label="Ways an attacker could do this" help="Recommended. One entry per way you can think of. The evasion questions later build on this list.">
             <StringList value={arr(hyp.attacker_methods)} addLabel="Add a way" rows={2}
@@ -349,6 +380,7 @@ export const MaieuticSessionPage: React.FC = () => {
           <Field label="Notes on scope" help="Optional. What is deliberately out of scope?">
             <Input.TextArea rows={2} style={{ maxWidth: 700 }} value={str(hyp.scope_notes)}
               onChange={(e) => setSection('hypothesis', { scope_notes: e.target.value })} />
+            {wording('hypothesis.scope_notes', str(hyp.scope_notes))}
           </Field>
           <Field label="How demanding should the evasion questions be?" help="You can change this at any time.">
             <Radio.Group value={level} onChange={(e) => changeLevel(e.target.value)}>
@@ -448,6 +480,7 @@ export const MaieuticSessionPage: React.FC = () => {
           <Field label="The design in plain language" help="Optional summary that travels with the Workbench.">
             <Input.TextArea rows={4} style={{ maxWidth: 700 }} value={str(design.blueprint_text)}
               onChange={(e) => setSection('design', { blueprint_text: e.target.value })} />
+            {wording('design.blueprint_text', str(design.blueprint_text))}
           </Field>
         </>
       );
@@ -475,6 +508,7 @@ export const MaieuticSessionPage: React.FC = () => {
           <Field label="How would you test that it fires?" help="A scenario you can run, and what you expect to see.">
             <Input.TextArea rows={3} style={{ maxWidth: 700, marginBottom: 8 }} placeholder="Scenario" value={str(play.test_scenario)}
               onChange={(e) => setSection('playbook_tests', { test_scenario: e.target.value })} />
+            {wording('playbook_tests.test_scenario', str(play.test_scenario))}
             <Input.TextArea rows={2} style={{ maxWidth: 700 }} placeholder="Expected result" value={str(play.test_expected_output)}
               onChange={(e) => setSection('playbook_tests', { test_expected_output: e.target.value })} />
           </Field>
@@ -539,6 +573,7 @@ export const MaieuticSessionPage: React.FC = () => {
               <li>Capability Library: {arr(design.capability_refs).length} entr{arr(design.capability_refs).length === 1 ? 'y' : 'ies'} picked, focus layer {str(design.focus_layer) || 'not set'}</li>
               <li>Evasion questions: {plan ? `${answeredAde} of ${plan.items.length} answered, ${limitations} accepted as limitations, ${unknownAde} marked unknown` : 'loading…'}</li>
               <li>Test scenario: {str(play.test_scenario).trim() ? 'written' : 'not written'}</li>
+              {aiWorded.length > 0 && <li data-testid="ai-worded">Wording started from an AI suggestion: {aiWorded.join(', ')}</li>}
             </ul>
             <Paragraph type="secondary">
               This is a record of how much of your own thinking was captured. It is not a quality score for the future rule.
