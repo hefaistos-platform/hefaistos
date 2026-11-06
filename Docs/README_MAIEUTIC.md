@@ -111,6 +111,16 @@ The evasion questions come from the ADE false-negative framework (4 categories, 
 chosen from your own design. ADE covers *what your rule could miss*. It is a different thing from
 robustness against an attacker changing their behaviour, and the two are never merged into one score.
 
+## Saving
+
+Everything you type is saved automatically a moment after you stop typing. The top right of every stage
+shows the state ("Saving…", "All changes saved at 14:32", or "Not saved: <reason>") and a **Save draft**
+button. Use the button to save right now without leaving the stage, or to try again after "Not saved": a
+failed automatic save is not retried on its own, but your edit is kept in the page and **Save draft** (or
+moving to another stage) sends it again. Moving between stages, **Save and close** and creating the
+Workbench all wait for a save that is still on its way. Closing the browser tab with unsaved edits asks
+for confirmation.
+
 ## When the ADE framework is updated during a session
 
 An admin may promote a newer ADE snapshot while you are working. The session stays pinned to the snapshot

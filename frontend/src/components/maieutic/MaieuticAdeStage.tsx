@@ -55,7 +55,7 @@ interface Props {
   draftId: string;
   disabled?: boolean;
   refLabel: (ref: string) => string;
-  beforeLoad: () => Promise<void>;
+  beforeLoad: () => Promise<unknown>;
   onOpenCount?: (n: number) => void;
 }
 

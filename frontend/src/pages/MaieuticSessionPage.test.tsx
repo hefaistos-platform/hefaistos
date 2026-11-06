@@ -97,6 +97,62 @@ describe('MaieuticSessionPage', () => {
     expect(calls.some((v) => v.stage === 2)).toBe(true);
   });
 
+  it('Save draft saves a pending edit at once, stays on the page and reports the time', async () => {
+    renderPage();
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'Typed just now' } });
+    expect(mockUpdate).not.toHaveBeenCalled();                       // autosave has not fired yet
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent(/All changes saved at \d{1,2}[:.]\d{2}/));
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockUpdate.mock.calls[0][0].variables.patch.hypothesis.title).toBe('Typed just now');
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(screen.getByText('1. Hypothesis')).toBeInTheDocument();
+  });
+
+  it('Save draft with nothing pending says saved without sending anything', async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent(/All changes saved/));
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('a failed autosave is reported, and Save draft tries again with the same edit', async () => {
+    mockUpdate.mockReset().mockRejectedValueOnce(new Error('network down')).mockResolvedValue({ data: {} });
+    renderPage();
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'Keep me' } });
+    await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent('Not saved: network down'), { timeout: 3000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent(/All changes saved/));
+    expect(mockUpdate).toHaveBeenCalledTimes(2);
+    expect(mockUpdate.mock.calls[1][0].variables.patch.hypothesis.title).toBe('Keep me');
+  });
+
+  it('keeps the error when Save draft fails too', async () => {
+    mockUpdate.mockReset().mockRejectedValue(new Error('still down'));
+    renderPage();
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'x' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent('Not saved: still down'));
+    expect(screen.getByTestId('save-status')).not.toHaveTextContent('All changes saved');
+  });
+
+  it('moving on waits for an autosave that is still on its way, and the button shows it is busy', async () => {
+    let release: () => void = () => undefined;
+    mockUpdate.mockReset().mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve({ data: {} }); }))
+      .mockResolvedValue({ data: {} });
+    renderPage();
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: 'slow' } });
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1), { timeout: 3000 });   // autosave is in flight
+    expect(screen.getByRole('button', { name: /Save draft/ })).toHaveClass('ant-btn-loading');
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }));
+    await new Promise((r) => setTimeout(r, 80));
+    expect(screen.getByText('1. Hypothesis')).toBeInTheDocument();                           // not moved on yet
+    expect(screen.getByTestId('save-status')).not.toHaveTextContent('All changes saved');
+    release();
+    expect(await screen.findByText('2. Telemetry')).toBeInTheDocument();
+    expect(screen.getByTestId('save-status')).toHaveTextContent(/All changes saved/);
+  });
+
   it('refuses to open a finished session for editing', () => {
     mockDraft = { ...mockDraft, status: 'FINISHED', isLocked: true };
     renderPage();
