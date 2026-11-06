@@ -2233,7 +2233,7 @@ export const PlaybookWorkbench = () => {
             className="w-10 h-10 p-2 flex items-center justify-center"
             title="Export or Import workbench"
           >
-            <PixelIcon name="download" className="w-5 h-5" />
+            <PixelIcon name="repeat" className="w-5 h-5" />
           </Button>
 
           {/* Threat Report Populate Button - Icon only */}
@@ -2243,7 +2243,7 @@ export const PlaybookWorkbench = () => {
             className="w-10 h-10 p-2 flex items-center justify-center bg-orange-500 hover:bg-orange-600 border-orange-600 text-white"
             title="Populate workbench from Threat Report (PDF)"
           >
-            <PixelIcon name="crystal" className="w-5 h-5" />
+            <PixelIcon name="file-text" className="w-5 h-5" />
           </Button>
 
           {/* OpenTIDE preview / publish shortcuts */}
