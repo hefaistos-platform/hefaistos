@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { gql, useMutation, useQuery } from '@apollo/client';
 import { Alert, Button, Collapse, Input, Select, Space, Tag, Typography } from 'antd';
+import { MaieuticFrameworkDrift } from './MaieuticFrameworkDrift';
 
 const { Text, Paragraph } = Typography;
 
@@ -8,6 +9,7 @@ export const PLAN_QUERY = gql`
   query MaieuticAdePlan($id: UUID!) {
     maieuticAdePlan(draftId: $id) {
       openCount needsQuestion
+      frameworkDrift { pinnedLabel activeLabel removed changed }
       items {
         adeId state version triggerReason designRefs questionText whyWeAsk weakAnswer strongAnswer glossary
         hintRungsUsed hintRungsTotal ledgerEntry
@@ -246,6 +248,7 @@ export const MaieuticAdeStage: React.FC<Props> = ({ draftId, disabled, refLabel,
       {plan?.needsQuestion?.length > 0 && (
         <Alert type="warning" showIcon message={`The ADE framework now lists topics that have no question yet: ${plan.needsQuestion.join(', ')}. A maintainer needs to add them.`} />
       )}
+      <MaieuticFrameworkDrift drift={plan?.frameworkDrift} />
       {!loading && items.length === 0 && ready && <Text type="secondary">No questions apply yet. Fill in stage 3 first.</Text>}
       {plan && <Text>{plan.openCount} of {items.length} points still open.</Text>}
       <Collapse accordion items={panels} />
