@@ -8,6 +8,7 @@ import { ArrowLeftOutlined, ArrowRightOutlined, LockOutlined } from '@ant-design
 import { Field, RecordList, StringList, newId } from '../components/maieutic/MaieuticFormParts';
 import { MaieuticAdeStage, PLAN_QUERY } from '../components/maieutic/MaieuticAdeStage';
 import { MaieuticNegativeTests, acceptedLimitations } from '../components/maieutic/MaieuticNegativeTests';
+import { MaieuticCapabilityPicker } from '../components/maieutic/MaieuticCapabilityPicker';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -418,6 +419,13 @@ export const MaieuticSessionPage: React.FC = () => {
             <StringList value={arr(design.correlations).map((c: any) => (typeof c === 'string' ? c : str(c?.text)))} addLabel="Add a relation" rows={2}
               onChange={(v) => setSection('design', { correlations: v })} />
           </Field>
+          <Field label="Capability Library" help="Which known ways of doing this technique, and which layer, should the rule focus on?">
+            <MaieuticCapabilityPicker
+              techniqueId={techniqueState === 'SET' ? technique.id : undefined}
+              refs={arr(design.capability_refs).map(String)} focusLayer={str(design.focus_layer)}
+              onChange={(next) => setSection('design', next)}
+            />
+          </Field>
           <Field label="The design in plain language" help="Optional summary that travels with the Workbench.">
             <Input.TextArea rows={4} style={{ maxWidth: 700 }} value={str(design.blueprint_text)}
               onChange={(e) => setSection('design', { blueprint_text: e.target.value })} />
@@ -509,6 +517,7 @@ export const MaieuticSessionPage: React.FC = () => {
               <li>Stage 1 minimum: {missing.length ? <Text type="danger">missing {missing.join(', ')}</Text> : <Text type="success">complete</Text>}</li>
               <li>Telemetry: {pickedSources.length} source(s), {arr(inter.fields).length} field(s)</li>
               <li>Design: {arr(design.match_elements).length} match element(s), {arr(design.exclusions).length} exclusion(s)</li>
+              <li>Capability Library: {arr(design.capability_refs).length} entr{arr(design.capability_refs).length === 1 ? 'y' : 'ies'} picked, focus layer {str(design.focus_layer) || 'not set'}</li>
               <li>Evasion questions: {plan ? `${answeredAde} of ${plan.items.length} answered, ${limitations} accepted as limitations, ${unknownAde} marked unknown` : 'loading…'}</li>
               <li>Test scenario: {str(play.test_scenario).trim() ? 'written' : 'not written'}</li>
             </ul>

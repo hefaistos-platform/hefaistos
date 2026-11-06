@@ -7,11 +7,13 @@ from a session is held to the same standard as any other generated rule.
 Deliberate deviations from spec section 8 (see Docs/README_MAIEUTIC.md):
 - telemetry_requirements is NOT written. It is a reviewed tag list produced by a separate AI
   step; log sources and fields travel in technical_context as plain text instead.
-- robustness_level / data_source_robustness / capability fields are not set: the STP and
-  Capability Library stages are not built yet.
+- robustness_level / data_source_robustness are not set: the Workbench evaluates robustness itself
+  (VALUATION). The Capability Library entries and the focus layer the user picked in the design stage are
+  copied as chosen, after checking them (see capability_selection); nothing is filled in for the user.
 """
 
 import logging
+import uuid
 
 from django.db import transaction
 
@@ -31,6 +33,8 @@ PLATFORM_SLOTS = {
     'AQL': ('qradar', 'query', 'qradar'),
     'WAZUH': ('wazuh', 'rule', 'wazuh'),
 }
+MAX_CAPABILITY_REFS = 20
+FOCUS_LAYERS = ('TOOL', 'API_EXPORT', 'COM_IPC', 'REGISTRY_OBJECT', 'PROTOCOL', 'PROCESS_BEHAVIOR', 'NETWORK_BEHAVIOR')
 # 'Not known yet' is deliberately absent: not knowing is not a blind spot or a coverage gap, and the
 # rule must not be told to list it as one.
 LIMITATION_DISPOSITIONS = ('ACCEPTED_LIMITATION', 'COVERED_BY_OTHER_RULE')
@@ -91,6 +95,42 @@ def negative_tests_from_spec(spec):
 
 def _bullets(lines):
     return '\n'.join(f'- {line}' for line in lines if line)
+
+
+def focus_layer_from_spec(spec):
+    value = _s(((spec or {}).get('design') or {}).get('focus_layer')).upper()
+    return value if value in FOCUS_LAYERS else ''
+
+
+def capability_ids_from_spec(spec):
+    """Ids the user picked, as unique UUID strings in the order picked. Anything else is dropped."""
+    out = []
+    refs = ((spec or {}).get('design') or {}).get('capability_refs')
+    for raw in (refs if isinstance(refs, list) else []):
+        try:
+            value = str(uuid.UUID(str(raw)))
+        except (ValueError, AttributeError, TypeError):
+            continue
+        if value not in out:
+            out.append(value)
+    return out[:MAX_CAPABILITY_REFS]
+
+
+def capability_selection(spec, user, mitre):
+    """Library entries to attach: only entries the user may see, for the chosen technique.
+
+    Returns (entries, ignored_count). The picker only offers such entries, so anything else means the
+    technique changed after picking, an entry was deleted, or the request was tampered with.
+    """
+    from playbooks.models import CapabilityAbstraction
+    ids = capability_ids_from_spec(spec)
+    if not ids or mitre is None:
+        return [], len(ids)
+    from django.db.models import Q
+    found = {str(c.id): c for c in CapabilityAbstraction.objects.filter(
+        id__in=ids, technique=mitre).filter(Q(organization=user.organization) | Q(organization__isnull=True))}
+    entries = [found[i] for i in ids if i in found]
+    return entries, len(ids) - len(entries)
 
 
 def selected_formats(spec):
@@ -234,6 +274,9 @@ def workbench_fields(spec):
     negative = negative_tests_from_spec(spec)
     if negative:
         fields_out['negative_tests'] = negative
+    focus = focus_layer_from_spec(spec)
+    if focus:
+        fields_out['detection_focus_layer'] = focus
     if _s(play.get('alert_trigger')):
         fields_out['alert_trigger'] = _s(play['alert_trigger'])
     if play.get('default_severity') in SEVERITIES:
@@ -304,6 +347,12 @@ def create_workbench_from_draft(draft_id, user, *, exit_mode):
         conversation_history=conversation_log(spec), **values)
     workbench.title = _normalize_workbench_title(workbench.title, workbench)
     workbench.save(update_fields=['title', 'updated_at'])
+    capabilities, ignored = capability_selection(spec, user, mitre)
+    if capabilities:
+        workbench.selected_capability_abstractions.set(capabilities)
+    if ignored:
+        logger.info('Maieutic session %s: %s capability entr(ies) not attached (other technique, not visible or gone)',
+                    draft.id, ignored)
     ActivityLog.objects.create(playbook=workbench, user=user, action='Created',
                                details=f'Created from Maieutic session "{draft.name}"')
     PlaybookNode.objects.create(graph=workbench, layer_name='Incident Start', position_x=100, position_y=100)
