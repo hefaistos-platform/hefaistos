@@ -269,8 +269,18 @@ class RevealMaieuticHint(graphene.Mutation):
 
 
 def _user_ai_settings(user):
+    """The settings the user's AI calls really run on.
+
+    Rule generation resolves organization-level providers when the user opted in
+    (``use_org_ai``); the answer check has to do the same. With the raw personal settings it
+    found no key, got an error string back and silently reported "not checked".
+    """
     from .models import UserAISettings
-    return UserAISettings.objects.filter(user=user).first()
+    from .schema import _get_effective_ai_settings
+    settings = UserAISettings.objects.filter(user=user).select_related('user').first()
+    if settings is None:
+        return None
+    return _get_effective_ai_settings(settings)
 
 
 class AnswerMaieuticAdeQuestion(graphene.Mutation):

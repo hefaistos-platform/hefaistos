@@ -76,14 +76,20 @@ def get_deletable_draft(user, draft_id):
 
 
 def create_draft(user, *, name=None, tlp=None) -> MaieuticDraft:
-    clean = (name or '').strip() or 'New Maieutic session'
+    given = (name or '').strip()
+    clean = given or 'New Maieutic session'
     tlp_value = normalize_tlp(tlp)
+    spec = {'meta': {'spec_version': SPEC_VERSION, 'tlp': tlp_value, 'current_stage': 1}}
+    if given:
+        # The title the user typed when starting is also the stage 1 title. Without this the
+        # required stage 1 field looked empty even though the user had already named the idea.
+        spec['hypothesis'] = {'title': clean[:200]}
     return MaieuticDraft.objects.create(
         organization=user.organization,
         author=user,
         name=clean[:255],
         tlp_classification=tlp_value,
-        spec={'meta': {'spec_version': SPEC_VERSION, 'tlp': tlp_value, 'current_stage': 1}},
+        spec=spec,
     )
 
 
@@ -127,7 +133,14 @@ def update_draft(draft_id, user, *, name=None, current_stage=None, spec_patch=No
         clean = name.strip()
         if not clean:
             raise MaieuticError('Name cannot be empty.')
+        previous = draft.name
         draft.name = clean[:255]
+        # Keep the stage 1 title in step with a rename, unless it was edited on its own.
+        if not (spec_patch and 'hypothesis' in spec_patch):
+            hyp = dict((draft.spec or {}).get('hypothesis') or {})
+            if str(hyp.get('title') or '').strip() in ('', previous.strip()):
+                hyp['title'] = clean[:200]
+                draft.spec = {**(draft.spec or {}), 'hypothesis': hyp}
 
     if tlp is not None:
         draft.tlp_classification = normalize_tlp(tlp)

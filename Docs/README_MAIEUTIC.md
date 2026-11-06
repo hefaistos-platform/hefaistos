@@ -5,6 +5,8 @@ detection. You start from what you think an attacker does and how you plan to de
 questions in your own words, and finish by creating a Workbench, optionally with a generated rule.
 The rule is the result of the session, never its starting point.
 
+Step-by-step example with every value entered: [HOWTO_MAIEUTIC.md](HOWTO_MAIEUTIC.md).
+
 Design records: [MAIEUTIC_3_SPEC.md](MAIEUTIC_3_SPEC.md) (behaviour) and
 [MAIEUTIC_3_PLAN.md](MAIEUTIC_3_PLAN.md) (status). Evasion question content:
 [MAIEUTIC_ADE_QUESTIONS.md](MAIEUTIC_ADE_QUESTIONS.md). Framework source: [README_ADE.md](README_ADE.md).
