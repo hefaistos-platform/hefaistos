@@ -90,11 +90,22 @@ class AdeQuestionType(graphene.ObjectType):
     ledger_entry = GenericScalar()
 
 
+class MaieuticFrameworkDriftType(graphene.ObjectType):
+    """Upstream ADE changes since the session started answering. A note only; nothing is reopened by it."""
+    pinned_snapshot_id = graphene.UUID()
+    active_snapshot_id = graphene.UUID()
+    pinned_label = graphene.String()
+    active_label = graphene.String()
+    removed = graphene.List(graphene.String, description='Topics in this session that are gone from the active framework')
+    changed = graphene.List(graphene.String, description='Topics in this session whose upstream definition changed')
+
+
 class MaieuticAdePlanType(graphene.ObjectType):
     items = graphene.List(AdeQuestionType)
     needs_question = graphene.List(graphene.String, description='Upstream ADE subcategories with no question file yet')
     ade_snapshot_id = graphene.UUID()
     open_count = graphene.Int()
+    framework_drift = graphene.Field(MaieuticFrameworkDriftType)
 
 
 def _build_plan(draft):
@@ -122,8 +133,11 @@ def _build_plan(draft):
             state=state, ledger_entry=entry,
         ))
     snapshot = draft.ade_snapshot or lifecycle._active_ade_snapshot()
+    drift = maieutic_planner.framework_drift(
+        draft.ade_snapshot, lifecycle._active_ade_snapshot(), {i.ade_id for i in items} | set(answered))
     return MaieuticAdePlanType(
         items=items,
+        framework_drift=MaieuticFrameworkDriftType(**drift) if drift else None,
         needs_question=maieutic_planner.questions_missing_for_snapshot(snapshot),
         ade_snapshot_id=snapshot.id if snapshot else None,
         open_count=sum(1 for i in items if i.state != 'ANSWERED'),

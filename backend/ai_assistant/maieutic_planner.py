@@ -169,6 +169,38 @@ def open_items(spec, *, expert_all=False):
     return result
 
 
+def snapshot_label(snapshot):
+    """Short human label of an imported ADE snapshot: the commit when known, else the ref."""
+    return (snapshot.source_sha[:12] if snapshot.source_sha else snapshot.source_ref) or 'unknown'
+
+
+def framework_drift(pinned, active, relevant_ids):
+    """What changed upstream, for this session, since it started answering against `pinned`.
+
+    Only a note for the user: nothing is reopened or hidden because of it. A question reopens when
+    its own text version changes (see open_items), not when the upstream definition changes, and
+    answers already given are kept. `relevant_ids` are the ADE ids the session plans or answered.
+    Returns None when there is nothing to tell (no pinned or active snapshot, the same snapshot, or
+    no relevant topic removed or changed).
+    """
+    if pinned is None or active is None or pinned.id == active.id:
+        return None
+
+    def hashes(snapshot):
+        return {e.ade_id: e.source_hash for e in snapshot.entries.filter(kind='SUBCATEGORY') if e.ade_id}
+
+    old, new, relevant = hashes(pinned), hashes(active), set(relevant_ids)
+    removed = sorted(i for i in old if i not in new and i in relevant)
+    changed = sorted(i for i in old if i in new and old[i] != new[i] and i in relevant)
+    if not removed and not changed:
+        return None
+    return {
+        'pinned_snapshot_id': pinned.id, 'active_snapshot_id': active.id,
+        'pinned_label': snapshot_label(pinned), 'active_label': snapshot_label(active),
+        'removed': removed, 'changed': changed,
+    }
+
+
 def questions_missing_for_snapshot(snapshot, questions=None):
     """Upstream subcategories in a promoted ADE snapshot that have no question file yet."""
     if snapshot is None:
