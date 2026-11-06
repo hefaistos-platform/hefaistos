@@ -145,6 +145,9 @@ ADE is a framework on the **Framework Updates** page, like Chokepoints:
 New upstream items without a question file are listed as "needs a question" and not
 asked yet. After a promotion, existing sessions only show new or changed questions as open.
 
+**As built:** a session pinned to an older snapshot also gets an informational note naming the topics it uses that
+were removed or changed upstream (`framework_drift`). It reopens and hides nothing.
+
 ## 10. Limits
 
 - ADE measures false-negative risk in detection logic. It does not measure false positives,

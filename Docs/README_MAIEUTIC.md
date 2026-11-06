@@ -111,6 +111,19 @@ The evasion questions come from the ADE false-negative framework (4 categories, 
 chosen from your own design. ADE covers *what your rule could miss*. It is a different thing from
 robustness against an attacker changing their behaviour, and the two are never merged into one score.
 
+## When the ADE framework is updated during a session
+
+An admin may promote a newer ADE snapshot while you are working. The session stays pinned to the snapshot
+you first answered against. If the new one removed or changed a topic your session plans or has answered,
+the evasion step shows a blue note naming those topics and both snapshots (commit or ref).
+
+- **It is only a note.** Nothing is reopened, hidden or removed because of it, and your answers are kept.
+- **A removed topic can still be answered.** The question text ships with HEFAISTOS, not with the framework
+  import, so it stays available. An accepted limitation on it still becomes a Blind Spot and a negative test.
+- **A changed definition does not reopen a question.** Only a new version of the question's own text does,
+  and then it is shown as "Question changed, please re-check".
+- Topics your session does not use are never mentioned. New topics without a question are listed as before.
+
 ## Negative tests
 
 A negative test checks the opposite of the usual test: that the rule stays **silent** on something you
