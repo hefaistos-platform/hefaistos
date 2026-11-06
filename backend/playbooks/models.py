@@ -442,6 +442,9 @@ class PlaybookGraph(models.Model):
     # Procedures that check the rule does NOT fire on something the engineer accepted, with the outcome
     # the person who ran them reported. See playbooks/negative_tests.py. Not part of test_validation_status.
     negative_tests = models.JSONField(default=list, blank=True)
+    # What the person who ran the positive test reported (executed / rule fired), append-only, with who and when.
+    # See playbooks/test_runs.py. Not part of test_validation_status, which belongs to the CI/CD pipeline.
+    test_runs = models.JSONField(default=list, blank=True)
 
     # --- DEPLOYMENT METADATA ---
     # Where should this rule live in the Git Repo?
