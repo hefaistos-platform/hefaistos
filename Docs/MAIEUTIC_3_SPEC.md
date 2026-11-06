@@ -158,7 +158,7 @@ A question with no disposition is **open**. The evaluator flag is advisory and n
 | enrichment_steps, containment_steps, notification_steps | Lists as on `PlaybookGraph` (`{action,input,output,description}`, `{action,critical,description}`, `{channel,recipient,template}`) |
 | alert_trigger (text), default_severity (LOW / MEDIUM / HIGH / CRITICAL) | Item<string>; severity must be one of the four enum values |
 | test_scenario, test_expected_output | Item<string> |
-| negative_tests | list of `{ from_ade_id, idea }`, one per ACCEPTED_LIMITATION or UNKNOWN |
+| negative_tests | list of `{ from_ade_id, steps }`, one per ACCEPTED_LIMITATION. **As built:** UNKNOWN is excluded (see below) and the steps are optional |
 
 ### 3.7 review (stage 6)
 
@@ -231,7 +231,7 @@ Everything else may be UNKNOWN. SAVE_DRAFT has no minimum.
 | telemetry_requirements | **Not written** (decided in implementation): this field is a reviewed tag list produced by the Telemetry Tagging step. Log sources and fields travel as text in `technical_context` instead |
 | detection_rule + detection_rule_format | primary KQL result |
 | opentide_yaml + configured_platforms | additional formats (section 9a) |
-| test_scenario, test_expected_output | playbook_tests incl. negative_tests |
+| test_scenario, test_expected_output | playbook_tests. Negative tests are **not** merged in here (see section 8a) |
 | robustness_level | robustness.stp.final.level |
 | data_source_robustness | robustness.stp.final.column |
 | detection_focus_layer | design.focus_layer |
@@ -240,6 +240,27 @@ Everything else may be UNKNOWN. SAVE_DRAFT has no minimum.
 | new: maieutic spec + ledger | whole spec, read-only |
 
 Verified in Phase 1: all workbench field names in this table exist on `PlaybookGraph`.
+
+## 8a. Negative tests (as built)
+
+Deviates from the first draft of this spec:
+
+- **Separate field.** `PlaybookGraph.negative_tests` holds a list of items, not extra text in
+  `test_scenario`, so each test can carry its own outcome. Item: `{ id, source_ref, limitation,
+  accepted_as, steps, steps_source (USER|TEMPLATE), expected, result (NOT_RUN|NOT_DETECTED|DETECTED),
+  notes, tested_at, rule_fingerprint }`.
+- **Accepted limitations only.** UNKNOWN, COVERED_BY_OTHER_RULE and NOT_APPLICABLE do not create one:
+  an unknown answer is not a decision to leave something uncovered, and the Workbench holds only
+  facts established during the session.
+- **No AI.** The starting text is a deterministic template from the question and the user's answer.
+- **Not executed by HEFAISTOS.** The user runs it and records the outcome.
+- **No side effects.** Recording an outcome uses `updateNegativeTest`, which writes with a queryset
+  update, so it does not bump `version`/`minor_version`, does not move `updated_at` and does not touch
+  `test_validation_status` or Blind Spots.
+- **Staleness.** `rule_fingerprint` is a whitespace-insensitive hash of `detection_rule` at the time
+  the result was recorded. A different rule text marks the result `stale` in the API.
+- **Export and import.** Both export formats carry the list. Importing a file without the key does not
+  erase results already recorded.
 
 ## 9. Persistence: MaieuticDraft (modelled on MveDraft)
 

@@ -55,6 +55,8 @@ What goes where in the Workbench:
 | harmless look-alikes and planned exclusions | false positives |
 | evasion points you accepted or left to another detection | blind spots |
 | triage, response, alert trigger, severity, test scenario and expected result | the matching fields |
+| enrichment, containment and notification steps | the matching step lists (only when you wrote some) |
+| the evasion points you accepted as limitations | one negative test each (see below) |
 | time window, threshold, count-by field, suppression | the matching tuning fields |
 | related events | downstream correlation (scope text) |
 | the questions and your own answers | conversation history |
@@ -65,8 +67,8 @@ reach, and what is still left to do in the session, are never written into it; t
 record.
 
 Not filled in by a session: telemetry requirement tags (they come from the separate Telemetry
-Tagging step and are never guessed), robustness level, capability abstractions and focus layer
-(those stages are not built yet).
+Tagging step and are never guessed), robustness level (the Workbench evaluates it itself under
+VALUATION), capability abstractions and focus layer (that stage is not built yet).
 
 **How the rule is generated.** The normal generator runs, with its reference retrieval, validation
 check and repair attempts. Your session adds a block of design decisions to its prompt: what the
@@ -88,6 +90,29 @@ that bring in content you did not write. Your answers stay exactly as you typed 
 The evasion questions come from the ADE false-negative framework (4 categories, 16 subcategories),
 chosen from your own design. ADE covers *what your rule could miss*. It is a different thing from
 robustness against an attacker changing their behaviour, and the two are never merged into one score.
+
+## Negative tests
+
+A negative test checks the opposite of the usual test: that the rule stays **silent** on something you
+accepted as a limitation. Each evasion point you answered with "accept as a limitation" gets one.
+Points marked "I do not know yet", "covered by another rule" or "not applicable" do not, because there
+is nothing you decided to leave uncovered.
+
+- **In the session (stage 5)** you may write the steps for each one. Leave them empty to get a
+  starting template built from the question and your own answer (no AI is involved, and the template
+  is marked so you know to adapt it).
+- **In the Workbench (Part 5, before Atomic Red Team)** you see the steps, the expected result ("No
+  alert is raised.") and a selector for what happened: *Not run yet*, *No alert, as accepted* or
+  *Alert raised unexpectedly*, plus notes.
+- **Nothing is run for you.** HEFAISTOS does not execute rules against telemetry. You run the test in a
+  lab, before or after finishing the session, and record what you saw.
+- **Recording a result changes nothing else.** It does not alter the Workbench version, its test
+  status or Blind Spots, and it is not blocked by the session being finished.
+- **Alert raised unexpectedly** shows a notice under Blind Spots: the rule covers something listed
+  there. Nothing is rewritten; decide whether to fix the rule or the Blind Spots entry.
+- **Editing the steps clears a recorded result**, because the result belongs to the old steps.
+- **If the rule text changes after a result was recorded**, the result is flagged as out of date.
+- "Not run yet" is the state of the list. It is never shown as a gap or counted against the rule.
 
 ## Where your decisions went in the rule
 
