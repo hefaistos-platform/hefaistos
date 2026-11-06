@@ -1,6 +1,6 @@
 """Create a Workbench from a Maieutic session, queue rule generation, and store the results.
 
-Spec: Docs/MAIEUTIC_3_SPEC.md sections 4, 8, 9a, 10. Rule generation reuses the normal
+See Docs/README_MAIEUTIC.md, Finishing a session. Rule generation reuses the normal
 AIGenerationTask pipeline (reference retrieval, validation gate, repair), so a rule made
 from a session is held to the same standard as any other generated rule.
 

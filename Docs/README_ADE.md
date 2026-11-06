@@ -8,9 +8,12 @@ Upstream source:
 
 Site: `https://adeframework.org/`
 
-> **Status.** The import, staging, diff, promote and rollback pipeline described here is
-> implemented. Maieutic 3.0 uses the promoted snapshot in two ways (see "How Maieutic uses ADE"
-> below). Nothing has to be uploaded by hand.
+## Credit
+
+The Adversarial Detection Engineering (ADE) framework was created by Nikolas Bielski and is published under the MIT licence: [Adversarial-Detection-Engineering-Framework](https://github.com/Adversarial-Detection-Engineering/Adversarial-Detection-Engineering-Framework), site [adeframework.org](https://adeframework.org/), with the contributors listed in that repository. HEFAISTOS imports the framework at run time; the taxonomy, category names and ADE IDs are theirs. The Maieutic question texts and hints are written by HEFAISTOS.
+
+> The import, staging, diff, promote and rollback pipeline described here needs no manual upload.
+> Maieutic uses the promoted snapshot in two ways (see "How Maieutic uses ADE" below).
 
 ## What ADE is
 
@@ -195,7 +198,7 @@ See `Docs/MAIEUTIC_ADE_QUESTIONS.md`.
 
 - The Markdown taxonomy parser depends on upstream heading conventions.
 - Only `github.com` repositories are accepted for remote imports.
-- ADE content is not yet used by rule review (evaluating existing rules is a separate, later feature).
+- ADE content is used by Maieutic sessions only. It is not used to review or score existing rules.
 
 ## How Maieutic uses ADE
 

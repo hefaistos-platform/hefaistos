@@ -5,3 +5,7 @@ Licensed under GNU AGPL v3.0 (see LICENSE).
 
 Commercial use is allowed under AGPL terms.
 If you need a proprietary/commercial exception, contact the maintainer for separate terms.
+
+Third-party framework used at run time (not bundled):
+Adversarial Detection Engineering (ADE) Framework, created by Nikolas Bielski, MIT licence.
+https://github.com/Adversarial-Detection-Engineering/Adversarial-Detection-Engineering-Framework

@@ -1,4 +1,4 @@
-"""Maieutic Engine 3.0 session storage. See Docs/MAIEUTIC_3_SPEC.md sections 9 to 9c."""
+"""Maieutic Engine 3.0 session storage. See Docs/README_MAIEUTIC.md."""
 
 import uuid
 

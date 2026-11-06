@@ -2,7 +2,7 @@
 
 This is a worked example you can follow click by click. It records a real test session run on a live
 HEFAISTOS instance as an administrator, from an empty Maieutics tab to a generated KQL rule. Use it
-alongside the [Maieutic guide](README_MAIEUTIC.md), which explains the ideas and the rules.
+alongside the [Maieutic guide](README_MAIEUTIC.md), which explains the ideas and the rules. The evasion questions are built on the ADE framework by Nikolas Bielski ([adeframework.org](https://adeframework.org/), MIT licence).
 
 The example detects credential dumping from LSASS (ATT&CK T1003.001) with `rundll32.exe` and
 `comsvcs.dll`. Everything in `code style` below is what was typed or picked.
@@ -25,6 +25,8 @@ The example detects credential dumping from LSASS (ATT&CK T1003.001) with `rundl
 4. **TLP classification:** leave `TLP:UNCLEAR` or choose one. It is locked when the session finishes.
 5. Select **Create**. The six-stage screen opens. Everything you type is saved automatically; the
    header shows "All changes saved". You can leave and resume from the Maieutics tab.
+   **Save draft** (top right of every stage) saves immediately; a failed automatic save shows "Not saved" and the button sends it again.
+   Four text fields (goal, scope notes, design in words, test scenario) also have an optional **Help me word this** button, which only rewords what you wrote and changes nothing until you select **Use this**.
 
 ## Step 2: Hypothesis (stage 1)
 
@@ -171,23 +173,7 @@ The generated rule goes through the normal checks, but treat it as a draft. In t
 path placeholder had to be filled in by a person. Run the test scenario from step 6, tune the rule, then
 move the Workbench through the normal review workflow.
 
-## Sharing a finished session (optional)
-
-A finished session can be shared with trusted peers through Instance Sharing. In the Maieutics tab
-switch on sharing for that session (it is off by default). Peers need a key with the `MAIEUTIC` scope.
-See [instance-sharing-tlp.md](instance-sharing-tlp.md).
-
-## Troubleshooting
-
-| What you see | What to do |
-|---|---|
-| "To create a Workbench you still need a title (stage 1)" | Fill in the stage 1 "Working title". Sessions started with a name already have it |
-| "Your answer was stored as written. It was not checked." | The AI check could not run. Your answer is saved. Check that your profile has a provider, or that "use organization AI" is on and the organization has one |
-| Create buttons are disabled | The stage 1 minimum is incomplete: title, technique (or "none"), goal |
-| No Data Catalog or Log Source results | Search by a shorter term, for example `sysmon` or `4688`. Ask an administrator whether the catalogs are populated |
-| The banner never clears | Rule generation runs in a background worker. Ask an administrator to check that it is running |
-
-## Step 8: Run and record a negative test (in the Workbench)
+## Step 10: Run and record a negative test (in the Workbench)
 
 A Workbench created from a session that had accepted limitations shows a **Negative tests** panel in
 **Part 5: Testing & Validation**, above the Atomic Red Team block. A Workbench created from a session
@@ -204,3 +190,28 @@ Recording a result does not change the Workbench version, its test status or its
 new steps clears a recorded result, and a result recorded for an earlier version of the rule is flagged
 as out of date.
 
+## Step 11: Record a test run (in the Workbench)
+
+Still in **Part 5**, under *Expected Telemetry & Validation*, you record the result of the normal (positive) test.
+
+1. Run the test scenario on a test host. HEFAISTOS does not run anything.
+2. Tick **Test executed**. **Rule fired** can only be ticked after that.
+3. Add notes (host, alert ID, what you saw) and select **Record test run**.
+
+The record appears in a list with your name and the time, and stays after you reload the page. Records are only added, never edited; if you made a mistake, add a newer one. A record carries the note "The rule changed after this run" when the rule text was edited afterwards. Recording does not change the Workbench version or its test status. Details: [WORKBENCH_TEST_RUNS.md](WORKBENCH_TEST_RUNS.md).
+
+## Sharing a finished session (optional)
+
+A finished session can be shared with trusted peers through Instance Sharing. In the Maieutics tab
+switch on sharing for that session (it is off by default). Peers need a key with the `MAIEUTIC` scope.
+See [instance-sharing-tlp.md](instance-sharing-tlp.md).
+
+## Troubleshooting
+
+| What you see | What to do |
+|---|---|
+| "To create a Workbench you still need a title (stage 1)" | Fill in the stage 1 "Working title". Sessions started with a name already have it |
+| "Your answer was stored as written. It was not checked." | The AI check could not run. Your answer is saved. Check that your profile has a provider, or that "use organization AI" is on and the organization has one |
+| Create buttons are disabled | The stage 1 minimum is incomplete: title, technique (or "none"), goal |
+| No Data Catalog or Log Source results | Search by a shorter term, for example `sysmon` or `4688`. Ask an administrator whether the catalogs are populated |
+| The banner never clears | Rule generation runs in a background worker. Ask an administrator to check that it is running |

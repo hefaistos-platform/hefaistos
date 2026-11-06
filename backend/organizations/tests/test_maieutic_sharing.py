@@ -1,4 +1,4 @@
-"""Instance Sharing scope MAIEUTIC (Docs/MAIEUTIC_3_SPEC.md section 9c)."""
+"""Instance Sharing scope MAIEUTIC (Docs/instance-sharing-tlp.md)."""
 import copy
 import uuid
 from unittest.mock import Mock, patch

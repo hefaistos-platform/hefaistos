@@ -1,6 +1,6 @@
 """Deterministic planner for the Maieutic ADE questions. No AI is involved here.
 
-Input is the user's own structured design (Docs/MAIEUTIC_3_SPEC.md sections 3.2 to 3.4):
+Input is the user's own structured design (see Docs/MAIEUTIC_ADE_QUESTIONS.md):
 ``spec['design']`` and ``spec['hypothesis']``. Output is which ADE questions to ask and why.
 
 Principle: bias toward asking. Asking one question too many costs the user a NOT_APPLICABLE

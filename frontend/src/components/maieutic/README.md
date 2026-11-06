@@ -9,6 +9,9 @@ The Maieutic guided design flow. Behaviour, stages and rules: `Docs/README_MAIEU
 | `MaieuticFormParts.tsx` | Shared form controls for the stages. |
 | `MaieuticAdeStage.tsx` | Stage 4 evasion questions with hints and the advisory answer check. |
 | `MaieuticGenerationBanner.tsx` | Workbench banner showing rule generation queued by a session. |
-
-The earlier in-Workbench Maieutic Engine modal, its store slice and its mapping utility were
-removed in the MAJOR release that introduced this flow.
+| `MaieuticCapabilityPicker.tsx` | Stage 3 Capability Library entries and focus layer. |
+| `MaieuticWordingHelp.tsx` | Optional "Help me word this" suggestion, accept, discard and restore for four text fields. |
+| `MaieuticFrameworkDrift.tsx` | Note in stage 4 when the ADE framework snapshot changed during a session. |
+| `MaieuticNegativeTests.tsx` | Stage 5 steps for the negative test of each accepted limitation. |
+| `MaieuticTraceabilityPanel.tsx` | Workbench panel "Where your decisions went in the rule". |
+| `../playbook/TestRunRecord.tsx` | Workbench Part 5 form and list for recorded test runs. |

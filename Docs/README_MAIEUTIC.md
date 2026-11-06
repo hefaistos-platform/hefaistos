@@ -7,12 +7,12 @@ The rule is the result of the session, never its starting point.
 
 Step-by-step example with every value entered: [HOWTO_MAIEUTIC.md](HOWTO_MAIEUTIC.md).
 
-Design records: [MAIEUTIC_3_SPEC.md](MAIEUTIC_3_SPEC.md) (behaviour) and
-[MAIEUTIC_3_PLAN.md](MAIEUTIC_3_PLAN.md) (status). Evasion question content:
-[MAIEUTIC_ADE_QUESTIONS.md](MAIEUTIC_ADE_QUESTIONS.md). Framework source: [README_ADE.md](README_ADE.md).
+Evasion question content: [MAIEUTIC_ADE_QUESTIONS.md](MAIEUTIC_ADE_QUESTIONS.md). Framework source:
+[README_ADE.md](README_ADE.md). Recording a test run in the Workbench: [WORKBENCH_TEST_RUNS.md](WORKBENCH_TEST_RUNS.md).
 
-> **Breaking change (MAJOR release).** The earlier Maieutic Engine that opened as a pop-up inside a
-> Workbench is gone. See [What was removed](#what-was-removed).
+The evasion questions are built on the Adversarial Detection Engineering (ADE) framework by Nikolas Bielski
+(MIT licence, [repository](https://github.com/Adversarial-Detection-Engineering/Adversarial-Detection-Engineering-Framework),
+[adeframework.org](https://adeframework.org/)). See [README_ADE.md](README_ADE.md#credit).
 
 ## Where to find it
 
@@ -153,6 +153,12 @@ the evasion step shows a blue note naming those topics and both snapshots (commi
   and then it is shown as "Question changed, please re-check".
 - Topics your session does not use are never mentioned. New topics without a question are listed as before.
 
+## Recording a test run
+
+The positive test of a Workbench (**Test executed**, **Rule fired**, notes) is recorded in Part 5 and is kept
+with your name and the time. It is your own report and does not change the Workbench version or its test
+status. See [WORKBENCH_TEST_RUNS.md](WORKBENCH_TEST_RUNS.md).
+
 ## Negative tests
 
 A negative test checks the opposite of the usual test: that the rule stays **silent** on something you
@@ -207,20 +213,6 @@ locations then refer to the earlier text. The report is stored with the generati
   your TLP limit. The Workbench, its rule and its conversation history are not part of it. Copies
   you pull from a peer appear as "Imported from ...", read-only, and cannot be shared further. Details,
   key behaviour and version compatibility: [instance-sharing-tlp.md](instance-sharing-tlp.md).
-
-## What was removed
-
-| Removed | Use instead |
-|---|---|
-| The Maieutic Engine button in the Workbench header and on the Playbooks page | Workbench Hub, Maieutics tab |
-| Stage-and-apply review panel inside a Workbench | Creating the Workbench from the session |
-| The five-stage modal (Hypothesis, Interrogation, Robustness, Playbook, Review) | The six stages above |
-| API: `POST /api/maieutic/validate`, `/hints`, `/ai` and the `maieuticQuestion` GraphQL mutation | The `maieutic...` queries and mutations of the new flow (see the schema) |
-
-Nothing stored is deleted. Workbenches that were filled by the old engine keep their data, and their
-saved conversation is still viewable in the Workbench ("View Maieutic Conversation History"). Browser
-drafts of the old engine lived only in the browser and are not carried over; start a new session if
-you had one in progress.
 
 ## Troubleshooting
 

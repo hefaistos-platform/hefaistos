@@ -1011,6 +1011,10 @@ See [LICENSE](./LICENSE) for the full text.
 
 If someone needs a proprietary exception, separate commercial terms can be offered by the maintainer.
 
+### Acknowledgements
+
+The Adversarial Detection Engineering (ADE) framework was created by Nikolas Bielski and is published under the MIT licence: [Adversarial-Detection-Engineering-Framework](https://github.com/Adversarial-Detection-Engineering/Adversarial-Detection-Engineering-Framework), site [adeframework.org](https://adeframework.org/), with the contributors listed in that repository. HEFAISTOS imports the framework at run time; the taxonomy, category names and ADE IDs are theirs. The Maieutic question texts and hints are written by HEFAISTOS.
+
 ---
 
 ## 📞 Support

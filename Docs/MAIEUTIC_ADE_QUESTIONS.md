@@ -1,9 +1,12 @@
 # Maieutic ADE question bank
 
-The questions Maieutic asks about adversarial (ADE) gaps. Status: the format, validator and all
-16 ADE questions exist (one per upstream subcategory). Questions for the Summiting the Pyramid
-(STP) robustness block are separate and not written yet. Nothing asks these questions yet; the
-planner that derives the design flags and the question flow are later phases.
+The questions Maieutic asks about adversarial (ADE) gaps: one question per upstream ADE subcategory
+(16), chosen for each session from the user's own design. Robustness against evasion (Summiting the
+Pyramid) is evaluated separately in the Workbench and has no questions here.
+
+The 16 categories and their IDs come from the ADE framework by Nikolas Bielski (MIT licence,
+[repository](https://github.com/Adversarial-Detection-Engineering/Adversarial-Detection-Engineering-Framework),
+[adeframework.org](https://adeframework.org/)); the question and hint texts are written by HEFAISTOS.
 
 Maieutic is Socratic. These questions are asked of the **user**, about their **hypothesis and
 planned detection design**. The user types every answer. The AI may rephrase a question or
@@ -63,9 +66,9 @@ if an upstream id in the list above has no question or has two.
 | `placeholders` | no | Name to plain-language fallback, used when the user has not given that wording yet |
 | `checklist` | no | What a good answer covers. Used only to flag a vague answer, which is advisory and never blocks |
 
-Design flags the planner can derive from the design answers are listed in `DESIGN_FLAGS` in
-`maieutic_questions.py` and in the table above. A test fails if a flag is defined but no question
-uses it. Deriving the flags from the user's answers is not built yet.
+Design flags are derived from the user's design by `derive_design_flags` in `maieutic_planner.py`. They are
+listed in `DESIGN_FLAGS` in `maieutic_questions.py` and in the table above. A test fails if a flag is
+defined but no question uses it.
 
 ## Rules the validator enforces
 

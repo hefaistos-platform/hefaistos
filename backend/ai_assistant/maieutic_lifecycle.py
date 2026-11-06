@@ -1,7 +1,7 @@
 """Lifecycle, visibility and locking rules for MaieuticDraft.
 
 Every write path goes through this module so the FINISHED lock cannot be bypassed by one
-mutation forgetting a check. Rules: Docs/MAIEUTIC_3_SPEC.md sections 9, 9b, 9c.
+mutation forgetting a check. Behaviour for users: Docs/README_MAIEUTIC.md, Sessions.
 """
 
 from django.db import transaction
