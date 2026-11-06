@@ -66,7 +66,7 @@ class MappingTests(SimpleTestCase):
         self.assertNotIn('telemetry_requirements', f)  # deliberately not written
         self.assertNotIn('robustness_level', f)
 
-    def test_blind_spots_hold_limitations_and_unanswered_count_but_not_unknowns(self):
+    def test_blind_spots_hold_only_established_limitations(self):
         blind = mw.workbench_fields(SPEC)['blind_spots']
         self.assertIn('Accepted limitation: Question for ADE2-02? Older Windows builds are not covered', blind)
         self.assertIn('Covered elsewhere: Question for ADE3-01? The EDR rule sees it (covered by: RULE-9)', blind)
@@ -74,7 +74,9 @@ class MappingTests(SimpleTestCase):
         self.assertNotIn('Not known yet', blind)
         self.assertNotIn('ADE4-01', blind)
         self.assertNotIn('no relevance', blind)  # NOT_APPLICABLE is not a limitation
-        self.assertIn('evasion question(s) were not answered', blind)
+        # Remaining Maieutic work is not a finding about the detection.
+        self.assertNotIn('not answered', blind)
+        self.assertNotRegex(blind, r'\d+ evasion question')
 
     def test_invalid_values_are_dropped_not_stored(self):
         spec = {**SPEC, 'playbook_tests': {'default_severity': 'EXTREME', 'alert_trigger': '  '},

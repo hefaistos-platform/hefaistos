@@ -16,7 +16,6 @@ import logging
 from django.db import transaction
 
 from . import maieutic_lifecycle as lifecycle
-from . import maieutic_planner
 from .maieutic_models import MaieuticDraft
 
 logger = logging.getLogger(__name__)
@@ -166,15 +165,14 @@ def workbench_fields(spec):
     false_positives += [f"{_s(x.get('what'))}" + (f" ({_s(x['why'])})" if _s(x.get('why')) else '')
                         for x in _list(design.get('exclusions')) if isinstance(x, dict) and _s(x.get('what'))]
 
-    open_count = len(maieutic_planner.open_items(spec, expert_all=lifecycle.is_expert(spec)))
+    # Only what the engineer established. Unanswered questions are remaining Maieutic work, not findings,
+    # so they are never written into the Workbench.
     blind = []
     for lim in constraints['accepted_limitations']:
         label = {'ACCEPTED_LIMITATION': 'Accepted limitation', 'COVERED_BY_OTHER_RULE': 'Covered elsewhere'}[lim['status']]
         said = lim['engineer_says'] or 'no answer given'
         extra = f" (covered by: {lim['covered_by']})" if lim['covered_by'] else ''
         blind.append(f"{label}: {lim['topic']} {said}{extra}")
-    if open_count:
-        blind.append(f"{open_count} evasion question(s) were not answered in the session.")
 
     fields_out: dict = {
         'title': _s(hyp.get('title')),
