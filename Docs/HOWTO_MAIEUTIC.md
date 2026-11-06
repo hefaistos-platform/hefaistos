@@ -122,6 +122,11 @@ When the counter reads "0 of 10 points still open", select **Next**.
 | Severity | `HIGH` (LOW, MEDIUM, HIGH, CRITICAL) |
 | How would you test that it fires? | `On a lab host run rundll32.exe comsvcs.dll, MiniDump against the lsass.exe process id. Expect one alert and a dump file in the temp folder.` |
 
+Below those fields, stage 5 has three optional lists (**Enrichment**, **Containment**, **Notification**
+steps) and a **Negative tests** block with one entry per evasion point you accepted as a limitation.
+For each one you may write the steps to check that the rule stays silent. Leave them empty to get a
+starting template in the Workbench. Points marked "I do not know yet" do not appear here.
+
 Select **Next**.
 
 ## Step 7: Review and create (stage 6)
@@ -178,3 +183,21 @@ See [instance-sharing-tlp.md](instance-sharing-tlp.md).
 | Create buttons are disabled | The stage 1 minimum is incomplete: title, technique (or "none"), goal |
 | No Data Catalog or Log Source results | Search by a shorter term, for example `sysmon` or `4688`. Ask an administrator whether the catalogs are populated |
 | The banner never clears | Rule generation runs in a background worker. Ask an administrator to check that it is running |
+
+## Step 8: Run and record a negative test (in the Workbench)
+
+A Workbench created from a session that had accepted limitations shows a **Negative tests** panel in
+**Part 5: Testing & Validation**, above the Atomic Red Team block. A Workbench created from a session
+with no accepted limitation has no such panel, and older Workbenches never have one.
+
+1. Open **Part 5** and read the steps. If they carry the "Template" tag they were built from your
+   question and answer, so adapt them to your lab before use.
+2. Run the test yourself on a test host. HEFAISTOS does not run anything.
+3. Under **What happened**, choose *No alert, as accepted* or *Alert raised unexpectedly*, and add notes.
+4. If the rule did fire, the panel warns and a notice appears under **Blind Spots** in Part 2 naming the
+   point. Nothing is rewritten. Decide whether to change the rule or the Blind Spots entry.
+
+Recording a result does not change the Workbench version, its test status or its Blind Spots. Saving
+new steps clears a recorded result, and a result recorded for an earlier version of the rule is flagged
+as out of date.
+
