@@ -251,6 +251,7 @@ PostgreSQL 18+ compatibility note: SHARP uses `/var/lib/postgresql` mount layout
 - Maieutic ADE question bank (format and authoring rules): [MAIEUTIC_ADE_QUESTIONS.md](Docs/MAIEUTIC_ADE_QUESTIONS.md)
 - Maieutic guide: [README_MAIEUTIC.md](Docs/README_MAIEUTIC.md)
 - Maieutic step-by-step walk-through: [HOWTO_MAIEUTIC.md](Docs/HOWTO_MAIEUTIC.md)
+- Recording a test run in a Workbench: [WORKBENCH_TEST_RUNS.md](Docs/WORKBENCH_TEST_RUNS.md)
 - Instance Sharing, TLP maximum and Maieutic session sharing: [instance-sharing-tlp.md](Docs/instance-sharing-tlp.md)
 - Waiting Room / Workbench intake guide (MISP-only ingestion, import ledger, auto-pull): [WAITING_ROOM_WORKBENCH.md](Docs/WAITING_ROOM_WORKBENCH.md)
 - SHARP clean bootstrap operator runbook: [scripts/SHARP_BOOTSTRAP_RUNBOOK.md](scripts/SHARP_BOOTSTRAP_RUNBOOK.md)

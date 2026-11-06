@@ -4,6 +4,7 @@ import SimpleMDE from 'react-simplemde-editor';
 import { configureMdeInstance, MARKDOWN_EDITOR_OPTIONS } from '../../config/markdownConfig';
 import "easymde/dist/easymde.min.css";
 import { NegativeTestsPanel } from './NegativeTests';
+import { TestRunRecord } from './TestRunRecord';
 
 interface TestingProps {
   data: {
@@ -121,7 +122,6 @@ export const TestingGuidance: React.FC<TestingProps> = ({ data, onChange, playbo
   const [targetPreset, setTargetPreset] = useState<'local' | 'lab' | 'remote'>('local');
   const [customHost, setCustomHost] = useState('lab-win-01');
   const [prereqs, setPrereqs] = useState({ toolkit: false, perms: false, network: false });
-  const [validation, setValidation] = useState({ executed: false, fired: false, notes: '' });
   const [atomicTestName, setAtomicTestName] = useState('');
 
   // Helper to generate Atomic Red Team URL
@@ -289,23 +289,7 @@ export const TestingGuidance: React.FC<TestingProps> = ({ data, onChange, playbo
           />
           <p className="text-[10px] text-gray-500 mt-1">Copy a sample log the rule should match.</p>
 
-          <div className="grid grid-cols-2 gap-2 mt-3 text-sm text-gray-700">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={validation.executed} onChange={(e) => setValidation({ ...validation, executed: e.target.checked })} />
-              Test executed
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={validation.fired} onChange={(e) => setValidation({ ...validation, fired: e.target.checked })} />
-              Rule fired
-            </label>
-          </div>
-          <textarea
-            className="w-full h-20 mt-3 p-3 border border-gray-300 rounded text-sm"
-            placeholder="Notes (artifacts observed, rule ID, correlation IDs)"
-            value={validation.notes}
-            onChange={(e) => setValidation({ ...validation, notes: e.target.value })}
-          />
-          <p className="text-[10px] text-gray-500 mt-1">Keep a quick audit trail for review.</p>
+          <TestRunRecord playbookId={playbookId} />
         </div>
       </div>
 
