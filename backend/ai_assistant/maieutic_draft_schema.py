@@ -151,6 +151,10 @@ class MaieuticGenerationStatusType(graphene.ObjectType):
     validation_status = graphene.String()
     has_rule = graphene.Boolean()
     error = graphene.String()
+    # AI-assisted check of the rule against the design decisions. Never a guarantee.
+    traceability = GenericScalar()
+    # True when the rule was auto-repaired after the report was written, so locations may be stale.
+    traceability_rule_repaired = graphene.Boolean()
 
 
 class Query(graphene.ObjectType):

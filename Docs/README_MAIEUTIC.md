@@ -89,6 +89,25 @@ The evasion questions come from the ADE false-negative framework (4 categories, 
 chosen from your own design. ADE covers *what your rule could miss*. It is a different thing from
 robustness against an attacker changing their behaviour, and the two are never merged into one score.
 
+## Where your decisions went in the rule
+
+When a rule is generated from a session, every decision is numbered (`M` must implement, `H` must
+handle, `L` accepted limitation) and the AI that writes the rule reports for each one whether the
+rule implements it and where. The Workbench shows this under the banner as "Where your decisions
+went in the rule".
+
+Read it as a check to review, not as proof:
+
+- It comes from the same model that wrote the rule, so verify the entries you care about against
+  the rule itself.
+- "Not reported" means the model skipped that decision. It does not mean the decision was
+  implemented.
+- A red "Rule claims to cover an accepted limitation" means the rule contradicts something you
+  chose not to cover. Edit the rule or generate again.
+
+If the rule was automatically repaired after validation, the panel says so, because the reported
+locations then refer to the earlier text. The report is stored with the generation result only. It is not written into Workbench fields.
+
 ## Sessions
 
 - Answers save as you go; resume any time from the Maieutics tab.

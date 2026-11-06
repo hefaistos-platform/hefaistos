@@ -295,6 +295,8 @@ def _run_generate_rule(task) -> dict:
         'correlation_ideas': bundle.get('correlation_ideas'),
         'expected_blind_spots': bundle.get('expected_blind_spots'),
         'test_guidance': bundle.get('test_guidance'),
+        **({'traceability': bundle['traceability'], 'traceability_rule_repaired': repair_attempts > 0 and bool(current_rule)}
+           if bundle.get('traceability') else {}),
         'provider_used': provider,
         'output_format': output_format,
         'reference_context': reference_context,

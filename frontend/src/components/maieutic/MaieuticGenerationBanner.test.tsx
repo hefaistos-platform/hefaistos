@@ -44,4 +44,15 @@ describe('MaieuticGenerationBanner', () => {
     expect(screen.getByText(/Generated but not stored \(SPL\)/)).toBeInTheDocument();
     expect(screen.getByText(/Generation failed for EQL. provider down/)).toBeInTheDocument();
   });
+
+  it('shows where the decisions went only when the rule was stored with a trace', () => {
+    const trace = [{ ref: 'M1', group: 'MUST_IMPLEMENT', text: 'Match', implemented: 'yes', where: 'l3', note: '', status: 'REPORTED' }];
+    mockRows = [row({ status: 'COMPLETED', hasRule: true, traceability: trace })];
+    const { unmount } = render(<MaieuticGenerationBanner playbookId="w" />);
+    expect(screen.getByText(/Where your decisions went in the KQL rule: 1 decisions/)).toBeInTheDocument();
+    unmount();
+    mockRows = [row({ status: 'COMPLETED', hasRule: true, traceability: [] })];
+    render(<MaieuticGenerationBanner playbookId="w" />);
+    expect(screen.queryByText(/Where your decisions went/)).not.toBeInTheDocument();
+  });
 });

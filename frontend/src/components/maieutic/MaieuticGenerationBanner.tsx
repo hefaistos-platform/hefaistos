@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { gql, useQuery } from '@apollo/client';
 import { Alert } from 'antd';
+import MaieuticTraceabilityPanel from './MaieuticTraceabilityPanel';
 
 const STATUS_QUERY = gql`
   query MaieuticGenerationStatus($id: UUID!) {
-    maieuticGenerationStatus(workbenchId: $id) { taskId outputFormat status validationStatus hasRule error }
+    maieuticGenerationStatus(workbenchId: $id) { taskId outputFormat status validationStatus hasRule error traceability traceabilityRuleRepaired }
   }
 `;
 
@@ -52,7 +53,9 @@ export const MaieuticGenerationBanner: React.FC<{ playbookId: string; onStored?:
       />
     );
   }
+  const traced = done.find((r) => Array.isArray(r.traceability) && r.traceability.length);
   return (
+    <>
     <Alert
       type={failed.length || noRule.length ? 'warning' : 'success'} showIcon banner closable onClose={() => setHidden(true)}
       message={
@@ -68,6 +71,8 @@ export const MaieuticGenerationBanner: React.FC<{ playbookId: string; onStored?:
         </>
       }
     />
+    {traced && <MaieuticTraceabilityPanel rows={traced.traceability} outputFormat={traced.outputFormat} ruleRepaired={!!traced.traceabilityRuleRepaired} />}
+    </>
   );
 };
 

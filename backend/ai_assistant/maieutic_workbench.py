@@ -339,5 +339,7 @@ def generation_status(workbench_id, user):
         result = t.result_data or {}
         out.append({'task_id': t.id, 'output_format': (t.input_data or {}).get('output_format'),
                     'status': t.status, 'validation_status': result.get('validation_status'),
-                    'has_rule': bool(_s(result.get('rule'))), 'error': t.error_message or ''})
+                    'has_rule': bool(_s(result.get('rule'))), 'error': t.error_message or '',
+                    'traceability': result.get('traceability') or [],
+                    'traceability_rule_repaired': bool(result.get('traceability_rule_repaired'))})
     return out

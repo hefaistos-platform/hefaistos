@@ -372,6 +372,20 @@ The current generator output contract is `rule-bundle-v1` with no constraints sl
 
 The traceability result is AI-assisted and must be labelled as a check, not a guarantee.
 
+**As built.** The contract version string stays `rule-bundle-v1`. The generator snapshot instead
+records `output_contract_extensions: ["traceability"]` for Maieutic Workbenches, because a new
+version string would break prompt-improvement replays of existing snapshots, and the change is
+purely additive: ordinary Workbenches get exactly the same prompt and output as before.
+
+- Decisions are numbered in the prompt: `M1..` must implement, `H1..` must handle, `L1..` accepted
+  limitation. The model reports one entry per reference.
+- A reference the model skipped, or an unusable report, is stored as `NOT_REPORTED` and shown as
+  such. A missing answer is never displayed as a pass.
+- An accepted limitation reported as `yes` or `partial` is marked `CONTRADICTS_LIMITATION`. This
+  check does not depend on trusting the model's `where` or `note` text.
+- The report is stored with the generation task result and shown in the Workbench banner area. It
+  is not written into any Workbench field, so it follows the "facts only" rule for the Workbench.
+
 ## 11. Open items
 
 1. Which catalog fields exactly populate the dropdowns (Log Source first, Data Source second).
