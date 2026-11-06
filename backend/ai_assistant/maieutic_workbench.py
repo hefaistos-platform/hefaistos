@@ -50,6 +50,45 @@ def _text_of(item):
     return _s(item)
 
 
+# Playbook lists as PlaybookGraph stores them: field -> (key that must be filled, text keys, boolean keys).
+STEP_LISTS = {
+    'enrichment_steps': ('action', ('action', 'input', 'output', 'description'), ()),
+    'containment_steps': ('action', ('action', 'description'), ('critical',)),
+    'notification_steps': ('channel', ('channel', 'recipient', 'template'), ()),
+}
+MAX_STEPS = 30
+
+
+def clean_steps(items, field):
+    """Keep only well-formed steps of the shape PlaybookGraph expects. Entries without their key are dropped."""
+    required, text_keys, bool_keys = STEP_LISTS[field]
+    out = []
+    for item in _list(items):
+        if not isinstance(item, dict) or not _s(item.get(required)):
+            continue
+        row = {k: _s(item.get(k))[:2000] for k in text_keys}
+        for k in bool_keys:
+            row[k] = item.get(k) is True
+        out.append(row)
+    return out[:MAX_STEPS]
+
+
+def negative_tests_from_spec(spec):
+    """One negative test per ACCEPTED limitation. Not for 'covered by another rule' and never for unknown answers.
+
+    The steps are the user's own when written in stage 5, otherwise a neutral template built from the question
+    and the user's answer (no AI, nothing invented).
+    """
+    from playbooks import negative_tests as nt
+    written = {}
+    for entry in _list(((spec or {}).get('playbook_tests') or {}).get('negative_tests')):
+        if isinstance(entry, dict) and _s(entry.get('from_ade_id')):
+            written[_s(entry['from_ade_id'])] = _s(entry.get('steps'))
+    return [nt.new_item(e.get('ade_id'), _s(e.get('question_text')), _s(e.get('answer_text')),
+                        steps=written.get(_s(e.get('ade_id')), ''))
+            for e in _ledger(spec) if e.get('disposition') == 'ACCEPTED_LIMITATION']
+
+
 def _bullets(lines):
     return '\n'.join(f'- {line}' for line in lines if line)
 
@@ -188,6 +227,13 @@ def workbench_fields(spec):
         'aggregation_field': _s(wt.get('aggregation_field'))[:100],
         'suppression_window': _s(wt.get('suppression_window'))[:20],
     }
+    for field in STEP_LISTS:
+        steps = clean_steps(play.get(field), field)
+        if steps:
+            fields_out[field] = steps
+    negative = negative_tests_from_spec(spec)
+    if negative:
+        fields_out['negative_tests'] = negative
     if _s(play.get('alert_trigger')):
         fields_out['alert_trigger'] = _s(play['alert_trigger'])
     if play.get('default_severity') in SEVERITIES:
