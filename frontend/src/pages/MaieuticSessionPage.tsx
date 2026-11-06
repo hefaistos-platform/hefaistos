@@ -7,6 +7,7 @@ import {
 import { ArrowLeftOutlined, ArrowRightOutlined, LockOutlined } from '@ant-design/icons';
 import { Field, RecordList, StringList, newId } from '../components/maieutic/MaieuticFormParts';
 import { MaieuticAdeStage, PLAN_QUERY } from '../components/maieutic/MaieuticAdeStage';
+import { MaieuticNegativeTests, acceptedLimitations } from '../components/maieutic/MaieuticNegativeTests';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -96,7 +97,7 @@ export const MaieuticSessionPage: React.FC = () => {
   const [searchTech, { data: techData, loading: techLoading }] = useLazyQuery(TECHNIQUE_QUERY);
   const { data: srcData } = useQuery(SOURCES_QUERY);
   const [loadFields, { data: fieldData }] = useLazyQuery(FIELDS_QUERY, { fetchPolicy: 'network-only' });
-  const [loadPlan, { data: planData }] = useLazyQuery(PLAN_QUERY, { fetchPolicy: 'network-only' });
+  const [loadPlan, { data: planData, error: planError }] = useLazyQuery(PLAN_QUERY, { fetchPolicy: 'network-only' });
 
   const [spec, setSpec] = useState<any>(null);
   const [name, setName] = useState('');
@@ -224,7 +225,8 @@ export const MaieuticSessionPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (stage === 6 && draftId) flush().then(() => loadPlan({ variables: { id: draftId } }));
+    // Stage 4 saves its answers on the server itself, so stages 5 and 6 read the plan back instead of trusting local state.
+    if ((stage === 5 || stage === 6) && draftId) flush().then(() => loadPlan({ variables: { id: draftId } }));
   }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pickedLogIds = arr(spec?.interrogation?.log_sources)
@@ -448,6 +450,46 @@ export const MaieuticSessionPage: React.FC = () => {
               onChange={(e) => setSection('playbook_tests', { test_scenario: e.target.value })} />
             <Input.TextArea rows={2} style={{ maxWidth: 700 }} placeholder="Expected result" value={str(play.test_expected_output)}
               onChange={(e) => setSection('playbook_tests', { test_expected_output: e.target.value })} />
+          </Field>
+          <Field label="Negative tests" help="How to check that the rule stays silent on what you accepted as a limitation.">
+            <MaieuticNegativeTests
+              limitations={acceptedLimitations(planData?.maieuticAdePlan?.items)}
+              loading={!planData && !planError}
+              failed={!!planError}
+              value={arr(play.negative_tests)}
+              onChange={(next) => setSection('playbook_tests', { negative_tests: next })}
+            />
+          </Field>
+          <Field label="Enrichment steps" help="Optional. What extra information should be looked up when this fires?">
+            <RecordList
+              value={arr(play.enrichment_steps)} onChange={(next) => setSection('playbook_tests', { enrichment_steps: next })}
+              addLabel="Add an enrichment step" blank={() => ({ id: newId('en'), action: '', input: '', output: '', description: '' })}
+              fields={[
+                { key: 'action', label: 'Action', width: 180 }, { key: 'input', label: 'Input', width: 140 },
+                { key: 'output', label: 'Output', width: 140 }, { key: 'description', label: 'Description', width: 260, multiline: true },
+              ]}
+            />
+          </Field>
+          <Field label="Containment steps" help="Optional. What can be done to stop the behaviour?">
+            <RecordList
+              value={arr(play.containment_steps)} onChange={(next) => setSection('playbook_tests', { containment_steps: next })}
+              addLabel="Add a containment step" blank={() => ({ id: newId('co'), action: '', critical: false, description: '' })}
+              fields={[
+                { key: 'action', label: 'Action', width: 200 },
+                { key: 'critical', label: 'Critical?', width: 110, options: [{ value: true, label: 'Yes' }, { value: false, label: 'No' }] },
+                { key: 'description', label: 'Description', width: 300, multiline: true },
+              ]}
+            />
+          </Field>
+          <Field label="Notification steps" help="Optional. Who should be told, and how?">
+            <RecordList
+              value={arr(play.notification_steps)} onChange={(next) => setSection('playbook_tests', { notification_steps: next })}
+              addLabel="Add a notification step" blank={() => ({ id: newId('no'), channel: '', recipient: '', template: '' })}
+              fields={[
+                { key: 'channel', label: 'Channel', width: 160 }, { key: 'recipient', label: 'Recipient', width: 220 },
+                { key: 'template', label: 'Template', width: 260, multiline: true },
+              ]}
+            />
           </Field>
         </>
       );

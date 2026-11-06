@@ -35,7 +35,7 @@ export interface ObjField {
   key: string;
   label: string;
   width?: number;
-  options?: { value: string; label: string }[];
+  options?: { value: string | boolean; label: string }[];
   multiline?: boolean;
 }
 
@@ -59,7 +59,7 @@ export const RecordList: React.FC<{
               {f.options ? (
                 <Select
                   style={{ width: f.width ?? 200 }}
-                  value={row[f.key] || undefined}
+                  value={row[f.key] === '' || row[f.key] == null ? undefined : row[f.key]}
                   options={f.options}
                   placeholder="Choose"
                   onChange={(v) => onChange(value.map((r, j) => (j === i ? { ...r, [f.key]: v } : r)))}
