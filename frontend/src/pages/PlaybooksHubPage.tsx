@@ -152,6 +152,7 @@ export const PlaybooksHubPage: React.FC = () => {
   });
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [importHefModalVisible, setImportHefModalVisible] = useState(false);
+  const [maieuticCreateSignal, setMaieuticCreateSignal] = useState(0);
 
   // Handle successful import - refresh the workbenches list
   const handleImportSuccess = () => {
@@ -324,6 +325,14 @@ export const PlaybooksHubPage: React.FC = () => {
     }
   };
 
+  const handleCreateMaieutic = () => {
+    setActiveTab('maieutics');
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', 'maieutics');
+    setSearchParams(next, { replace: true });
+    setMaieuticCreateSignal((prev) => prev + 1);
+  };
+
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="large">
       <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
@@ -353,6 +362,12 @@ export const PlaybooksHubPage: React.FC = () => {
             </Button>
           </Dropdown>
           <Button loading={creatingGraph} onClick={handleCreateGraph}>+ New Workbench</Button>
+          <Button
+            onClick={handleCreateMaieutic}
+            style={{ backgroundColor: '#8a6a00', borderColor: '#6f5500', color: '#fff' }}
+          >
+            New Maieutic
+          </Button>
         </Space>
       </Space>
       
@@ -451,7 +466,7 @@ export const PlaybooksHubPage: React.FC = () => {
             label: 'Maieutics',
             children: (
               <Suspense fallback={<div style={{ padding: 16 }}>Loading Maieutics…</div>}>
-                <MaieuticSessionsTabLazy />
+                <MaieuticSessionsTabLazy openCreateSignal={maieuticCreateSignal} />
               </Suspense>
             )
           }

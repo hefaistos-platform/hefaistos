@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { gql, useMutation, useQuery } from '@apollo/client';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -104,7 +104,11 @@ export function statusTag(status: string) {
 
 const fmt = (value?: string | null) => (value ? new Date(value).toLocaleString() : '–');
 
-export const MaieuticSessionsTab: React.FC = () => {
+interface MaieuticSessionsTabProps {
+  openCreateSignal?: number;
+}
+
+export const MaieuticSessionsTab: React.FC<MaieuticSessionsTabProps> = ({ openCreateSignal = 0 }) => {
   const [messageApi, contextHolder] = message.useMessage();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
@@ -138,6 +142,12 @@ export const MaieuticSessionsTab: React.FC = () => {
   );
 
   const refreshAll = () => { refetch(); if (isAdminView) refetchAdmin(); };
+
+  useEffect(() => {
+    if (openCreateSignal > 0) {
+      setCreateOpen(true);
+    }
+  }, [openCreateSignal]);
 
   const onCreate = async (values: { name?: string; tlp?: string }) => {
     try {
@@ -261,7 +271,7 @@ export const MaieuticSessionsTab: React.FC = () => {
               <br />
               <Text type="secondary">
                 Work through the six stages and create the Workbench, with or without a generated rule.
-                This is the only place to start a Maieutic session.
+                You can start a Maieutic session here or from the Workbench Hub action bar.
               </Text>
             </>
           }
