@@ -162,6 +162,124 @@ class D3fendAttackMapping(models.Model):
 
 
 # ---------------------------------------------------------------------------
+# MITRE ATLAS
+# ---------------------------------------------------------------------------
+
+class AtlasTactic(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    atlas_id = models.CharField(max_length=20, unique=True, db_index=True)  # e.g., AML.TA0001
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    references = models.JSONField(default=list, blank=True)
+    attack_reference = models.JSONField(default=dict, blank=True)
+    created_date = models.DateField(null=True, blank=True)
+    modified_date = models.DateField(null=True, blank=True)
+    atlas_uuid = models.UUIDField(null=True, blank=True)
+    object_type = models.CharField(max_length=50, default='tactic', blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['atlas_id']
+
+    def __str__(self):
+        return f"{self.atlas_id}: {self.name}"
+
+
+class AtlasTechnique(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    atlas_id = models.CharField(max_length=20, unique=True, db_index=True)  # e.g., AML.T0000.001
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    references = models.JSONField(default=list, blank=True)
+    platforms = models.JSONField(default=list, blank=True)
+    maturity = models.CharField(max_length=50, blank=True, default='')
+    attack_reference = models.JSONField(default=dict, blank=True)
+    created_date = models.DateField(null=True, blank=True)
+    modified_date = models.DateField(null=True, blank=True)
+    atlas_uuid = models.UUIDField(null=True, blank=True)
+    object_type = models.CharField(max_length=50, default='technique', blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['atlas_id']
+
+    def __str__(self):
+        return f"{self.atlas_id}: {self.name}"
+
+
+class AtlasMitigation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    atlas_id = models.CharField(max_length=20, unique=True, db_index=True)  # e.g., AML.M0004
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    references = models.JSONField(default=list, blank=True)
+    lifecycle_phases = models.JSONField(default=list, blank=True)
+    categories = models.JSONField(default=list, blank=True)
+    created_date = models.DateField(null=True, blank=True)
+    modified_date = models.DateField(null=True, blank=True)
+    atlas_uuid = models.UUIDField(null=True, blank=True)
+    object_type = models.CharField(max_length=50, default='mitigation', blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['atlas_id']
+
+    def __str__(self):
+        return f"{self.atlas_id}: {self.name}"
+
+
+class AtlasCaseStudy(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    atlas_id = models.CharField(max_length=20, unique=True, db_index=True)  # e.g., AML.CS0000
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    references = models.JSONField(default=list, blank=True)
+    case_study_type = models.CharField(max_length=50, blank=True, default='')
+    actor = models.CharField(max_length=255, blank=True, default='')
+    target = models.TextField(blank=True, default='')
+    reporter = models.CharField(max_length=255, blank=True, default='')
+    start_date = models.DateField(null=True, blank=True)
+    start_date_granularity = models.CharField(max_length=20, blank=True, default='')
+    end_date = models.DateField(null=True, blank=True)
+    end_date_granularity = models.CharField(max_length=20, blank=True, default='')
+    created_date = models.DateField(null=True, blank=True)
+    modified_date = models.DateField(null=True, blank=True)
+    atlas_uuid = models.UUIDField(null=True, blank=True)
+    object_type = models.CharField(max_length=50, default='case-study', blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['atlas_id']
+
+    def __str__(self):
+        return f"{self.atlas_id}: {self.name}"
+
+
+class AtlasRelationship(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source_atlas_id = models.CharField(max_length=20, db_index=True)
+    target_atlas_id = models.CharField(max_length=20, db_index=True)
+    relationship_type = models.CharField(max_length=50, db_index=True)  # e.g., mitigates, employs
+    description = models.TextField(blank=True)
+    tactic_atlas_id = models.CharField(max_length=20, blank=True, default='')
+    step_id = models.CharField(max_length=20, blank=True, default='')
+    leads_to = models.JSONField(default=list, blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['source_atlas_id', 'step_id', 'target_atlas_id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['source_atlas_id', 'target_atlas_id', 'relationship_type', 'step_id'],
+                name='unique_atlas_relationship_step',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.source_atlas_id} {self.relationship_type} {self.target_atlas_id}"
+
+
+# ---------------------------------------------------------------------------
 # ShareTide Vocabulary Index
 # ---------------------------------------------------------------------------
 
@@ -235,6 +353,7 @@ class PlatformDataVersion(models.Model):
         ('ics-attack', 'MITRE ATT&CK ICS'),
         ('mobile-attack', 'MITRE ATT&CK Mobile'),
         ('d3fend', 'MITRE D3FEND'),
+        ('atlas', 'MITRE ATLAS'),
         ('detection-chokepoints', 'Detection Chokepoints'),
         ('ade-framework', 'Adversarial Detection Engineering (ADE)'),
     ]

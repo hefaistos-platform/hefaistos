@@ -10,6 +10,11 @@ from .models import (
     D3fendDefensiveTechnique,
     D3fendDigitalArtifact,
     D3fendAttackMapping,
+    AtlasTactic,
+    AtlasTechnique,
+    AtlasMitigation,
+    AtlasCaseStudy,
+    AtlasRelationship,
     ShareTideIndexEntry,
     PlatformDataVersion,
     MitreImportJob,
@@ -87,6 +92,44 @@ class D3fendAttackMappingAdmin(admin.ModelAdmin):
     list_display = ('d3fend_technique', 'attack_technique', 'relationship')
     list_filter = ('relationship',)
     search_fields = ('d3fend_technique__name', 'attack_technique__technique_id')
+
+# --- ATLAS Models ---
+@admin.register(AtlasTactic)
+class AtlasTacticAdmin(admin.ModelAdmin):
+    list_display = ('atlas_id', 'name', 'modified_date')
+    search_fields = ('atlas_id', 'name', 'description')
+    readonly_fields = ('raw_payload',)
+
+
+@admin.register(AtlasTechnique)
+class AtlasTechniqueAdmin(admin.ModelAdmin):
+    list_display = ('atlas_id', 'name', 'maturity', 'modified_date')
+    list_filter = ('maturity',)
+    search_fields = ('atlas_id', 'name', 'description')
+    readonly_fields = ('raw_payload',)
+
+
+@admin.register(AtlasMitigation)
+class AtlasMitigationAdmin(admin.ModelAdmin):
+    list_display = ('atlas_id', 'name', 'modified_date')
+    search_fields = ('atlas_id', 'name', 'description')
+    readonly_fields = ('raw_payload',)
+
+
+@admin.register(AtlasCaseStudy)
+class AtlasCaseStudyAdmin(admin.ModelAdmin):
+    list_display = ('atlas_id', 'name', 'case_study_type', 'start_date', 'end_date')
+    list_filter = ('case_study_type',)
+    search_fields = ('atlas_id', 'name', 'actor', 'target', 'reporter')
+    readonly_fields = ('raw_payload',)
+
+
+@admin.register(AtlasRelationship)
+class AtlasRelationshipAdmin(admin.ModelAdmin):
+    list_display = ('source_atlas_id', 'relationship_type', 'target_atlas_id', 'step_id', 'tactic_atlas_id')
+    list_filter = ('relationship_type',)
+    search_fields = ('source_atlas_id', 'target_atlas_id', 'relationship_type', 'description', 'step_id')
+    readonly_fields = ('raw_payload',)
 
 # --- ShareTide Index ---
 @admin.register(ShareTideIndexEntry)
