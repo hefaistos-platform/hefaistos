@@ -529,6 +529,22 @@ export const FrameworkUpdatesPage: React.FC = () => {
   const latestAvailable: string | null = latestData?.latestAvailableAttackVersion ?? null;
   const loadedVersions: { framework: string; version: string; importedAt: string }[] =
     versionsData?.loadedAttackVersions ?? [];
+  const orderedLoadedVersions = useMemo(() => {
+    const frameworkOrder: Record<string, number> = {
+      'enterprise-attack': 0,
+      'mitre-attack': 1,
+      atlas: 2,
+      'detection-chokepoints': 3,
+      'ade-framework': 4,
+    };
+
+    return [...loadedVersions].sort((a, b) => {
+      const orderA = frameworkOrder[a.framework] ?? 999;
+      const orderB = frameworkOrder[b.framework] ?? 999;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.framework.localeCompare(b.framework);
+    });
+  }, [loadedVersions]);
   const enterpriseVersion = loadedVersions.find(v => v.framework === 'enterprise-attack')?.version ?? null;
   const hasNewerVersion = !!(latestAvailable && enterpriseVersion && semverGt(latestAvailable, enterpriseVersion));
 
@@ -842,11 +858,11 @@ export const FrameworkUpdatesPage: React.FC = () => {
 
       {/* Current version status */}
       <Card title="Currently Loaded Frameworks" style={{ marginBottom: 24 }}>
-        {loadedVersions.length === 0 ? (
+        {orderedLoadedVersions.length === 0 ? (
           <Text type="secondary">No frameworks loaded yet.</Text>
         ) : (
           <Space direction="vertical" size={4}>
-            {loadedVersions.map(lv => (
+            {orderedLoadedVersions.map(lv => (
               <div key={lv.framework}>
                 <Text strong>{lv.framework}</Text>
                 {': '}
@@ -921,8 +937,6 @@ export const FrameworkUpdatesPage: React.FC = () => {
         )}
       </Card>
 
-      <AtlasFrameworkSection canManage={canManage} />
-
       <Card title="Local ATT&CK Versions" style={{ marginBottom: 24 }}>
         <p>
           Remove older downloaded versions to free disk space. Loaded frameworks and versions
@@ -973,6 +987,8 @@ export const FrameworkUpdatesPage: React.FC = () => {
           tableLayout="fixed"
         />
       </Card>
+
+      <AtlasFrameworkSection canManage={canManage} />
 
       {/* Chokepoint status */}
       <Card title="Detection Chokepoints" style={{ marginBottom: 24 }}>
