@@ -279,6 +279,48 @@ class AtlasRelationship(models.Model):
         return f"{self.source_atlas_id} {self.relationship_type} {self.target_atlas_id}"
 
 
+class AtlasImportJob(models.Model):
+    """Tracks async MITRE ATLAS import runs triggered from the UI."""
+
+    class Mode(models.TextChoices):
+        REMOTE = 'REMOTE', 'Remote'
+        LOCAL = 'LOCAL', 'Local'
+
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        RUNNING = 'RUNNING', 'Running'
+        SUCCESS = 'SUCCESS', 'Success'
+        FAILED = 'FAILED', 'Failed'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source_repo = models.URLField(max_length=512, default='https://github.com/mitre-atlas/atlas-data')
+    source_ref = models.CharField(max_length=100, default='main', help_text="Git ref or commit SHA")
+    mode = models.CharField(max_length=10, choices=Mode.choices, default=Mode.REMOTE)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    summary = models.JSONField(default=dict, blank=True)
+    log = models.TextField(blank=True, default='')
+    error = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    triggered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='atlas_import_jobs',
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'ATLAS Import Job'
+        verbose_name_plural = 'ATLAS Import Jobs'
+
+    def __str__(self):
+        return f"AtlasImportJob {self.source_ref} [{self.status}]"
+
+
 # ---------------------------------------------------------------------------
 # ShareTide Vocabulary Index
 # ---------------------------------------------------------------------------

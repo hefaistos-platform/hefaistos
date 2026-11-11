@@ -15,6 +15,7 @@ from .models import (
     AtlasMitigation,
     AtlasCaseStudy,
     AtlasRelationship,
+    AtlasImportJob,
     ShareTideIndexEntry,
     PlatformDataVersion,
     MitreImportJob,
@@ -130,6 +131,14 @@ class AtlasRelationshipAdmin(admin.ModelAdmin):
     list_filter = ('relationship_type',)
     search_fields = ('source_atlas_id', 'target_atlas_id', 'relationship_type', 'description', 'step_id')
     readonly_fields = ('raw_payload',)
+
+
+@admin.register(AtlasImportJob)
+class AtlasImportJobAdmin(admin.ModelAdmin):
+    list_display = ('id', 'source_repo', 'source_ref', 'mode', 'status', 'triggered_by', 'created_at', 'finished_at')
+    list_filter = ('status', 'mode')
+    search_fields = ('source_repo', 'source_ref')
+    readonly_fields = ('id', 'created_at', 'updated_at', 'started_at', 'finished_at', 'log', 'error', 'summary')
 
 # --- ShareTide Index ---
 @admin.register(ShareTideIndexEntry)

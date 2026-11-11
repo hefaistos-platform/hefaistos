@@ -18,6 +18,16 @@ const SEARCH_TECHNIQUES_QUERY = gql`
   }
 `;
 
+const SEARCH_ATLAS_TECHNIQUES_QUERY = gql`
+  query AtlasTechniques($search: String!, $limit: Int) {
+    atlasTechniques(search: $search, limit: $limit) {
+      id
+      atlasId
+      name
+    }
+  }
+`;
+
 // 2. Get Suggestions (Updated for v18 Strategy Model)
 const GET_SUGGESTIONS_QUERY = gql`
   query GetSuggestions($techniqueId: String!) {
@@ -161,7 +171,9 @@ interface CatalogResourcesData {
 
 interface StrategyProps {
   selectedTechniqueId: string | null;
+  selectedAtlasTechniqueId?: string | null;
   onTechniqueChange: (t: any) => void;
+  onAtlasTechniqueChange?: (t: any) => void;
   onStrategyChange: (strategy: any) => void; // Passes data back to parent
   ruleFormat?: 'KQL' | 'WAZUH' | 'SPL' | 'AQL';
 }
@@ -198,10 +210,11 @@ const parseMitreDescription = (value: string | null | undefined) => {
   };
 };
 
-export const DetectionStrategy = React.memo<StrategyProps>(({ selectedTechniqueId, onTechniqueChange, onStrategyChange, ruleFormat = 'KQL' }) => {
+export const DetectionStrategy = React.memo<StrategyProps>(({ selectedTechniqueId, selectedAtlasTechniqueId, onTechniqueChange, onAtlasTechniqueChange, onStrategyChange, ruleFormat = 'KQL' }) => {
   const { message } = App.useApp();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  const [atlasSearchTerm, setAtlasSearchTerm] = useState('');
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
   
   // Track the last used technique to prevent UI reset during async operations
@@ -248,6 +261,15 @@ export const DetectionStrategy = React.memo<StrategyProps>(({ selectedTechniqueI
     variables: { search: searchTerm },
     skip: searchTerm.length < 3
   });
+
+  const { data: atlasTechData } = useQuery<{ atlasTechniques: Array<{ id: string; atlasId: string; name: string }> }>(
+    SEARCH_ATLAS_TECHNIQUES_QUERY,
+    {
+      variables: { search: atlasSearchTerm, limit: 10 },
+      skip: atlasSearchTerm.trim().length < 2,
+      fetchPolicy: 'cache-and-network',
+    },
+  );
 
   // 2. Get Suggestions based on selected technique (use stable ID to prevent flicker)
   const { data: suggestionData } = useQuery<DetectionSuggestionsData>(GET_SUGGESTIONS_QUERY, {
@@ -675,6 +697,34 @@ ${ruleBody}
             </ul>
          )}
          {stableTechniqueId && <div className="mt-2 font-mono text-green-600">Selected: {stableTechniqueId}</div>}
+       </div>
+
+       <div className="mb-6">
+         <label className="block text-sm font-bold mb-2">MITRE ATLAS Technique</label>
+         <input
+           type="text"
+           className="w-full p-2 border border-gray-300 rounded"
+           placeholder="Search ATLAS technique (e.g. AML.TA0001)..."
+           value={atlasSearchTerm}
+           onChange={(e) => setAtlasSearchTerm(e.target.value)}
+         />
+         {atlasTechData?.atlasTechniques && atlasTechData.atlasTechniques.length > 0 && (
+            <ul className="mt-2 border border-gray-200 rounded max-h-40 overflow-y-auto">
+              {atlasTechData.atlasTechniques.map((t: any) => (
+                <li
+                  key={t.id}
+                  className="p-2 hover:bg-blue-50 cursor-pointer"
+                  onClick={() => {
+                      onAtlasTechniqueChange?.(t);
+                      setAtlasSearchTerm('');
+                  }}
+                >
+                  <strong>{t.atlasId}</strong>: {t.name}
+                </li>
+              ))}
+            </ul>
+         )}
+         {selectedAtlasTechniqueId && <div className="mt-2 font-mono text-green-600">Selected: {selectedAtlasTechniqueId}</div>}
        </div>
 
        {/* B. Detection Strategy Suggestions */}

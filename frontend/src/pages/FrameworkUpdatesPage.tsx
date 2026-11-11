@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Select, Tag, Table, Collapse, Typography, Sp
 import { SyncOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { AdeFrameworkSection } from '../components/framework/AdeFrameworkSection';
+import { AtlasFrameworkSection } from '../components/framework/AtlasFrameworkSection';
 
 const { Text, Title } = Typography;
 const { Panel } = Collapse;
@@ -919,6 +920,8 @@ export const FrameworkUpdatesPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      <AtlasFrameworkSection canManage={canManage} />
 
       <Card title="Local ATT&CK Versions" style={{ marginBottom: 24 }}>
         <p>

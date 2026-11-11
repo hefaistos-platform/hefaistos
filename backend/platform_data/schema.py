@@ -27,6 +27,7 @@ from .models import (
     MitreAnalytic, MitreDetectionStrategy,
     D3fendDefensiveTechnique, D3fendDigitalArtifact, D3fendAttackMapping,
     ShareTideIndexEntry, PlatformDataVersion, MitreImportJob,
+    AtlasTactic, AtlasTechnique as AtlasTechniqueModel, AtlasMitigation, AtlasCaseStudy, AtlasRelationship, AtlasImportJob,
     ChokepointSnapshot, ChokepointEntry, ChokepointImportJob,
     AdeSnapshot, AdeEntry, AdeImportJob,
 )
@@ -74,6 +75,83 @@ class MitreAttackTechniqueType(DjangoObjectType):
 
     def resolve_detection_strategies(self, info):
         return self.detection_strategies.all()
+
+
+class AtlasTacticType(DjangoObjectType):
+    class Meta:
+        model = AtlasTactic
+        fields = (
+            "id", "atlas_id", "name", "description", "references",
+            "attack_reference", "created_date", "modified_date",
+            "atlas_uuid", "object_type", "raw_payload",
+        )
+
+
+class AtlasTechniqueType(DjangoObjectType):
+    class Meta:
+        model = AtlasTechniqueModel
+        fields = (
+            "id", "atlas_id", "name", "description", "references",
+            "platforms", "maturity", "attack_reference", "created_date",
+            "modified_date", "atlas_uuid", "object_type", "raw_payload",
+        )
+
+
+class AtlasMitigationType(DjangoObjectType):
+    class Meta:
+        model = AtlasMitigation
+        fields = (
+            "id", "atlas_id", "name", "description", "references",
+            "lifecycle_phases", "categories", "created_date",
+            "modified_date", "atlas_uuid", "object_type", "raw_payload",
+        )
+
+
+class AtlasCaseStudyType(DjangoObjectType):
+    class Meta:
+        model = AtlasCaseStudy
+        fields = (
+            "id", "atlas_id", "name", "description", "references",
+            "case_study_type", "actor", "target", "reporter",
+            "start_date", "start_date_granularity", "end_date",
+            "end_date_granularity", "created_date", "modified_date",
+            "atlas_uuid", "object_type", "raw_payload",
+        )
+
+
+class AtlasRelationshipType(DjangoObjectType):
+    class Meta:
+        model = AtlasRelationship
+        fields = (
+            "id", "source_atlas_id", "target_atlas_id", "relationship_type",
+            "description", "tactic_atlas_id", "step_id", "leads_to",
+            "raw_payload",
+        )
+
+
+class AtlasImportJobType(DjangoObjectType):
+    duration_seconds = graphene.Float(description="Wall-clock duration in seconds, or null if not finished.")
+
+    class Meta:
+        model = AtlasImportJob
+        fields = (
+            "id", "source_repo", "source_ref", "mode", "status",
+            "summary", "log", "error", "created_at", "updated_at",
+            "started_at", "finished_at", "triggered_by",
+        )
+
+    def resolve_duration_seconds(self, info):
+        if self.started_at and self.finished_at:
+            return (self.finished_at - self.started_at).total_seconds()
+        return None
+
+
+class AtlasCoverageSummaryType(graphene.ObjectType):
+    total_tactics = graphene.Int()
+    total_techniques = graphene.Int()
+    total_mitigations = graphene.Int()
+    total_case_studies = graphene.Int()
+    total_relationships = graphene.Int()
 
 
 class PlatformDataVersionType(graphene.ObjectType):
@@ -431,6 +509,29 @@ class Query(graphene.ObjectType):
         description="Returns the ATT&CK / D3FEND versions currently loaded in the database",
     )
 
+    atlas_coverage_summary = graphene.Field(
+        AtlasCoverageSummaryType,
+        description="Return the current counts of imported MITRE ATLAS objects.",
+    )
+
+    atlas_tactic = graphene.Field(AtlasTacticType, atlas_id=graphene.String(required=True))
+    atlas_tactics = graphene.List(AtlasTacticType, search=graphene.String(), limit=graphene.Int(default_value=200))
+    atlas_technique = graphene.Field(AtlasTechniqueType, atlas_id=graphene.String(required=True))
+    atlas_techniques = graphene.List(AtlasTechniqueType, search=graphene.String(), limit=graphene.Int(default_value=200), maturity=graphene.String())
+    atlas_mitigation = graphene.Field(AtlasMitigationType, atlas_id=graphene.String(required=True))
+    atlas_mitigations = graphene.List(AtlasMitigationType, search=graphene.String(), limit=graphene.Int(default_value=200))
+    atlas_case_study = graphene.Field(AtlasCaseStudyType, atlas_id=graphene.String(required=True))
+    atlas_case_studies = graphene.List(AtlasCaseStudyType, search=graphene.String(), limit=graphene.Int(default_value=200))
+    atlas_relationship = graphene.Field(AtlasRelationshipType, source_atlas_id=graphene.String(), target_atlas_id=graphene.String())
+    atlas_relationships = graphene.List(AtlasRelationshipType, search=graphene.String(), limit=graphene.Int(default_value=200))
+    atlas_import_job = graphene.Field(AtlasImportJobType, id=graphene.UUID(required=True), description="Get a single ATLAS import job by ID.")
+    atlas_import_jobs = graphene.List(AtlasImportJobType, limit=graphene.Int(default_value=20), description="List recent ATLAS import jobs, newest first.")
+    latest_available_atlas_revision = graphene.String(
+        source_repo=graphene.String(default_value="https://github.com/mitre-atlas/atlas-data"),
+        ref=graphene.String(default_value="main"),
+        description="Resolve the latest commit SHA for the upstream ATLAS repository.",
+    )
+
     local_attack_versions = graphene.List(LocalAttackVersionType)
 
     latest_available_attack_version = graphene.String(
@@ -574,6 +675,85 @@ class Query(graphene.ObjectType):
         if not include_revoked:
             qs = qs.filter(revoked=False, deprecated=False)
         return qs
+
+    def resolve_atlas_coverage_summary(self, info):
+        return AtlasCoverageSummaryType(
+            total_tactics=AtlasTactic.objects.count(),
+            total_techniques=AtlasTechniqueModel.objects.count(),
+            total_mitigations=AtlasMitigation.objects.count(),
+            total_case_studies=AtlasCaseStudy.objects.count(),
+            total_relationships=AtlasRelationship.objects.count(),
+        )
+
+    def resolve_atlas_tactic(self, info, atlas_id):
+        return AtlasTactic.objects.filter(atlas_id__iexact=atlas_id).first()
+
+    def resolve_atlas_tactics(self, info, search=None, limit=200):
+        qs = AtlasTactic.objects.all()
+        if search:
+            qs = qs.filter(models.Q(name__icontains=search) | models.Q(atlas_id__icontains=search) | models.Q(description__icontains=search))
+        return qs[: max(1, min(int(limit or 200), 1000))]
+
+    def resolve_atlas_technique(self, info, atlas_id):
+        return AtlasTechniqueModel.objects.filter(atlas_id__iexact=atlas_id).first()
+
+    def resolve_atlas_techniques(self, info, search=None, limit=200, maturity=None):
+        qs = AtlasTechniqueModel.objects.all()
+        if search:
+            qs = qs.filter(models.Q(name__icontains=search) | models.Q(atlas_id__icontains=search) | models.Q(description__icontains=search))
+        if maturity:
+            qs = qs.filter(maturity__icontains=maturity)
+        return qs[: max(1, min(int(limit or 200), 1000))]
+
+    def resolve_atlas_mitigation(self, info, atlas_id):
+        return AtlasMitigation.objects.filter(atlas_id__iexact=atlas_id).first()
+
+    def resolve_atlas_mitigations(self, info, search=None, limit=200):
+        qs = AtlasMitigation.objects.all()
+        if search:
+            qs = qs.filter(models.Q(name__icontains=search) | models.Q(atlas_id__icontains=search) | models.Q(description__icontains=search))
+        return qs[: max(1, min(int(limit or 200), 1000))]
+
+    def resolve_atlas_case_study(self, info, atlas_id):
+        return AtlasCaseStudy.objects.filter(atlas_id__iexact=atlas_id).first()
+
+    def resolve_atlas_case_studies(self, info, search=None, limit=200):
+        qs = AtlasCaseStudy.objects.all()
+        if search:
+            qs = qs.filter(models.Q(name__icontains=search) | models.Q(atlas_id__icontains=search) | models.Q(actor__icontains=search) | models.Q(target__icontains=search))
+        return qs[: max(1, min(int(limit or 200), 1000))]
+
+    def resolve_atlas_relationship(self, info, source_atlas_id=None, target_atlas_id=None):
+        qs = AtlasRelationship.objects.all()
+        if source_atlas_id:
+            qs = qs.filter(source_atlas_id__iexact=source_atlas_id)
+        if target_atlas_id:
+            qs = qs.filter(target_atlas_id__iexact=target_atlas_id)
+        return qs.first()
+
+    def resolve_atlas_relationships(self, info, search=None, limit=200):
+        qs = AtlasRelationship.objects.all()
+        if search:
+            qs = qs.filter(models.Q(source_atlas_id__icontains=search) | models.Q(target_atlas_id__icontains=search) | models.Q(relationship_type__icontains=search) | models.Q(description__icontains=search))
+        return qs[: max(1, min(int(limit or 200), 1000))]
+
+    def resolve_atlas_import_job(self, info, id):
+        _require_superuser(info)
+        try:
+            return AtlasImportJob.objects.get(id=id)
+        except AtlasImportJob.DoesNotExist:
+            return None
+
+    def resolve_atlas_import_jobs(self, info, limit=20):
+        _require_superuser(info)
+        return AtlasImportJob.objects.all()[: max(1, min(int(limit or 20), 100))]
+
+    def resolve_latest_available_atlas_revision(self, info, source_repo="https://github.com/mitre-atlas/atlas-data", ref="main"):
+        try:
+            from platform_data.atlas_sync import fetch_latest_ref_sha
+            return fetch_latest_ref_sha(source_repo, ref)
+        except Exception:
+            return None
 
     def resolve_loaded_attack_versions(self, info):
         rows = PlatformDataVersion.objects.all().order_by('framework')
@@ -1055,6 +1235,36 @@ class RunMitreImport(graphene.Mutation):
         return RunMitreImport(job=job)
 
 
+class RunAtlasImport(graphene.Mutation):
+    """Admin-only mutation to trigger an async MITRE ATLAS import job."""
+
+    class Arguments:
+        source_repo = graphene.String(default_value="https://github.com/mitre-atlas/atlas-data", description="Source repository URL.")
+        ref = graphene.String(default_value="main", description="Source git ref (branch/tag/commit).")
+        mode = graphene.String(default_value="remote", description="'remote' or 'local'")
+
+    job = graphene.Field(AtlasImportJobType)
+
+    @staticmethod
+    def mutate(root, info, source_repo="https://github.com/mitre-atlas/atlas-data", ref="main", mode="remote"):
+        from .tasks import run_atlas_import_job
+
+        user = _require_superuser(info)
+        mode_upper = str(mode).upper().strip()
+        if mode_upper not in (AtlasImportJob.Mode.REMOTE, AtlasImportJob.Mode.LOCAL):
+            mode_upper = AtlasImportJob.Mode.REMOTE
+
+        job = AtlasImportJob.objects.create(
+            source_repo=(source_repo or "https://github.com/mitre-atlas/atlas-data").strip(),
+            source_ref=(ref or "main").strip(),
+            mode=mode_upper,
+            status=AtlasImportJob.Status.PENDING,
+            triggered_by=user,
+        )
+        run_atlas_import_job(str(job.id))
+        return RunAtlasImport(job=job)
+
+
 class RemoveLocalAttackVersion(graphene.Mutation):
     class Arguments:
         version = graphene.String(required=True)
@@ -1261,6 +1471,9 @@ class Mutation(graphene.ObjectType):
     remove_local_attack_version = RemoveLocalAttackVersion.Field()
     run_mitre_import = RunMitreImport.Field(
         description="Trigger an async MITRE ATT&CK import (admin only)."
+    )
+    run_atlas_import = RunAtlasImport.Field(
+        description="Trigger an async MITRE ATLAS import (admin only)."
     )
     run_chokepoint_import = RunChokepointImport.Field(
         description="Trigger an async detection-chokepoints import (admin only)."

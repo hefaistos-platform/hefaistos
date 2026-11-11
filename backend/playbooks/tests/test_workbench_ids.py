@@ -5,7 +5,7 @@ from django.test import TestCase
 from graphene_django.utils.testing import GraphQLTestCase
 
 from organizations.models import Organization
-from platform_data.models import MitreAttackTechnique
+from platform_data.models import AtlasTechnique, MitreAttackTechnique
 from playbooks.models import PlaybookGraph, WorkbenchIdCounter
 
 
@@ -128,6 +128,40 @@ class WorkbenchIdGraphQLTests(GraphQLTestCase):
         self.assertEqual(payload["customId"], initial_id)
         self.assertEqual(self.graph.custom_id, initial_id)
         self.assertEqual(self.graph.mitre_technique_id, self.technique_b.id)
+
+    def test_updating_atlas_technique_sets_workbench_reference(self):
+        atlas_technique = AtlasTechnique.objects.create(
+            atlas_id='AML.T0000.001',
+            name='Credential Access via ATLAS',
+            description='Atlas technique used in testing.',
+        )
+
+        mutation = """
+            mutation UpdateAtlasTechnique($graphId: UUID!, $atlasTechniqueId: String) {
+                updatePlaybookDetails(
+                    graphId: $graphId,
+                    atlasTechniqueId: $atlasTechniqueId
+                ) {
+                    graph {
+                        id
+                        atlasTechnique { atlasId name }
+                    }
+                }
+            }
+        """
+        response = self.query(
+            mutation,
+            variables={
+                "graphId": str(self.graph.id),
+                "atlasTechniqueId": atlas_technique.atlas_id,
+            },
+        )
+        self.assertResponseNoErrors(response)
+        payload = json.loads(response.content)["data"]["updatePlaybookDetails"]["graph"]
+
+        self.graph.refresh_from_db()
+        self.assertEqual(payload["atlasTechnique"]["atlasId"], atlas_technique.atlas_id)
+        self.assertEqual(self.graph.atlas_technique_id, atlas_technique.id)
 
     def test_create_workbench_auto_prefixes_title_with_custom_id(self):
         mutation = """

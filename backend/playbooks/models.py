@@ -5,7 +5,7 @@ from django.db.models import JSONField
 from django.db import transaction
 from organizations.models import Organization
 from identity.models import CustomUser
-from platform_data.models import MitreAttackTechnique, MitreIcsTechnique, MitreMobileTechnique
+from platform_data.models import AtlasTechnique, MitreAttackTechnique, MitreIcsTechnique, MitreMobileTechnique
 from taggit.managers import TaggableManager
 from tags.models import TaggedPlaybook, TaggedGraph
 """
@@ -405,6 +405,14 @@ class PlaybookGraph(models.Model):
     
     # --- PART 1: DETECTION STRATEGY (Global for this Playbook) ---
     mitre_technique = models.ForeignKey(MitreAttackTechnique, on_delete=models.SET_NULL, null=True, blank=True)
+    atlas_technique = models.ForeignKey(
+        AtlasTechnique,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='playbook_graphs',
+        help_text='Selected MITRE ATLAS technique for this workbench.',
+    )
     
     # D3FEND defensive techniques
     d3fend_techniques = models.ManyToManyField(

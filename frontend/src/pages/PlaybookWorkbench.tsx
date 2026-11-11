@@ -94,6 +94,7 @@ const GET_PLAYBOOK_GRAPH_QUERY = gql`
       
       # --- Strategy & Context ---
       mitreTechnique { id techniqueId name }
+      atlasTechnique { id atlasId name }
       selectedCapabilityAbstractions {
         id
         abstractionLayer
@@ -248,6 +249,7 @@ const UPDATE_PLAYBOOK_DETAILS_MUTATION = gql`
   mutation UpdatePlaybookDetails(
     $graphId: UUID!, 
     $mitreTechniqueId: String,
+    $atlasTechniqueId: String,
     $selectedStrategy: JSONString,
     $detectionRule: String,
     $detectionRuleFormat: String,
@@ -282,6 +284,7 @@ const UPDATE_PLAYBOOK_DETAILS_MUTATION = gql`
     updatePlaybookDetails(
       graphId: $graphId,
       mitreTechniqueId: $mitreTechniqueId,
+      atlasTechniqueId: $atlasTechniqueId,
       selectedStrategy: $selectedStrategy,
       detectionRule: $detectionRule,
       detectionRuleFormat: $detectionRuleFormat,
@@ -316,6 +319,7 @@ const UPDATE_PLAYBOOK_DETAILS_MUTATION = gql`
       graph {
         id
         mitreTechnique { id techniqueId name }
+        atlasTechnique { id atlasId name }
         selectedStrategy
         detectionRule
       detectionRuleFormat
@@ -1343,6 +1347,7 @@ export const PlaybookWorkbench = () => {
   useEffect(() => {
     if (isNewPlaybook) {
       const techniqueId = searchParams.get('technique');
+      const atlasTechniqueId = searchParams.get('atlasTechnique');
       
       const createAndSetup = async () => {
         // Use the standard workbench default title
@@ -1365,6 +1370,15 @@ export const PlaybookWorkbench = () => {
                 variables: {
                   graphId: newId,
                   mitreTechniqueId: techniqueId
+                }
+              });
+            }
+
+            if (atlasTechniqueId) {
+              await updatePlaybookDetails({
+                variables: {
+                  graphId: newId,
+                  atlasTechniqueId,
                 }
               });
             }
@@ -1409,6 +1423,17 @@ export const PlaybookWorkbench = () => {
       }
     }
   }, [playbookId, updatePlaybookDetails, updatePlaybookTags, data]);
+
+  const handleAtlasTechniqueChange = useCallback(async (technique: any) => {
+    if (!playbookId) return;
+
+    await updatePlaybookDetails({
+      variables: {
+        graphId: playbookId,
+        atlasTechniqueId: technique?.atlasId || technique?.techniqueId || "",
+      }
+    });
+  }, [playbookId, updatePlaybookDetails]);
 
   // Telemetry Tagging (Milestone 1): trigger AI derivation. The five-field
   // gate is enforced server-side in the mutation; this handler just surfaces
@@ -2402,7 +2427,9 @@ export const PlaybookWorkbench = () => {
                          <>
                            <DetectionStrategy 
                              selectedTechniqueId={data.playbookGraph.mitreTechnique?.techniqueId || null}
+                             selectedAtlasTechniqueId={data.playbookGraph.atlasTechnique?.atlasId || null}
                              onTechniqueChange={handleTechniqueChange}
+                             onAtlasTechniqueChange={handleAtlasTechniqueChange}
                              onStrategyChange={handleStrategyChange}
                              ruleFormat={aiFormat === 'FREE' || aiFormat === 'EQL' ? undefined : aiFormat}
                            />

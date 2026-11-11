@@ -120,6 +120,82 @@ def _execute_mitre_job(job_id: str) -> None:
     )
 
 
+def run_atlas_import_job(job_id: str) -> None:
+    """Dispatch an ATLAS import in a daemon thread."""
+    t = threading.Thread(target=_execute_atlas_job, args=(job_id,), daemon=True)
+    t.start()
+
+
+def _execute_atlas_job(job_id: str) -> None:
+    """Background thread: run the ATLAS import command and persist results."""
+    from django.core.management import call_command
+    from platform_data.models import AtlasImportJob
+
+    try:
+        job = AtlasImportJob.objects.get(id=job_id)
+    except AtlasImportJob.DoesNotExist:
+        logger.error("AtlasImportJob %s not found", job_id)
+        return
+
+    job.status = AtlasImportJob.Status.RUNNING
+    job.started_at = datetime.now(tz=timezone.utc)
+    job.save(update_fields=['status', 'started_at', 'updated_at'])
+
+    _emit_import_audit_event(
+        framework='atlas',
+        action='start',
+        outcome='success',
+        level='informational',
+        reason='MITRE ATLAS import job started.',
+        user_id=str(getattr(job.triggered_by, 'id', '') or '') or None,
+        user_name=getattr(job.triggered_by, 'username', None),
+        extra_context={
+            'job_id': str(job.id),
+            'source_repo': job.source_repo,
+            'source_ref': job.source_ref,
+            'mode': job.mode,
+        },
+    )
+
+    stdout_buf = io.StringIO()
+    stderr_buf = io.StringIO()
+
+    try:
+        call_command(
+            'import_atlas_framework',
+            source_repo=job.source_repo,
+            ref=job.source_ref,
+            mode=job.mode.lower(),
+            stdout=stdout_buf,
+            stderr=stderr_buf,
+        )
+        job.status = AtlasImportJob.Status.SUCCESS
+        job.error = stderr_buf.getvalue()
+    except Exception as exc:
+        logger.exception("AtlasImportJob %s failed: %s", job_id, exc)
+        job.status = AtlasImportJob.Status.FAILED
+        job.error = f"{exc}\n\n{stderr_buf.getvalue()}"
+
+    job.log = stdout_buf.getvalue()
+    job.finished_at = datetime.now(tz=timezone.utc)
+    job.save(update_fields=['status', 'log', 'error', 'finished_at', 'updated_at'])
+
+    _emit_import_audit_event(
+        framework='atlas',
+        action='finish',
+        outcome='failure' if job.status == AtlasImportJob.Status.FAILED else 'success',
+        level='warning' if job.status == AtlasImportJob.Status.FAILED else 'informational',
+        reason=(job.error or job.log or job.status)[:500],
+        user_id=str(getattr(job.triggered_by, 'id', '') or '') or None,
+        user_name=getattr(job.triggered_by, 'username', None),
+        extra_context={
+            'job_id': str(job.id),
+            'status': job.status,
+            'mode': job.mode,
+        },
+    )
+
+
 def run_chokepoint_import_job(job_id: str) -> None:
     """
     Dispatch a detection-chokepoints import in a daemon thread.

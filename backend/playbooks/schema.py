@@ -51,8 +51,9 @@ from identity.decorators import role_required, Roles, is_bot_auditor_user
 from identity.schema import UserType
 from review.schema import ReviewRequestType, ReviewCommentType
 from organizations.schema import OrganizationType
-from platform_data.schema import D3fendTechniqueType
+from platform_data.schema import AtlasTechniqueType, D3fendTechniqueType
 from platform_data.models import (
+    AtlasTechnique,
     MitreAttackTechnique,
     MitreIcsTechnique,
     MitreMobileTechnique,
@@ -862,6 +863,7 @@ class PlaybookGraphType(DjangoObjectType):
 
     # --- NEW STRATEGY FIELDS ---
     mitre_technique = graphene.Field(MitreAttackTechniqueType)
+    atlas_technique = graphene.Field(AtlasTechniqueType)
     selected_strategy = graphene.JSONString()
     detection_rule = graphene.String()
     
@@ -928,7 +930,7 @@ class PlaybookGraphType(DjangoObjectType):
         fields = (
             "id", "title", "status", "is_shared", "allow_remote_pull", "author", "organization", "updated_at", "created_at",
             "nodes", "edges", "notes", "playbooks", "png_snapshot",
-            "mitre_technique", "selected_strategy", "detection_rule", "detection_rule_format",
+            "mitre_technique", "atlas_technique", "selected_strategy", "detection_rule", "detection_rule_format",
              "goal", "technical_context", "blind_spots", "triage_guidance",
              "false_positives", "response_playbook",
              "test_scenario", "test_expected_output",
@@ -3499,6 +3501,7 @@ class UpdatePlaybookDetails(graphene.Mutation):
         
         # Strategy
         mitre_technique_id = graphene.String()
+        atlas_technique_id = graphene.String()
         selected_strategy = graphene.JSONString()
         detection_rule = graphene.String()
         detection_rule_format = graphene.String()
@@ -3585,6 +3588,18 @@ class UpdatePlaybookDetails(graphene.Mutation):
                     pass # Or raise error
             else:
                 graph.mitre_technique = None
+
+        if 'atlas_technique_id' in kwargs:
+            atlas_tid = kwargs.get('atlas_technique_id')
+            if atlas_tid:
+                try:
+                    atlas_tech = AtlasTechnique.objects.get(atlas_id=atlas_tid)
+                    if graph.atlas_technique != atlas_tech:
+                        graph.atlas_technique = atlas_tech
+                except AtlasTechnique.DoesNotExist:
+                    pass
+            else:
+                graph.atlas_technique = None
 
         # 2. Handle Version Bump (semantic versioning: major.minor)
         # Major bump (detection_rule or robustness_level change) → increment major, reset minor
