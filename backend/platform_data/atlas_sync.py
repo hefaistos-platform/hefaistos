@@ -7,6 +7,7 @@ import re
 from urllib.parse import urlparse
 
 import requests
+import yaml
 
 DEFAULT_ATLAS_REPO = "https://github.com/mitre-atlas/atlas-data"
 DEFAULT_ATLAS_REF = "main"
@@ -62,36 +63,66 @@ def fetch_latest_ref_sha(source_repo: str = DEFAULT_ATLAS_REPO, ref: str = DEFAU
     return sha or None
 
 
+_MANIFEST_PATH = "dist/manifest.yaml"
+_RELEASE_PATH_RE = re.compile(r"^dist/v\d+/ATLAS-\d{4}\.\d{2}\.ya?ml$")
+
+
+def latest_path_from_manifest(manifest_text: str) -> tuple[str, str] | None:
+    """Return ``(repo_path, release)`` of the newest release listed in ``dist/manifest.yaml``.
+
+    The upstream manifest lists releases newest first; the entry's ``versions[].path`` is
+    relative to ``dist/``. ``dist/ATLAS-latest.yaml`` itself is a git symlink, so raw
+    downloads of it only return the target path text, not YAML content.
+    """
+    try:
+        data = yaml.safe_load(manifest_text)
+    except yaml.YAMLError:
+        return None
+    if not isinstance(data, list):
+        return None
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+        release = str(entry.get("release") or "").strip()
+        for version in entry.get("versions") or []:
+            rel_path = str((version or {}).get("path") or "").strip().lstrip("/")
+            if rel_path.lower().endswith((".yaml", ".yml")):
+                return f"dist/{rel_path}", release
+    return None
+
+
 def list_remote_atlas_paths(
     source_repo: str = DEFAULT_ATLAS_REPO,
     ref: str = DEFAULT_ATLAS_REF,
 ) -> list[str]:
-    """Return YAML files under the upstream ATLAS repository tree."""
+    """Return the single YAML file holding the current ATLAS release.
+
+    Only the newest release is imported. The upstream repo also holds CI workflows, the
+    deprecated ``dist/ATLAS.yaml`` and dozens of historical releases; importing those would
+    resurrect retired tactics/techniques as if they were current.
+    """
+    try:
+        manifest = fetch_remote_atlas_text(source_repo, ref, _MANIFEST_PATH)
+    except requests.RequestException:
+        manifest = ""
+    latest = latest_path_from_manifest(manifest) if manifest else None
+    if latest:
+        return [latest[0]]
+
+    # Fallback: newest dist/vN/ATLAS-YYYY.MM.yaml in the git tree.
     owner, repo = parse_github_repo(source_repo)
     payload = _github_json(
         f"{_GITHUB_API_BASE}/repos/{owner}/{repo}/git/trees/{ref}?recursive=1",
         timeout=20,
     )
     rows = payload.get("tree") or []
-    if not isinstance(rows, list):
-        return []
-
-    result: list[str] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        if str(row.get("type") or "").lower() != "blob":
-            continue
-        path = str(row.get("path") or "").strip()
-        lower = path.lower()
-        if not (lower.endswith(".yml") or lower.endswith(".yaml")):
-            continue
-        if any(tag in lower for tag in ("readme", "license", "changelog")):
-            continue
-        result.append(path)
-
-    result.sort()
-    return result
+    candidates = [
+        str(row.get("path") or "")
+        for row in rows
+        if isinstance(row, dict) and str(row.get("type") or "").lower() == "blob"
+    ]
+    candidates = sorted(path for path in candidates if _RELEASE_PATH_RE.match(path))
+    return candidates[-1:]
 
 
 def build_remote_raw_url(source_repo: str, ref: str, path: str) -> str:

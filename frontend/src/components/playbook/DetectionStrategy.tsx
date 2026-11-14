@@ -704,7 +704,7 @@ ${ruleBody}
          <input
            type="text"
            className="w-full p-2 border border-gray-300 rounded"
-           placeholder="Search ATLAS technique (e.g. AML.TA0001)..."
+           placeholder="Search ATLAS technique (e.g. AML.T0051)..."
            value={atlasSearchTerm}
            onChange={(e) => setAtlasSearchTerm(e.target.value)}
          />

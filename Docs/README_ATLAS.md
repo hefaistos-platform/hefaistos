@@ -46,7 +46,8 @@ These objects store the upstream ATLAS taxonomy, metadata, references, and the i
 The import pipeline is built around the same pattern as other framework loaders:
 
 - fetch upstream repository metadata
-- parse the upstream ATLAS YAML files
+- parse only the newest upstream ATLAS release (resolved from `dist/manifest.yaml`; `dist/ATLAS-latest.yaml` is a git symlink and cannot be fetched raw). Older releases, the deprecated `dist/ATLAS.yaml` and CI files are never imported, so retired objects cannot appear as current. The stored version stays the commit SHA so the update check keeps working
+- import relationships from the upstream `relationships:` section (entries have no `id` and use hyphenated keys such as `relationship-type`, `step-id`, `leads-to`)
 - normalize the data into HEFAISTOS models
 - record a statusful import job
 - expose the updated counts through GraphQL

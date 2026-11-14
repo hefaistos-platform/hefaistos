@@ -15,6 +15,7 @@ from platform_data.atlas_sync import (
     DEFAULT_ATLAS_REPO,
     fetch_latest_ref_sha,
     fetch_remote_atlas_text,
+    latest_path_from_manifest,
     list_remote_atlas_paths,
     normalize_git_ref,
 )
@@ -70,6 +71,23 @@ def _normalize_text(value: Any) -> str:
     if isinstance(value, str):
         return value.strip()
     return str(value).strip()
+
+
+def _get(record: dict[str, Any], *names: str) -> Any:
+    """First non-empty value among ``names``; also tries snake_case/hyphenated variants.
+
+    Upstream ATLAS YAML uses hyphenated keys (``created-date``, ``start-date-granularity``).
+    """
+    candidates: list[Any] = []
+    for name in names:
+        candidates.append(record.get(name))
+        candidates.append(record.get(name.replace("_", "-")))
+    return _first_non_empty(*candidates)
+
+
+def _coerce_uuid(value: Any) -> str | None:
+    text = _normalize_text(value)
+    return text if re.fullmatch(r"[0-9a-fA-F-]{36}", text) else None
 
 
 def _coerce_date(value: Any) -> date | None:
@@ -184,6 +202,7 @@ def _maybe_record_relationship(record: dict[str, Any]) -> dict[str, Any] | None:
     )
     relationship_type = _first_non_empty(
         record.get("relationship_type"),
+        record.get("relationship-type"),
         record.get("relationshipType"),
         record.get("relationship"),
         record.get("type"),
@@ -205,11 +224,33 @@ def _maybe_record_relationship(record: dict[str, Any]) -> dict[str, Any] | None:
         "target_atlas_id": target_text.upper(),
         "relationship_type": str(relationship_type).strip(),
         "description": _normalize_text(record.get("description") or record.get("description")),
-        "tactic_atlas_id": "",
-        "step_id": "",
-        "leads_to": [],
+        "tactic_atlas_id": _normalize_text(record.get("tactic")).upper(),
+        "step_id": _normalize_text(_get(record, "step_id")),
+        "leads_to": [_normalize_text(x) for x in _as_list(_get(record, "leads_to")) if _normalize_text(x)],
         "raw_payload": _json_compatible(record),
     }
+
+
+def _iter_relationship_entries(document: Any) -> Iterable[dict[str, Any]]:
+    """Yield relationship dicts from upstream's ``relationships:`` section.
+
+    Shape: ``{<source id>: {<relationship-type>: [ {source, target, relationship-type, ...} ]}}``.
+    Entries carry no ``id`` of their own, so the generic object walker never sees them.
+    """
+    if not isinstance(document, dict):
+        return
+    section = document.get("relationships")
+    if not isinstance(section, dict):
+        return
+    for by_type in section.values():
+        if not isinstance(by_type, dict):
+            continue
+        for rel_type, entries in by_type.items():
+            for entry in _as_list(entries):
+                if isinstance(entry, dict):
+                    if not _first_non_empty(entry.get("relationship-type"), entry.get("relationship_type")):
+                        entry = {**entry, "relationship-type": rel_type}
+                    yield entry
 
 
 class Command(BaseCommand):
@@ -253,17 +294,33 @@ class Command(BaseCommand):
             base_dir = Path(options["dir"]).expanduser().resolve()
             if not base_dir.exists():
                 raise CommandError(f"Local directory does not exist: {base_dir}")
-            for path in sorted(base_dir.rglob("*")):
-                if not path.is_file():
-                    continue
-                lower = str(path).lower()
-                if not (lower.endswith(".yaml") or lower.endswith(".yml")):
-                    continue
-                rel = path.relative_to(base_dir).as_posix()
+            # Prefer the newest release named by the upstream manifest; importing every
+            # historical release would resurrect retired objects as current.
+            manifest_file = next(
+                (c for c in (base_dir / "dist" / "manifest.yaml", base_dir / "manifest.yaml") if c.is_file()),
+                None,
+            )
+            latest = None
+            if manifest_file is not None:
+                latest = latest_path_from_manifest(manifest_file.read_text(encoding="utf-8"))
+            if latest is not None:
+                latest_file = manifest_file.parent / latest[0].split("dist/", 1)[1]
                 try:
-                    file_rows.append((rel, path.read_text(encoding="utf-8")))
+                    file_rows.append((latest_file.relative_to(base_dir).as_posix(), latest_file.read_text(encoding="utf-8")))
                 except Exception as exc:
-                    warnings.append(f"Failed to read {rel}: {exc}")
+                    raise CommandError(f"Failed to read latest ATLAS release {latest_file}: {exc}") from exc
+            else:
+                for path in sorted(base_dir.rglob("*")):
+                    if not path.is_file():
+                        continue
+                    lower = str(path).lower()
+                    if not (lower.endswith(".yaml") or lower.endswith(".yml")):
+                        continue
+                    rel = path.relative_to(base_dir).as_posix()
+                    try:
+                        file_rows.append((rel, path.read_text(encoding="utf-8")))
+                    except Exception as exc:
+                        warnings.append(f"Failed to read {rel}: {exc}")
             if not file_rows:
                 raise CommandError(f"No ATLAS YAML files found under {base_dir}")
 
@@ -278,6 +335,10 @@ class Command(BaseCommand):
 
         for _, payload in file_rows:
             for record in _iter_yaml_documents(payload):
+                for entry in _iter_relationship_entries(record):
+                    relationship = _maybe_record_relationship(entry)
+                    if relationship:
+                        records_by_model["relationship"].append(relationship)
                 for node in _iter_atlas_objects(record):
                     atlas_id = _extract_record_id(node)
                     if not atlas_id:
@@ -315,9 +376,9 @@ class Command(BaseCommand):
                     description=_normalize_text(_first_non_empty(obj.get("description"), obj.get("summary"), obj.get("details"))),
                     references=_extract_references(_first_non_empty(obj.get("references"), obj.get("external_references"), obj.get("externalReferences"))),
                     attack_reference=_extract_attack_reference(_first_non_empty(obj.get("attack_reference"), obj.get("attackReference"), obj.get("mitre_attack"))),
-                    created_date=_coerce_date(_first_non_empty(obj.get("created_date"), obj.get("createdDate"), obj.get("created"))),
-                    modified_date=_coerce_date(_first_non_empty(obj.get("modified_date"), obj.get("modifiedDate"), obj.get("modified"))),
-                    atlas_uuid=None,
+                    created_date=_coerce_date(_first_non_empty(_get(obj, "created_date"), obj.get("createdDate"), obj.get("created"))),
+                    modified_date=_coerce_date(_first_non_empty(_get(obj, "modified_date"), obj.get("modifiedDate"), obj.get("modified"))),
+                    atlas_uuid=_coerce_uuid(obj.get("uuid")),
                     raw_payload=_json_compatible(obj),
                 )
 
@@ -331,8 +392,8 @@ class Command(BaseCommand):
                     platforms=[_normalize_text(item) for item in _as_list(_first_non_empty(obj.get("platforms"), obj.get("platform"), obj.get("affected_platforms"))) if _normalize_text(item)],
                     maturity=_normalize_text(_first_non_empty(obj.get("maturity"), obj.get("maturity_level"), obj.get("stage"))),
                     attack_reference=_extract_attack_reference(_first_non_empty(obj.get("attack_reference"), obj.get("attackReference"), obj.get("mitre_attack"))),
-                    created_date=_coerce_date(_first_non_empty(obj.get("created_date"), obj.get("createdDate"), obj.get("created"))),
-                    modified_date=_coerce_date(_first_non_empty(obj.get("modified_date"), obj.get("modifiedDate"), obj.get("modified"))),
+                    created_date=_coerce_date(_first_non_empty(_get(obj, "created_date"), obj.get("createdDate"), obj.get("created"))),
+                    modified_date=_coerce_date(_first_non_empty(_get(obj, "modified_date"), obj.get("modifiedDate"), obj.get("modified"))),
                     raw_payload=_json_compatible(obj),
                 )
 
@@ -343,10 +404,10 @@ class Command(BaseCommand):
                     name=_normalize_text(_first_non_empty(obj.get("name"), obj.get("title"), obj.get("label"))) or atlas_id,
                     description=_normalize_text(_first_non_empty(obj.get("description"), obj.get("summary"), obj.get("details"))),
                     references=_extract_references(_first_non_empty(obj.get("references"), obj.get("external_references"), obj.get("externalReferences"))),
-                    lifecycle_phases=[_normalize_text(item) for item in _as_list(_first_non_empty(obj.get("lifecycle_phases"), obj.get("lifecyclePhases"), obj.get("phases"))) if _normalize_text(item)],
+                    lifecycle_phases=[_normalize_text(item) for item in _as_list(_first_non_empty(_get(obj, "lifecycle_phases", "lifecyclePhases"), obj.get("phases"))) if _normalize_text(item)],
                     categories=[_normalize_text(item) for item in _as_list(_first_non_empty(obj.get("categories"), obj.get("category"), obj.get("mitigation_categories"))) if _normalize_text(item)],
-                    created_date=_coerce_date(_first_non_empty(obj.get("created_date"), obj.get("createdDate"), obj.get("created"))),
-                    modified_date=_coerce_date(_first_non_empty(obj.get("modified_date"), obj.get("modifiedDate"), obj.get("modified"))),
+                    created_date=_coerce_date(_first_non_empty(_get(obj, "created_date"), obj.get("createdDate"), obj.get("created"))),
+                    modified_date=_coerce_date(_first_non_empty(_get(obj, "modified_date"), obj.get("modifiedDate"), obj.get("modified"))),
                     raw_payload=_json_compatible(obj),
                 )
 
@@ -361,12 +422,12 @@ class Command(BaseCommand):
                     actor=_normalize_text(_first_non_empty(obj.get("actor"), obj.get("actor_name"), obj.get("actorName"))),
                     target=_normalize_text(_first_non_empty(obj.get("target"), obj.get("target_system"), obj.get("targetSystem"))),
                     reporter=_normalize_text(_first_non_empty(obj.get("reporter"), obj.get("reporter_name"), obj.get("reporterName"))),
-                    start_date=_coerce_date(_first_non_empty(obj.get("start_date"), obj.get("startDate"))),
-                    start_date_granularity=_normalize_text(_first_non_empty(obj.get("start_date_granularity"), obj.get("startDateGranularity"), obj.get("date_granularity"))),
-                    end_date=_coerce_date(_first_non_empty(obj.get("end_date"), obj.get("endDate"))),
-                    end_date_granularity=_normalize_text(_first_non_empty(obj.get("end_date_granularity"), obj.get("endDateGranularity"), obj.get("date_granularity"))),
-                    created_date=_coerce_date(_first_non_empty(obj.get("created_date"), obj.get("createdDate"), obj.get("created"))),
-                    modified_date=_coerce_date(_first_non_empty(obj.get("modified_date"), obj.get("modifiedDate"), obj.get("modified"))),
+                    start_date=_coerce_date(_get(obj, "start_date", "startDate")),
+                    start_date_granularity=_normalize_text(_first_non_empty(_get(obj, "start_date_granularity", "startDateGranularity"), obj.get("date_granularity"))),
+                    end_date=_coerce_date(_get(obj, "end_date", "endDate")),
+                    end_date_granularity=_normalize_text(_first_non_empty(_get(obj, "end_date_granularity", "endDateGranularity"), obj.get("date_granularity"))),
+                    created_date=_coerce_date(_first_non_empty(_get(obj, "created_date"), obj.get("createdDate"), obj.get("created"))),
+                    modified_date=_coerce_date(_first_non_empty(_get(obj, "modified_date"), obj.get("modifiedDate"), obj.get("modified"))),
                     raw_payload=_json_compatible(obj),
                 )
 
