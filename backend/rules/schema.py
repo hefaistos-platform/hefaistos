@@ -1955,27 +1955,37 @@ class PushPlaybookToGit(graphene.Mutation):
         except RuleRepository.DoesNotExist:
             raise Exception("Repository not found or you do not have permission")
 
+        # The destination must be a real, connected Git repository.
+        if not (repo.git_url or '').strip():
+            return PushPlaybookToGit(
+                ok=False,
+                queued_count=0,
+                message=(
+                    f"Repository '{repo.name}' has no Git URL, so nothing can be pushed to it. "
+                    "Choose a connected Git repository."
+                ),
+            )
+
         # --- Determine which rules to push ---
-        # Base queryset: rules in the selected repository and org
-        rules_qs = DetectionRule.objects.filter(
-            organization=user.organization,
-            repository=repo,
+        # Select by Workbench, NOT by repository. SaveDetectionRule files every Workbench rule under
+        # the organisation's placeholder "Rule Repo", so filtering on the destination repository chosen
+        # here matched nothing for any connected repo and reported success with 0 rules queued.
+        # The destination repository only decides where the rules go (payload config below).
+        # No "changed since last sync" filter either: repo.last_synced is a pull/sync timestamp, not a
+        # record of what was pushed to this repository, and this is an explicit user action.
+        rules = list(
+            DetectionRule.objects.filter(
+                organization=user.organization,
+                playbook=graph,
+            )
         )
-        # Optional: restrict to the rule linked to this playbook graph (if any)
-        if graph:
-            rules_qs = rules_qs.filter(playbook=graph)
-
-        # Prefer only rules that are new or updated since the repo's last sync
-        last_sync = repo.last_synced
-        if last_sync:
-            from django.db.models import Q
-            rules_qs = rules_qs.filter(Q(updated_at__gt=last_sync) | Q(created_at__gt=last_sync))
-
-        rules = list(rules_qs)
 
         if not rules:
-            # Nothing to push; succeed no-op
-            return PushPlaybookToGit(ok=True, queued_count=0, message="No rules to push (no changes since last sync)")
+            return PushPlaybookToGit(
+                ok=False,
+                queued_count=0,
+                message="This workbench has no saved rules to push. Save a rule in the workbench first.",
+            )
 
         # --- Publish one message per rule to RabbitMQ ---
         publisher = get_publisher()

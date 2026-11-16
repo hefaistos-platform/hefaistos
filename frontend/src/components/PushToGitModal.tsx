@@ -22,6 +22,7 @@ const PUSH_PLAYBOOK_TO_GIT_MUTATION = gql`
     pushPlaybookToGit(graphId: $graphId, repositoryId: $repositoryId, targetFolder: $targetFolder) {
       ok
       queuedCount
+      message
     }
   }
 `;
@@ -37,7 +38,7 @@ interface GetAllReposData {
   allRuleRepositories: Repo[];
 }
 
-type PushResult = { pushPlaybookToGit: { ok: boolean; queuedCount?: number } };
+type PushResult = { pushPlaybookToGit: { ok: boolean; queuedCount?: number; message?: string } };
 type PushVars = { graphId: string; repositoryId: string; targetFolder?: string };
 
 // Preset folder options
@@ -85,7 +86,12 @@ export const PushToGitModal: React.FC<PushModalProps> = ({ isOpen, onClose, grap
         },
       });
       console.log("Push mutation result:", result);
-      const cnt = result.data?.pushPlaybookToGit?.queuedCount;
+      const pushResult = result.data?.pushPlaybookToGit;
+      if (!pushResult?.ok) {
+        alert(pushResult?.message || "Push could not be queued.");
+        return;
+      }
+      const cnt = pushResult.queuedCount;
       alert(typeof cnt === 'number' ? `Queued ${cnt} rule${cnt === 1 ? '' : 's'} for push.` : "Push job started! The connector will process this in the background.");
       onClose(); // Close the modal on success
     } catch (e: any) {
