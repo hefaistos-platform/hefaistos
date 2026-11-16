@@ -1,4 +1,5 @@
 import uuid
+import copy
 from services.publisher import get_publisher
 from django.utils import timezone
 from core.rabbitmq import publish_event
@@ -4295,6 +4296,20 @@ def _apply_nodes_edges_from_v1(graph: PlaybookGraph, playbook_data: dict) -> Non
             )
 
 
+def _merge_free_rule_into_opentide_yaml(existing, free_rule):
+    """Return a copy of ``existing`` OpenTIDE document with only ``freeRule`` replaced.
+
+    An import that carries a FREE rule must not discard the target Workbench's platform
+    queries, metadata or MVE velocity chains; imports without a FREE rule leave the
+    document untouched, so the two cases now behave consistently.
+    """
+    doc = copy.deepcopy(existing) if isinstance(existing, dict) else {}
+    doc["freeRule"] = free_rule
+    if not isinstance(doc.get("platforms"), dict):
+        doc["platforms"] = {}
+    return doc
+
+
 def update_playbook_graph_from_v1(data: dict, graph: PlaybookGraph, author, new_title: str | None = None) -> PlaybookGraph:
     playbook_data = data.get("playbook", {})
 
@@ -4313,7 +4328,7 @@ def update_playbook_graph_from_v1(data: dict, graph: PlaybookGraph, author, new_
     graph.detection_rule = playbook_data.get("detection_rule", "")
     graph.detection_rule_format = playbook_data.get("detection_rule_format", "")
     if playbook_data.get("free_rule"):
-        graph.opentide_yaml = {"freeRule": playbook_data["free_rule"], "platforms": {}}
+        graph.opentide_yaml = _merge_free_rule_into_opentide_yaml(graph.opentide_yaml, playbook_data["free_rule"])
 
     graph.goal = playbook_data.get("goal", "")
     graph.technical_context = playbook_data.get("technical_context", "")
@@ -4748,7 +4763,7 @@ def update_playbook_graph_from_hex_v2(data: dict, graph: PlaybookGraph, author, 
     graph.detection_rule = detection_logic.get("detection_rule", "")
     graph.detection_rule_format = detection_logic.get("rule_format", "").upper()
     if detection_logic.get("free_rule"):
-        graph.opentide_yaml = {"freeRule": detection_logic["free_rule"], "platforms": {}}
+        graph.opentide_yaml = _merge_free_rule_into_opentide_yaml(graph.opentide_yaml, detection_logic["free_rule"])
 
     graph.goal = operational_context.get("goal", "")
     graph.technical_context = operational_context.get("technical_context", "")
