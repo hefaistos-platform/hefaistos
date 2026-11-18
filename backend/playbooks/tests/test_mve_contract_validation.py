@@ -126,3 +126,50 @@ def test_feature_type_and_feature_set_are_free_form():
     mve.validate_node_config('FEATURE', {'type': 'FEATURE', 'feature_type': 'distinct_inputs_per_target',
                                          'output_field': 'breadth'}, errors)
     assert not any('feature_type' in str(e.get('path', '')) for e in errors)
+
+# --- UI / contract parity --------------------------------------------------
+# The workbench tab hard-codes copies of the contract vocabularies. They are
+# edited by hand, so they can drift or break (a missing quote once broke the
+# whole tab). These tests read the TSX as text and compare it with the contract.
+
+_TSX_PATH = pathlib.Path(__file__).resolve().parents[3] / 'frontend' / 'src' / 'components' / 'mve' / 'MveWorkbenchTab.tsx'
+
+
+def _tsx_text():
+    return _TSX_PATH.read_text(encoding='utf-8')
+
+
+def _quoted_list_after(marker_regex):
+    import re
+    out = []
+    for match in re.finditer(marker_regex, _tsx_text(), flags=re.S):
+        out.append(re.findall(r"'([a-z0-9_]+)'", match.group(1)))
+    return out
+
+
+def test_ui_dimension_lists_match_contract():
+    lists = _quoted_list_after(r"\[\s*('volume','cardinality'[^\]]*)\]")
+    assert len(lists) == 2, 'expected primary and secondary dimension pickers'
+    for dims in lists:
+        assert set(dims) == set(mve.ALLOWED_DIMENSIONS)
+        assert len(dims) == len(set(dims)), 'duplicate value in a picker'
+
+
+def test_ui_family_list_matches_contract():
+    import re
+    block = re.search(r"label=\"Analytic Family\".*?options=\{\[(.*?)\]\}", _tsx_text(), flags=re.S)
+    assert block, 'Analytic Family picker not found'
+    values = re.findall(r"value: '([a-z_]+)'", block.group(1))
+    assert set(values) == set(mve.ALLOWED_ANALYTIC_FAMILIES)
+
+
+def test_ui_feature_lists_are_well_formed_and_include_new_features():
+    lists = _quoted_list_after(r"\[\s*('event_count'[^\]]*)\]")
+    assert len(lists) == 2, 'expected the feature-set picker and the FEATURE node picker'
+    for features in lists:
+        assert len(features) == len(set(features)), 'duplicate feature'
+        assert 'sequence_compression_score' in features
+        assert 'distinct_inputs_per_target' in features
+    # The raw text must not contain an unterminated quote like  'name,'next'
+    assert "_score,'" not in _tsx_text()
+
