@@ -600,6 +600,7 @@ type MveConstraintFormValues = {
   timeWindowType?: string;
   timeEventField?: string;
   timeOrderingConfidence?: string;
+  timeEnvelopeWindow?: string;
   baselineRequired?: boolean;
   baselineTypes?: string[];
   baselineHistoricalPeriod?: string;
@@ -852,6 +853,7 @@ const MveWorkbenchTab: React.FC = () => {
       timeWindowType: (timeLogic as any).window_type || '',
       timeEventField: (timeLogic as any).event_time_field || '',
       timeOrderingConfidence: (timeLogic as any).ordering_confidence || '',
+      timeEnvelopeWindow: (timeLogic as any).envelope_window || '',
       baselineRequired: Boolean((baseline as any).baseline_required),
       baselineTypes: Array.isArray((baseline as any).baseline_types) ? (baseline as any).baseline_types : [],
       baselineHistoricalPeriod: (baseline as any).historical_period || '',
@@ -1145,6 +1147,7 @@ const MveWorkbenchTab: React.FC = () => {
             window_type: values.timeWindowType || '',
             event_time_field: values.timeEventField || '',
             ordering_confidence: values.timeOrderingConfidence || '',
+            ...((values.timeEnvelopeWindow || '').trim() ? { envelope_window: (values.timeEnvelopeWindow as string).trim() } : {}),
           },
           baselineStrategy: {
             baseline_required: Boolean(values.baselineRequired),
@@ -1883,6 +1886,11 @@ const MveWorkbenchTab: React.FC = () => {
                     <Form.Item label="Window Type" name="timeWindowType" rules={[{ required: true, message: 'Required' }]}>
                       <Select options={['fixed_bin','rolling_window','sessionized_window','sequence_window'].map((value) => ({ value, label: value }))} />
                     </Form.Item>
+                    <Form.Item
+                      label="Envelope Window (optional)"
+                      name="timeEnvelopeWindow"
+                      extra="Optional. Total length of the longer session that contains the detection window, as you observed it in your tests, e.g. 72h. Leave empty for a single window."
+                    ><Input placeholder="72h" /></Form.Item>
                     <Form.Item label="Event Time Field" name="timeEventField" rules={[{ required: true, message: 'Required' }]}><Input /></Form.Item>
                     <Form.Item label="Ordering Confidence" name="timeOrderingConfidence" rules={[{ required: true, message: 'Required' }]}>
                       <Select options={['high','medium','low','unknown'].map((value) => ({ value, label: value }))} />

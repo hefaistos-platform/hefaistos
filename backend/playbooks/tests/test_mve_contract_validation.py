@@ -173,3 +173,65 @@ def test_ui_feature_lists_are_well_formed_and_include_new_features():
     # The raw text must not contain an unterminated quote like  'name,'next'
     assert "_score,'" not in _tsx_text()
 
+
+# --- envelope_window: optional session scope around the detection window -----
+
+def _window_errors(stage='GENERATION_READY', **overrides):
+    base = {
+        'lookback_window': '14d',
+        'detection_window': '5m',
+        'window_type': 'rolling_window',
+        'event_time_field': '@timestamp',
+        'ordering_confidence': 'medium',
+    }
+    base.update(overrides)
+    errors: list[dict[str, str]] = []
+    mve.validate_time_window_logic(base, stage, errors)
+    return errors
+
+
+def _envelope_errors(errors):
+    return [e for e in errors if e['path'] == 'time_window_logic.envelope_window']
+
+
+def test_parse_duration_ms():
+    assert mve.parse_duration_ms('800ms') == 800
+    assert mve.parse_duration_ms('30s') == 30_000
+    assert mve.parse_duration_ms('5m') == 300_000
+    assert mve.parse_duration_ms('72h') == 72 * 3_600_000
+    assert mve.parse_duration_ms('14d') == 14 * 86_400_000
+    assert mve.parse_duration_ms(' 5 m ') == 300_000
+    for bad in ('5', 'abc', '', '-1h', None, 300, '1.5h'):
+        assert mve.parse_duration_ms(bad) is None, bad
+
+
+def test_envelope_window_is_never_required():
+    for stage in ('DRAFT', 'MODELED', 'GENERATION_READY', 'VALIDATED', 'EXPORTED'):
+        assert _window_errors(stage) == [], stage
+
+
+def test_blank_envelope_window_is_treated_as_absent():
+    # the form sends '' for an empty optional field; None for a cleared one
+    for blank in ('', '   ', None):
+        assert _window_errors(envelope_window=blank) == [], repr(blank)
+
+
+def test_envelope_window_accepted_when_valid():
+    assert _window_errors(envelope_window='72h') == []
+    assert _window_errors(envelope_window='6m') == []
+
+
+def test_envelope_window_must_be_a_duration_when_given():
+    for bad in ('three days', '72', '-1h', '0h', 72):
+        assert _envelope_errors(_window_errors(envelope_window=bad)), repr(bad)
+
+
+def test_envelope_window_must_be_longer_than_detection_window():
+    assert _envelope_errors(_window_errors(envelope_window='5m'))
+    assert _envelope_errors(_window_errors(envelope_window='1m'))
+
+
+def test_envelope_window_does_not_require_any_other_field():
+    # no gap, no span: the envelope alone must not add errors
+    assert _window_errors(envelope_window='72h') == []
+

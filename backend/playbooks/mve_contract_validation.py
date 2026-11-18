@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 
@@ -39,6 +40,19 @@ ALLOWED_DIMENSIONS = {
 ALLOWED_OUTPUT_FORMATS = {'KQL', 'EQL', 'SPL', 'WAZUH'}
 
 ALLOWED_NODE_TYPES = {'EVENT', 'RULE', 'FEATURE', 'BASELINE', 'CONTEXT', 'DECEPTION', 'DECISION'}
+
+_DURATION_RE = re.compile(r'^\s*(\d+)\s*(ms|s|m|h|d|w)\s*$', re.IGNORECASE)
+_DURATION_UNIT_MS = {'ms': 1, 's': 1000, 'm': 60_000, 'h': 3_600_000, 'd': 86_400_000, 'w': 604_800_000}
+
+
+def parse_duration_ms(value: Any) -> int | None:
+    """Parse '800ms', '30s', '5m', '72h', '14d', '2w' into milliseconds; None if not a duration."""
+    if not isinstance(value, str):
+        return None
+    match = _DURATION_RE.match(value)
+    if not match:
+        return None
+    return int(match.group(1)) * _DURATION_UNIT_MS[match.group(2).lower()]
 
 
 class MveValidationError(Exception):
@@ -122,7 +136,26 @@ def validate_time_window_logic(value: Any, stage: str, errors: list[dict[str, st
         _require(_is_non_empty_string(data.get('ordering_confidence')), 'time_window_logic.ordering_confidence', 'required', 'ordering_confidence is required', errors)
         if data.get('window_type') == 'sequence_window':
             _require(bool(data.get('max_total_span_ms') or data.get('max_inter_step_gap_ms')), 'time_window_logic', 'invalid_combination', 'sequence_window requires max_total_span_ms or max_inter_step_gap_ms', errors)
+    _validate_envelope_window(data, errors)
     return data
+
+
+def _validate_envelope_window(data: dict[str, Any], errors: list[dict[str, str]]) -> None:
+    """Optional, never required: the longer session scope that contains the detection window.
+
+    Missing or blank means a single window, exactly as before. When the user does fill it in,
+    it only has to be a duration and be longer than the detection window.
+    """
+    envelope = data.get('envelope_window')
+    if envelope is None or (isinstance(envelope, str) and not envelope.strip()):
+        return
+    envelope_ms = parse_duration_ms(envelope)
+    if envelope_ms is None or envelope_ms <= 0:
+        errors.append({'path': 'time_window_logic.envelope_window', 'code': 'invalid_format', 'message': "envelope_window must be a duration such as '30m', '72h' or '14d'"})
+        return
+    detection_ms = parse_duration_ms(data.get('detection_window'))
+    if detection_ms is not None and envelope_ms <= detection_ms:
+        errors.append({'path': 'time_window_logic.envelope_window', 'code': 'invalid_combination', 'message': 'envelope_window must be longer than detection_window'})
 
 
 def validate_baseline_strategy(value: Any, stage: str, errors: list[dict[str, str]]) -> dict[str, Any]:

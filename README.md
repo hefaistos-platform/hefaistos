@@ -103,6 +103,10 @@ The MVE is the velocity-analytic workbench: it turns a behavioural intent into a
 - **OpenTide export** - Compiles to `opentide/v1.2` `VelocityDetection` YAML with velocity constraints, then to KQL / EQL / SPL / Wazuh and the Rule Hub.
 - **Dimensions include** `attempt_variation` — systematic variation of inputs against a fixed target — and the **analytic family** `variation_amplification`, both added for agentic / machine-speed activity where interval and rate are attacker-controlled but breadth and sequence are not.
 
+- **Optional `envelope_window`** in Time / Window Logic - the total length of the longer session that contains the detection window, as observed in your own tests (for example `72h`). It is never required; when filled in it must be a duration longer than the detection window.
+
+The MVE is a template you fill in from the metrics you observe during your tests; it does not run tests itself.
+
 Contract tests (no database required): `backend/playbooks/tests/test_mve_contract_validation.py`.
 
 ### 🤖 AI-Powered Detection Engineering
