@@ -579,7 +579,7 @@ type AddNodeFormValues = {
 type MveConstraintFormValues = {
   name: string;
   anchorEntity: string;
-  maxTotalSpanMs: number;
+  maxTotalSpanMs?: number;
   analyticFamily?: string;
   primaryMethodology?: string;
   behaviorActorEntityType?: string;
@@ -706,6 +706,12 @@ const TOOLTIP_STYLE: React.CSSProperties = {
   borderRadius: 8,
   padding: '6px 10px',
 };
+const formatAnalyticFamilyLabel = (value: string): string =>
+  value
+    .split('_')
+    .filter(Boolean)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(' ');
 
 const MveWorkbenchTab: React.FC = () => {
   const navigate = useNavigate();
@@ -1112,6 +1118,7 @@ const MveWorkbenchTab: React.FC = () => {
     try {
       const values = await constraintsForm.validateFields();
       const resolvedTargetWorkbenchId = values.handoffTargetWorkbenchId || preferredHandoffTargetId || '';
+      const parsedMaxTotalSpanMs = Number(values.maxTotalSpanMs);
       const splitCsv = (value?: string) => (value || '').split(',').map((item) => item.trim()).filter(Boolean);
       const splitLines = (value?: string) => (value || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
       await updateDraft({
@@ -1119,7 +1126,7 @@ const MveWorkbenchTab: React.FC = () => {
           draftId: selectedDraftId,
           name: values.name,
           anchorEntity: values.anchorEntity,
-          maxTotalSpanMs: Number(values.maxTotalSpanMs),
+          ...(Number.isFinite(parsedMaxTotalSpanMs) ? { maxTotalSpanMs: parsedMaxTotalSpanMs } : {}),
           analyticFamily: values.analyticFamily || null,
           primaryMethodology: values.primaryMethodology || 'volumetric_de',
           behaviorObject: {
@@ -1782,6 +1789,13 @@ const MveWorkbenchTab: React.FC = () => {
 
       <Card title="Global Constraints / vNext Modeling">
         <Form layout="vertical" form={constraintsForm}>
+          <Alert
+            type="info"
+            showIcon
+            message="Only Name, Anchor Entity, Analytic Family, and Primary Methodology are required."
+            description="The less data you provide in the remaining fields, the lower the precision of generated output will be."
+            style={{ marginBottom: 16 }}
+          />
           <Row gutter={12}>
             <Col xs={24} md={8}>
               <Form.Item label="Name" name="name" rules={[{ required: true, message: 'Required' }]}>
@@ -1794,7 +1808,7 @@ const MveWorkbenchTab: React.FC = () => {
               </Form.Item>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item label="Max Total Span (ms)" name="maxTotalSpanMs" rules={[{ required: true, message: 'Required' }]}>
+              <Form.Item label="Max Total Span (ms)" name="maxTotalSpanMs">
                 <InputNumber min={1} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
@@ -1806,17 +1820,17 @@ const MveWorkbenchTab: React.FC = () => {
                 <Select
                   allowClear
                   options={[
-                    { value: 'identity_fan_out', label: 'identity_fan_out' },
-                    { value: 'fan_in', label: 'fan_in' },
-                    { value: 'burstiness', label: 'burstiness' },
-                    { value: 'rate_anomaly', label: 'rate_anomaly' },
-                    { value: 'acceleration', label: 'acceleration' },
-                    { value: 'sequence_compression', label: 'sequence_compression' },
-                    { value: 'periodicity_rhythm', label: 'periodicity_rhythm' },
-                    { value: 'baseline_deviation', label: 'baseline_deviation' },
-                    { value: 'rare_event_amplification', label: 'rare_event_amplification' },
-                    { value: 'hybrid_behavior_shape', label: 'hybrid_behavior_shape' },
-                    { value: 'variation_amplification', label: 'variation_amplification' },
+                    { value: 'identity_fan_out', label: formatAnalyticFamilyLabel('identity_fan_out') },
+                    { value: 'fan_in', label: formatAnalyticFamilyLabel('fan_in') },
+                    { value: 'burstiness', label: formatAnalyticFamilyLabel('burstiness') },
+                    { value: 'rate_anomaly', label: formatAnalyticFamilyLabel('rate_anomaly') },
+                    { value: 'acceleration', label: formatAnalyticFamilyLabel('acceleration') },
+                    { value: 'sequence_compression', label: formatAnalyticFamilyLabel('sequence_compression') },
+                    { value: 'periodicity_rhythm', label: formatAnalyticFamilyLabel('periodicity_rhythm') },
+                    { value: 'baseline_deviation', label: formatAnalyticFamilyLabel('baseline_deviation') },
+                    { value: 'rare_event_amplification', label: formatAnalyticFamilyLabel('rare_event_amplification') },
+                    { value: 'hybrid_behavior_shape', label: formatAnalyticFamilyLabel('hybrid_behavior_shape') },
+                    { value: 'variation_amplification', label: formatAnalyticFamilyLabel('variation_amplification') },
                   ]}
                 />
               </Form.Item>
@@ -1832,12 +1846,12 @@ const MveWorkbenchTab: React.FC = () => {
                 label: 'Behavior Object',
                 children: (
                   <>
-                    <Form.Item label="Actor Entity Type" name="behaviorActorEntityType" rules={[{ required: true, message: 'Required' }]}><Input /></Form.Item>
-                    <Form.Item label="Action Family" name="behaviorActionFamily" rules={[{ required: true, message: 'Required' }]}><Input /></Form.Item>
-                    <Form.Item label="Target Entity Type" name="behaviorTargetEntityType" rules={[{ required: true, message: 'Required' }]}><Input /></Form.Item>
-                    <Form.Item label="Channel" name="behaviorChannel" rules={[{ required: true, message: 'Required' }]}><Input /></Form.Item>
-                    <Form.Item label="Detection Objective" name="behaviorDetectionObjective" rules={[{ required: true, message: 'Required' }]}><Input.TextArea rows={3} /></Form.Item>
-                    <Form.Item label="Canonical Sentence" name="behaviorCanonicalSentence" rules={[{ required: true, message: 'Required' }]}><Input.TextArea rows={3} /></Form.Item>
+                    <Form.Item label="Actor Entity Type" name="behaviorActorEntityType"><Input /></Form.Item>
+                    <Form.Item label="Action Family" name="behaviorActionFamily"><Input /></Form.Item>
+                    <Form.Item label="Target Entity Type" name="behaviorTargetEntityType"><Input /></Form.Item>
+                    <Form.Item label="Channel" name="behaviorChannel"><Input /></Form.Item>
+                    <Form.Item label="Detection Objective" name="behaviorDetectionObjective"><Input.TextArea rows={3} /></Form.Item>
+                    <Form.Item label="Canonical Sentence" name="behaviorCanonicalSentence"><Input.TextArea rows={3} /></Form.Item>
                   </>
                 )
               },
@@ -1846,7 +1860,7 @@ const MveWorkbenchTab: React.FC = () => {
                 label: 'Dimensions',
                 children: (
                   <>
-                    <Form.Item label="Primary Dimensions" name="dimensionsPrimary" rules={[{ required: true, message: 'Required' }]}>
+                    <Form.Item label="Primary Dimensions" name="dimensionsPrimary">
                       <Select mode="multiple" options={[
                         'volume','cardinality','rate','acceleration','inter_arrival_timing','duration','burstiness','fan_out','fan_in','sequence_compression','periodicity','rhythm','novelty','baseline_deviation','context_aware_deviation','attempt_variation'
                       ].map((value) => ({ value, label: value }))} />
@@ -1856,7 +1870,7 @@ const MveWorkbenchTab: React.FC = () => {
                         'volume','cardinality','rate','acceleration','inter_arrival_timing','duration','burstiness','fan_out','fan_in','sequence_compression','periodicity','rhythm','novelty','baseline_deviation','context_aware_deviation','attempt_variation'
                       ].map((value) => ({ value, label: value }))} />
                     </Form.Item>
-                    <Form.Item label="Rationale" name="dimensionsRationale" rules={[{ required: true, message: 'Required' }]}><Input.TextArea rows={3} /></Form.Item>
+                    <Form.Item label="Rationale" name="dimensionsRationale"><Input.TextArea rows={3} /></Form.Item>
                   </>
                 )
               },
@@ -1865,10 +1879,10 @@ const MveWorkbenchTab: React.FC = () => {
                 label: 'Measurement Model',
                 children: (
                   <>
-                    <Form.Item label="Counted Action" name="measurementCountedAction" rules={[{ required: true, message: 'Required' }]}><Input /></Form.Item>
-                    <Form.Item label="Aggregation Keys (comma-separated)" name="measurementAggregationKeysText" rules={[{ required: true, message: 'Required' }]}><Input /></Form.Item>
-                    <Form.Item label="Grouping Keys (comma-separated)" name="measurementGroupingKeysText" rules={[{ required: true, message: 'Required' }]}><Input /></Form.Item>
-                    <Form.Item label="Feature Set" name="measurementFeatureSet" rules={[{ required: true, message: 'Required' }]}>
+                    <Form.Item label="Counted Action" name="measurementCountedAction"><Input /></Form.Item>
+                    <Form.Item label="Aggregation Keys (comma-separated)" name="measurementAggregationKeysText"><Input /></Form.Item>
+                    <Form.Item label="Grouping Keys (comma-separated)" name="measurementGroupingKeysText"><Input /></Form.Item>
+                    <Form.Item label="Feature Set" name="measurementFeatureSet">
                       <Select mode="multiple" options={[
                         'event_count','distinct_targets','distinct_target_families','actions_per_minute','acceleration_between_windows','median_inter_arrival','min_inter_arrival','p10_inter_arrival','p90_inter_arrival','session_duration','chain_duration_seconds','active_window_count','first_seen_target_ratio','sensitive_target_ratio','retry_ratio','success_failure_ratio','distinct_tools','distinct_step_types','source_rarity','self_baseline_deviation','peer_baseline_deviation','sequence_compression_score','distinct_inputs_per_target','attempts_per_distinct_input','duplicate_request_ratio','range_coverage_ratio','sequentiality_score','distinct_destinations_per_principal','destination_novelty_rate','retry_variation_entropy','confidence_weighted_target_sensitivity'
                       ].map((value) => ({ value, label: value }))} />
@@ -1881,9 +1895,9 @@ const MveWorkbenchTab: React.FC = () => {
                 label: 'Time / Window Logic',
                 children: (
                   <>
-                    <Form.Item label="Lookback Window" name="timeLookbackWindow" rules={[{ required: true, message: 'Required' }]}><Input placeholder="14d" /></Form.Item>
-                    <Form.Item label="Detection Window" name="timeDetectionWindow" rules={[{ required: true, message: 'Required' }]}><Input placeholder="5m" /></Form.Item>
-                    <Form.Item label="Window Type" name="timeWindowType" rules={[{ required: true, message: 'Required' }]}>
+                    <Form.Item label="Lookback Window" name="timeLookbackWindow"><Input placeholder="14d" /></Form.Item>
+                    <Form.Item label="Detection Window" name="timeDetectionWindow"><Input placeholder="5m" /></Form.Item>
+                    <Form.Item label="Window Type" name="timeWindowType">
                       <Select options={['fixed_bin','rolling_window','sessionized_window','sequence_window'].map((value) => ({ value, label: value }))} />
                     </Form.Item>
                     <Form.Item
@@ -1891,8 +1905,8 @@ const MveWorkbenchTab: React.FC = () => {
                       name="timeEnvelopeWindow"
                       extra="Optional. Total length of the longer session that contains the detection window, as you observed it in your tests, e.g. 72h. Leave empty for a single window."
                     ><Input placeholder="72h" /></Form.Item>
-                    <Form.Item label="Event Time Field" name="timeEventField" rules={[{ required: true, message: 'Required' }]}><Input /></Form.Item>
-                    <Form.Item label="Ordering Confidence" name="timeOrderingConfidence" rules={[{ required: true, message: 'Required' }]}>
+                    <Form.Item label="Event Time Field" name="timeEventField"><Input /></Form.Item>
+                    <Form.Item label="Ordering Confidence" name="timeOrderingConfidence">
                       <Select options={['high','medium','low','unknown'].map((value) => ({ value, label: value }))} />
                     </Form.Item>
                   </>
@@ -1923,10 +1937,10 @@ const MveWorkbenchTab: React.FC = () => {
                 label: 'Context / Risk',
                 children: (
                   <>
-                    <Form.Item label="Expected Automation" name="contextExpectedAutomation" rules={[{ required: true, message: 'Required' }]}>
+                    <Form.Item label="Expected Automation" name="contextExpectedAutomation">
                       <Select options={['none_expected','low_expected','moderate_expected','high_expected','unknown'].map((value) => ({ value, label: value }))} />
                     </Form.Item>
-                    <Form.Item label="Benign Overlaps (one per line)" name="contextBenignOverlapsText" rules={[{ required: true, message: 'Required' }]}><Input.TextArea rows={4} /></Form.Item>
+                    <Form.Item label="Benign Overlaps (one per line)" name="contextBenignOverlapsText"><Input.TextArea rows={4} /></Form.Item>
                   </>
                 )
               },
@@ -1935,10 +1949,10 @@ const MveWorkbenchTab: React.FC = () => {
                 label: 'Rule Generation',
                 children: (
                   <>
-                    <Form.Item label="Selected Output Format" name="generationOutputFormat" rules={[{ required: true, message: 'Required' }]}>
+                    <Form.Item label="Selected Output Format" name="generationOutputFormat">
                       <Select options={['KQL','EQL','SPL','WAZUH'].map((value) => ({ value, label: value }))} />
                     </Form.Item>
-                    <Form.Item label="Generation Mode" name="generationMode" rules={[{ required: true, message: 'Required' }]}>
+                    <Form.Item label="Generation Mode" name="generationMode">
                       <Select options={['single_hardened_rule','multiple_variants','quick_win_plus_robust','chain_centric'].map((value) => ({ value, label: value }))} />
                     </Form.Item>
                     <Space direction="vertical" style={{ width: '100%' }}>

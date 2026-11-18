@@ -163,6 +163,28 @@ def test_ui_family_list_matches_contract():
     assert set(values) == set(mve.ALLOWED_ANALYTIC_FAMILIES)
 
 
+def test_ui_family_labels_are_human_readable():
+    import re
+    block = re.search(r"label=\"Analytic Family\".*?options=\{\[(.*?)\]\}", _tsx_text(), flags=re.S)
+    assert block, 'Analytic Family picker not found'
+    option_block = block.group(1)
+    assert "label: 'identity_fan_out'" not in option_block
+    assert "label: 'rate_anomaly'" not in option_block
+    assert "formatAnalyticFamilyLabel('identity_fan_out')" in option_block
+    assert "formatAnalyticFamilyLabel('hybrid_behavior_shape')" in option_block
+
+
+def test_ui_global_constraints_required_fields_are_limited():
+    import re
+    card = re.search(r"<Card title=\"Global Constraints / vNext Modeling\">(.*?)</Card>", _tsx_text(), flags=re.S)
+    assert card, 'Global Constraints / vNext Modeling card not found'
+    required_labels = re.findall(
+        r"<Form\.Item label=\"([^\"]+)\"[^>]*rules=\{\[\{ required: true, message: 'Required' \}\]\}",
+        card.group(1),
+    )
+    assert set(required_labels) == {'Name', 'Anchor Entity', 'Analytic Family', 'Primary Methodology'}
+
+
 def test_ui_feature_lists_are_well_formed_and_include_new_features():
     lists = _quoted_list_after(r"\[\s*('event_count'[^\]]*)\]")
     assert len(lists) == 2, 'expected the feature-set picker and the FEATURE node picker'
@@ -234,4 +256,3 @@ def test_envelope_window_must_be_longer_than_detection_window():
 def test_envelope_window_does_not_require_any_other_field():
     # no gap, no span: the envelope alone must not add errors
     assert _window_errors(envelope_window='72h') == []
-
