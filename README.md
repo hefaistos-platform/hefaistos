@@ -93,6 +93,18 @@ The visual workbench provides a complete detection engineering environment:
 - **FREE Format Rules** - Manual rules in any format, custom labels, and syntax highlighting: [Docs/FREE_FORMAT.md](Docs/FREE_FORMAT.md)
 - **Query Editor Behavior Guide** - Language-specific autocomplete/validation behavior and troubleshooting: `Docs/WORKBENCH_QUERY_EDITOR.md`
 
+### ⚡ Machina Velocity Engine (MVE)
+
+The MVE is the velocity-analytic workbench: it turns a behavioural intent into a **volumetric** detection model — the shape of activity over time (volume, rate, burstiness, fan-out/fan-in, sequence compression, attempt variation) rather than a single static signature.
+
+- **Contract-validated drafts** - A draft is validated by a stage-gated contract (`DRAFT → MODELED → GENERATION_READY → VALIDATED → EXPORTED`). Closed vocabularies are enforced for the **analytic family** (11), **dimensions** (16) and node types (7); the validator is a pure module (`backend/playbooks/mve_contract_validation.py`) and is the single source of truth for those values.
+- **Modelling core** - Behaviour object (actor / action family / target / channel), primary and secondary dimensions, measurement model (grouping keys, feature set, baseline), time-window logic, baseline strategy and context/risk.
+- **Node graph** - `EVENT`, `RULE`, `FEATURE`, `BASELINE`, `CONTEXT`, `DECEPTION`, `DECISION`.
+- **OpenTide export** - Compiles to `opentide/v1.2` `VelocityDetection` YAML with velocity constraints, then to KQL / EQL / SPL / Wazuh and the Rule Hub.
+- **Dimensions include** `attempt_variation` — systematic variation of inputs against a fixed target — and the **analytic family** `variation_amplification`, both added for agentic / machine-speed activity where interval and rate are attacker-controlled but breadth and sequence are not.
+
+Contract tests (no database required): `backend/playbooks/tests/test_mve_contract_validation.py`.
+
 ### 🤖 AI-Powered Detection Engineering
 
 Multi-provider AI integration for intelligent rule generation:

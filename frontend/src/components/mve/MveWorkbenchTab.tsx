@@ -1813,6 +1813,7 @@ const MveWorkbenchTab: React.FC = () => {
                     { value: 'baseline_deviation', label: 'baseline_deviation' },
                     { value: 'rare_event_amplification', label: 'rare_event_amplification' },
                     { value: 'hybrid_behavior_shape', label: 'hybrid_behavior_shape' },
+                    { value: 'variation_amplification', label: 'variation_amplification' },
                   ]}
                 />
               </Form.Item>
@@ -1844,12 +1845,12 @@ const MveWorkbenchTab: React.FC = () => {
                   <>
                     <Form.Item label="Primary Dimensions" name="dimensionsPrimary" rules={[{ required: true, message: 'Required' }]}>
                       <Select mode="multiple" options={[
-                        'volume','cardinality','rate','acceleration','inter_arrival_timing','duration','burstiness','fan_out','fan_in','sequence_compression','periodicity','rhythm','novelty','baseline_deviation','context_aware_deviation'
+                        'volume','cardinality','rate','acceleration','inter_arrival_timing','duration','burstiness','fan_out','fan_in','sequence_compression','periodicity','rhythm','novelty','baseline_deviation','context_aware_deviation','attempt_variation'
                       ].map((value) => ({ value, label: value }))} />
                     </Form.Item>
                     <Form.Item label="Secondary Dimensions" name="dimensionsSecondary">
                       <Select mode="multiple" options={[
-                        'volume','cardinality','rate','acceleration','inter_arrival_timing','duration','burstiness','fan_out','fan_in','sequence_compression','periodicity','rhythm','novelty','baseline_deviation','context_aware_deviation'
+                        'volume','cardinality','rate','acceleration','inter_arrival_timing','duration','burstiness','fan_out','fan_in','sequence_compression','periodicity','rhythm','novelty','baseline_deviation','context_aware_deviation','attempt_variation'
                       ].map((value) => ({ value, label: value }))} />
                     </Form.Item>
                     <Form.Item label="Rationale" name="dimensionsRationale" rules={[{ required: true, message: 'Required' }]}><Input.TextArea rows={3} /></Form.Item>
@@ -1866,7 +1867,7 @@ const MveWorkbenchTab: React.FC = () => {
                     <Form.Item label="Grouping Keys (comma-separated)" name="measurementGroupingKeysText" rules={[{ required: true, message: 'Required' }]}><Input /></Form.Item>
                     <Form.Item label="Feature Set" name="measurementFeatureSet" rules={[{ required: true, message: 'Required' }]}>
                       <Select mode="multiple" options={[
-                        'event_count','distinct_targets','distinct_target_families','actions_per_minute','acceleration_between_windows','median_inter_arrival','min_inter_arrival','p10_inter_arrival','p90_inter_arrival','session_duration','chain_duration_seconds','active_window_count','first_seen_target_ratio','sensitive_target_ratio','retry_ratio','success_failure_ratio','distinct_tools','distinct_step_types','source_rarity','self_baseline_deviation','peer_baseline_deviation','sequence_compression_score'
+                        'event_count','distinct_targets','distinct_target_families','actions_per_minute','acceleration_between_windows','median_inter_arrival','min_inter_arrival','p10_inter_arrival','p90_inter_arrival','session_duration','chain_duration_seconds','active_window_count','first_seen_target_ratio','sensitive_target_ratio','retry_ratio','success_failure_ratio','distinct_tools','distinct_step_types','source_rarity','self_baseline_deviation','peer_baseline_deviation','sequence_compression_score,'distinct_inputs_per_target','attempts_per_distinct_input','duplicate_request_ratio','range_coverage_ratio','sequentiality_score','distinct_destinations_per_principal','destination_novelty_rate','retry_variation_entropy','confidence_weighted_target_sensitivity'
                       ].map((value) => ({ value, label: value }))} />
                     </Form.Item>
                   </>
@@ -2150,7 +2151,7 @@ const MveWorkbenchTab: React.FC = () => {
           {nodeType === 'FEATURE' && (
             <>
               <Form.Item name="featureType" label="Feature Type" rules={[{ required: true, message: 'Required for FEATURE node' }]}>
-                <Select options={['event_count','distinct_targets','actions_per_minute','chain_duration_seconds','median_inter_arrival','source_rarity','self_baseline_deviation','peer_baseline_deviation','sequence_compression_score'].map((value) => ({ value, label: value }))} />
+                <Select options={['event_count','distinct_targets','actions_per_minute','chain_duration_seconds','median_inter_arrival','source_rarity','self_baseline_deviation','peer_baseline_deviation','sequence_compression_score','distinct_inputs_per_target','attempts_per_distinct_input','duplicate_request_ratio','range_coverage_ratio','sequentiality_score','distinct_destinations_per_principal','destination_novelty_rate','retry_variation_entropy','confidence_weighted_target_sensitivity'].map((value) => ({ value, label: value }))} />
               </Form.Item>
               <Form.Item name="featureOutputField" label="Output Field" rules={[{ required: true, message: 'Required for FEATURE node' }]}>
                 <Input placeholder="feature_output" />

@@ -14,6 +14,7 @@ ALLOWED_ANALYTIC_FAMILIES = {
     'baseline_deviation',
     'rare_event_amplification',
     'hybrid_behavior_shape',
+    'variation_amplification',
 }
 
 ALLOWED_DIMENSIONS = {
@@ -32,6 +33,7 @@ ALLOWED_DIMENSIONS = {
     'novelty',
     'baseline_deviation',
     'context_aware_deviation',
+    'attempt_variation',
 }
 
 ALLOWED_OUTPUT_FORMATS = {'KQL', 'EQL', 'SPL', 'WAZUH'}
