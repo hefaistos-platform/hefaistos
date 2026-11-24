@@ -362,16 +362,18 @@ class Command(BaseCommand):
                         records_by_model["case_study"].append(node)
 
         with transaction.atomic():
+            # Relationships carry no foreign keys (string IDs only), so they can be rebuilt.
             AtlasRelationship.objects.all().delete()
-            AtlasCaseStudy.objects.all().delete()
-            AtlasMitigation.objects.all().delete()
-            AtlasTechnique.objects.all().delete()
-            AtlasTactic.objects.all().delete()
+            # Tactics/techniques/mitigations/case studies are UPSERTED by atlas_id below and only
+            # rows that left the latest release are removed afterwards. Deleting every row first
+            # made PlaybookGraph.atlas_technique (on_delete=SET_NULL) clear the ATLAS mapping on
+            # every Workbench at each update.
 
             for obj in records_by_model["tactic"]:
                 atlas_id = _extract_record_id(obj).upper()
-                AtlasTactic.objects.create(
+                AtlasTactic.objects.update_or_create(
                     atlas_id=atlas_id,
+                    defaults=dict(
                     name=_normalize_text(_first_non_empty(obj.get("name"), obj.get("title"), obj.get("label"))) or atlas_id,
                     description=_normalize_text(_first_non_empty(obj.get("description"), obj.get("summary"), obj.get("details"))),
                     references=_extract_references(_first_non_empty(obj.get("references"), obj.get("external_references"), obj.get("externalReferences"))),
@@ -380,12 +382,14 @@ class Command(BaseCommand):
                     modified_date=_coerce_date(_first_non_empty(_get(obj, "modified_date"), obj.get("modifiedDate"), obj.get("modified"))),
                     atlas_uuid=_coerce_uuid(obj.get("uuid")),
                     raw_payload=_json_compatible(obj),
+                    ),
                 )
 
             for obj in records_by_model["technique"]:
                 atlas_id = _extract_record_id(obj).upper()
-                AtlasTechnique.objects.create(
+                AtlasTechnique.objects.update_or_create(
                     atlas_id=atlas_id,
+                    defaults=dict(
                     name=_normalize_text(_first_non_empty(obj.get("name"), obj.get("title"), obj.get("label"))) or atlas_id,
                     description=_normalize_text(_first_non_empty(obj.get("description"), obj.get("summary"), obj.get("details"))),
                     references=_extract_references(_first_non_empty(obj.get("references"), obj.get("external_references"), obj.get("externalReferences"))),
@@ -395,12 +399,14 @@ class Command(BaseCommand):
                     created_date=_coerce_date(_first_non_empty(_get(obj, "created_date"), obj.get("createdDate"), obj.get("created"))),
                     modified_date=_coerce_date(_first_non_empty(_get(obj, "modified_date"), obj.get("modifiedDate"), obj.get("modified"))),
                     raw_payload=_json_compatible(obj),
+                    ),
                 )
 
             for obj in records_by_model["mitigation"]:
                 atlas_id = _extract_record_id(obj).upper()
-                AtlasMitigation.objects.create(
+                AtlasMitigation.objects.update_or_create(
                     atlas_id=atlas_id,
+                    defaults=dict(
                     name=_normalize_text(_first_non_empty(obj.get("name"), obj.get("title"), obj.get("label"))) or atlas_id,
                     description=_normalize_text(_first_non_empty(obj.get("description"), obj.get("summary"), obj.get("details"))),
                     references=_extract_references(_first_non_empty(obj.get("references"), obj.get("external_references"), obj.get("externalReferences"))),
@@ -409,12 +415,14 @@ class Command(BaseCommand):
                     created_date=_coerce_date(_first_non_empty(_get(obj, "created_date"), obj.get("createdDate"), obj.get("created"))),
                     modified_date=_coerce_date(_first_non_empty(_get(obj, "modified_date"), obj.get("modifiedDate"), obj.get("modified"))),
                     raw_payload=_json_compatible(obj),
+                    ),
                 )
 
             for obj in records_by_model["case_study"]:
                 atlas_id = _extract_record_id(obj).upper()
-                AtlasCaseStudy.objects.create(
+                AtlasCaseStudy.objects.update_or_create(
                     atlas_id=atlas_id,
+                    defaults=dict(
                     name=_normalize_text(_first_non_empty(obj.get("name"), obj.get("title"), obj.get("label"))) or atlas_id,
                     description=_normalize_text(_first_non_empty(obj.get("description"), obj.get("summary"), obj.get("details"))),
                     references=_extract_references(_first_non_empty(obj.get("references"), obj.get("external_references"), obj.get("externalReferences"))),
@@ -429,6 +437,7 @@ class Command(BaseCommand):
                     created_date=_coerce_date(_first_non_empty(_get(obj, "created_date"), obj.get("createdDate"), obj.get("created"))),
                     modified_date=_coerce_date(_first_non_empty(_get(obj, "modified_date"), obj.get("modifiedDate"), obj.get("modified"))),
                     raw_payload=_json_compatible(obj),
+                    ),
                 )
 
             for item in records_by_model["relationship"]:
@@ -444,6 +453,27 @@ class Command(BaseCommand):
                         "raw_payload": item.get("raw_payload") or {},
                     },
                 )
+
+            # Remove only objects that are no longer part of the latest release. A type with zero
+            # parsed records is left alone so a parse problem cannot wipe the whole framework.
+            for model, key, label in (
+                (AtlasTactic, "tactic", "tactics"),
+                (AtlasTechnique, "technique", "techniques"),
+                (AtlasMitigation, "mitigation", "mitigations"),
+                (AtlasCaseStudy, "case_study", "case studies"),
+            ):
+                keep = {_extract_record_id(obj).upper() for obj in records_by_model[key]}
+                if not keep:
+                    warnings.append(f"No {label} parsed; existing {label} left untouched.")
+                    continue
+                stale = model.objects.exclude(atlas_id__in=keep)
+                if model is AtlasTechnique:
+                    unlinked = sum(t.playbook_graphs.count() for t in stale)
+                    if unlinked:
+                        warnings.append(
+                            f"{unlinked} Workbench ATLAS link(s) cleared because their technique left the latest release."
+                        )
+                stale.delete()
 
         imported_version = resolved_sha[:12] if resolved_sha else source_ref
         PlatformDataVersion.objects.update_or_create(

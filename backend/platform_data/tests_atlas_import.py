@@ -4,9 +4,13 @@ from pathlib import Path
 from unittest import mock
 
 import yaml
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
 
+from playbooks.models import PlaybookGraph
+
+from organizations.models import Organization
 from platform_data import atlas_sync
 from platform_data.models import (
     AtlasCaseStudy,
@@ -138,3 +142,69 @@ class AtlasImportCommandTests(TestCase):
         self.assertEqual(case_study.start_date, date(2020, 1, 1))
         self.assertEqual(case_study.start_date_granularity, "Year")
         self.assertEqual(case_study.case_study_type, "Exercise")
+
+
+class AtlasReimportKeepsWorkbenchLinksTests(TestCase):
+    """A re-import must upsert, not delete-all: Workbench ATLAS links must survive."""
+
+    def _import(self, current, manifest=MANIFEST):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "dist" / "v6").mkdir(parents=True)
+            (root / "dist" / "manifest.yaml").write_text(yaml.safe_dump(manifest))
+            (root / "dist" / "v6" / "ATLAS-2026.10.yaml").write_text(yaml.safe_dump(current))
+            call_command("import_atlas_framework", mode="local", dir=tmp)
+
+    def _workbench(self, technique):
+        org = Organization.objects.create(name="Org")
+        user = get_user_model().objects.create_user(username="atlas_admin", organization=org, role="ADMIN")
+        return PlaybookGraph.objects.create(
+            organization=org, author=user, title="wb", status="IDEA",
+            detection_rule="DeviceProcessEvents | take 1", atlas_technique=technique,
+        )
+
+    def test_second_import_keeps_workbench_atlas_link(self):
+        self._import(CURRENT)
+        graph = self._workbench(AtlasTechnique.objects.get(atlas_id="AML.T0051"))
+        original_pk = AtlasTechnique.objects.get(atlas_id="AML.T0051").pk
+
+        self._import(CURRENT)
+        self._import(CURRENT)
+
+        graph.refresh_from_db()
+        self.assertIsNotNone(graph.atlas_technique)
+        self.assertEqual(graph.atlas_technique.atlas_id, "AML.T0051")
+        self.assertEqual(graph.atlas_technique.pk, original_pk)
+        self.assertEqual(AtlasTechnique.objects.count(), 1)
+
+    def test_import_updates_changed_fields_in_place(self):
+        self._import(CURRENT)
+        changed = yaml.safe_load(yaml.safe_dump(CURRENT))
+        changed["techniques"]["AML.T0051"]["name"] = "LLM Prompt Injection (renamed)"
+        self._import(changed)
+        self.assertEqual(AtlasTechnique.objects.get().name, "LLM Prompt Injection (renamed)")
+
+    def test_only_retired_techniques_are_removed(self):
+        two = yaml.safe_load(yaml.safe_dump(CURRENT))
+        two["techniques"]["AML.T0056"] = {"id": "AML.T0056", "name": "Retiring", "description": "d"}
+        self._import(two)
+        keep = self._workbench(AtlasTechnique.objects.get(atlas_id="AML.T0051"))
+        gone = PlaybookGraph.objects.create(
+            organization=keep.organization, author=keep.author, title="wb2", status="IDEA",
+            detection_rule="x", atlas_technique=AtlasTechnique.objects.get(atlas_id="AML.T0056"),
+        )
+
+        self._import(CURRENT)  # AML.T0056 is no longer in the latest release
+
+        self.assertEqual(list(AtlasTechnique.objects.values_list("atlas_id", flat=True)), ["AML.T0051"])
+        keep.refresh_from_db()
+        gone.refresh_from_db()
+        self.assertEqual(keep.atlas_technique.atlas_id, "AML.T0051")
+        self.assertIsNone(gone.atlas_technique)
+
+    def test_empty_parse_does_not_wipe_existing_techniques(self):
+        self._import(CURRENT)
+        without_techniques = yaml.safe_load(yaml.safe_dump(CURRENT))
+        del without_techniques["techniques"]
+        self._import(without_techniques)
+        self.assertEqual(AtlasTechnique.objects.count(), 1)

@@ -3593,12 +3593,15 @@ class UpdatePlaybookDetails(graphene.Mutation):
         if 'atlas_technique_id' in kwargs:
             atlas_tid = kwargs.get('atlas_technique_id')
             if atlas_tid:
-                try:
-                    atlas_tech = AtlasTechnique.objects.get(atlas_id=atlas_tid)
-                    if graph.atlas_technique != atlas_tech:
-                        graph.atlas_technique = atlas_tech
-                except AtlasTechnique.DoesNotExist:
-                    pass
+                atlas_tid = str(atlas_tid).strip()
+                atlas_tech = AtlasTechnique.objects.filter(atlas_id__iexact=atlas_tid).first()
+                if atlas_tech is None:
+                    raise Exception(
+                        f"Unknown ATLAS technique '{atlas_tid}'. It may have been retired from the "
+                        "latest ATLAS release; pick a technique from the list."
+                    )
+                if graph.atlas_technique != atlas_tech:
+                    graph.atlas_technique = atlas_tech
             else:
                 graph.atlas_technique = None
 
