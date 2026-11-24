@@ -1485,7 +1485,7 @@ class SaveDetectionRule(graphene.Mutation):
             if blocking:
                 return SaveDetectionRule(
                     success=False,
-                    message="AI-generated rule failed validation. Review errors or run repair.",
+                    message="AI-generated rule failed validation. Review the reported errors and fix the rule.",
                     rule=None,
                     commit_sha=None,
                     errors=[

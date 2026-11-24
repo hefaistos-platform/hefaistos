@@ -3,8 +3,20 @@ AQL (QRadar Ariel Query Language) autocomplete engine
 """
 
 from typing import Dict, List, Optional, Tuple
+from . import lexical
 from .base import AutocompleteEngine
 from .suggestions import Suggestion, SuggestionKind
+
+
+# AQL (SQL-like): '...' strings with '' as the escape, "..." identifiers, -- and /* */ comments.
+# The comment syntax is the SQL standard; not verified against QRadar documentation.
+_AQL_LEXICAL_RULES = lexical.LexicalRules(
+    string_quotes=("'", '"'),
+    line_comments=("--",),
+    block_comments=True,
+    backslash_escape=False,
+    doubled_quote_escape=True,
+)
 
 
 class AQLAutocompleteEngine(AutocompleteEngine):
@@ -62,12 +74,9 @@ class AQLAutocompleteEngine(AutocompleteEngine):
         if not stripped:
             return False, "Empty AQL query"
 
-        if text.count("(") != text.count(")"):
-            return False, "Unbalanced parentheses"
-        if text.count('"') % 2 != 0:
-            return False, "Unbalanced double quotes"
-        if text.count("'") % 2 != 0:
-            return False, "Unbalanced single quotes"
+        issues = lexical.scan(text, _AQL_LEXICAL_RULES)
+        if issues:
+            return False, issues[0]["message"]
 
         lowered = stripped.lower()
         if "select" not in lowered or " from " not in f" {lowered} ":
@@ -78,6 +87,9 @@ class AQLAutocompleteEngine(AutocompleteEngine):
         return True, None
 
     def validate_content(self, text: str) -> List[Dict]:
+        issues = lexical.scan(text, _AQL_LEXICAL_RULES)
+        if issues:
+            return issues
         is_valid, error = self.validate_syntax(text)
         if is_valid:
             return []

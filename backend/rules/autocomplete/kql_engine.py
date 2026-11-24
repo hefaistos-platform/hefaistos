@@ -3,9 +3,21 @@ KQL format autocomplete engine
 """
 from typing import Dict, List, Optional, Tuple
 from django.db.models import Prefetch
+from . import lexical
 from .base import AutocompleteEngine
 from .suggestions import Suggestion, SuggestionKind
 from rules.models import KQLTable, KQLField, FieldMapping
+
+
+# KQL: // comments, '...' and "..." strings with backslash escapes, @'...'/@"..." verbatim
+# strings (quote doubled to escape) and ```multi-line``` strings.
+_KQL_LEXICAL_RULES = lexical.LexicalRules(
+    string_quotes=("'", '"'),
+    line_comments=("//",),
+    backslash_escape=True,
+    verbatim_prefix="@",
+    triple_backtick=True,
+)
 
 
 class KQLAutocompleteEngine(AutocompleteEngine):
@@ -97,14 +109,9 @@ class KQLAutocompleteEngine(AutocompleteEngine):
         return sorted(suggestions, key=score)
 
     def validate_syntax(self, text: str) -> Tuple[bool, Optional[str]]:
-        if text.count("(") != text.count(")"):
-            return False, "Unbalanced parentheses"
-
-        if text.count('"') % 2 != 0:
-            return False, "Unbalanced double quotes"
-
-        if text.count("'") % 2 != 0:
-            return False, "Unbalanced single quotes"
+        issues = lexical.scan(text, _KQL_LEXICAL_RULES)
+        if issues:
+            return False, issues[0]["message"]
 
         stripped = text.rstrip()
         if stripped.endswith("|"):
@@ -114,6 +121,10 @@ class KQLAutocompleteEngine(AutocompleteEngine):
 
     def validate_content(self, text: str) -> List[Dict]:
         """Return Monaco-friendly validation issues for KQL text."""
+        issues = lexical.scan(text, _KQL_LEXICAL_RULES)
+        if issues:
+            return issues
+
         is_valid, error = self.validate_syntax(text)
         if is_valid:
             return []

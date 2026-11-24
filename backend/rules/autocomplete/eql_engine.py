@@ -3,8 +3,21 @@ Elastic EQL autocomplete engine
 """
 
 from typing import Dict, List, Optional, Tuple
+from . import lexical
 from .base import AutocompleteEngine
 from .suggestions import Suggestion, SuggestionKind
+
+
+# EQL: // and /* */ comments, "..." strings with backslash escapes, """raw""" strings. Single
+# quotes were treated as a string delimiter by the previous validator and still are (stray
+# apostrophes outside a string/comment stay an error; inside "..." or comments they are fine).
+_EQL_LEXICAL_RULES = lexical.LexicalRules(
+    string_quotes=("'", '"'),
+    line_comments=("//",),
+    block_comments=True,
+    backslash_escape=True,
+    triple_quote=True,
+)
 
 
 class EQLAutocompleteEngine(AutocompleteEngine):
@@ -59,12 +72,9 @@ class EQLAutocompleteEngine(AutocompleteEngine):
         if not stripped:
             return False, "Empty EQL query"
 
-        if text.count("(") != text.count(")"):
-            return False, "Unbalanced parentheses"
-        if text.count('"') % 2 != 0:
-            return False, "Unbalanced double quotes"
-        if text.count("'") % 2 != 0:
-            return False, "Unbalanced single quotes"
+        issues = lexical.scan(text, _EQL_LEXICAL_RULES)
+        if issues:
+            return False, issues[0]["message"]
 
         lowered = stripped.lower()
         if lowered.endswith(("where", "and", "or", "by", "with")):
@@ -75,6 +85,9 @@ class EQLAutocompleteEngine(AutocompleteEngine):
         return True, None
 
     def validate_content(self, text: str) -> List[Dict]:
+        issues = lexical.scan(text, _EQL_LEXICAL_RULES)
+        if issues:
+            return issues
         is_valid, error = self.validate_syntax(text)
         if is_valid:
             return []
